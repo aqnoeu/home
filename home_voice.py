@@ -230,6 +230,7 @@ class VoiceManager(QObject):
         self.mode = None
         self.restart_wake = False
         self.dialog = None
+        self.pending_push = False
 
     def set_state(self, state):
         self.state.emit(state)
@@ -258,12 +259,17 @@ class VoiceManager(QObject):
     def on_finished(self, worker):
         if self.worker is worker:
             self.worker = None
+        if self.pending_push:
+            self.pending_push = False
+            self.start('push')
+            return
         if self.restart_wake and self.mode == "wake" and not self.speaker and self.prefs.get("voice_wake") and self.prefs.get("voice_microphone"):
             self.start("wake")
         elif not self.speaker:
             self.set_state("")
 
     def stop(self):
+        self.pending_push = False
         self.restart_wake = False
         self.mode = None
         if self.worker:
@@ -272,7 +278,12 @@ class VoiceManager(QObject):
 
     def toggle_push(self):
         if self.worker and self.worker.isRunning():
-            self.stop()
+            if self.mode == 'wake':
+                self.pending_push = True
+                self.restart_wake = False
+                self.worker.stop()
+            else:
+                self.stop()
         else:
             self.start("push")
 
@@ -407,6 +418,7 @@ class VoiceDialog(QDialog):
         self.download_worker.progress.connect(self.model_btn.setText)
         self.download_worker.failed.connect(lambda err: self.model_btn.setText("Falha: "+err[:100]))
         self.download_worker.completed.connect(lambda: self.model_btn.setText("✓ Modelo de português instalado"))
+        self.download_worker.completed.connect(self.manager.refresh_permissions)
         self.download_worker.finished.connect(lambda: self.model_btn.setEnabled(True))
         self.download_worker.start()
 
