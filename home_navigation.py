@@ -1,5 +1,6 @@
 """Navegação interna do Home: páginas incorporadas ao entalhe expandido."""
 from PySide6.QtCore import Qt, Signal
+from update_service import VERSION
 from PySide6.QtWidgets import (
     QWidget, QLabel, QPushButton, QHBoxLayout, QVBoxLayout, QGridLayout,
     QScrollArea, QFormLayout, QSpinBox, QFrame, QSizePolicy
@@ -115,7 +116,7 @@ class Workspace(QWidget):
         self.host_layout.setContentsMargins(2,3,2,3)
         self.scroll.setWidget(self.host)
         outer.addWidget(self.scroll,1)
-        self.footer=QLabel("Desenvolvido com @aqnoeu")
+        self.footer=QLabel(f"Desenvolvido com @aqnoeu   ·   v{VERSION}")
         self.footer.setStyleSheet("color:#858689;font-size:10px")
         outer.addWidget(self.footer)
 
