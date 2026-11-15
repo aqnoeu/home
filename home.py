@@ -31,6 +31,8 @@ class EyesWidget(QWidget):
         self.mood = 0
         self.gaze = 0.0
         self.target_gaze = 0.0
+        self.gaze_y = 0.0
+        self.target_gaze_y = 0.0
         self.next_look = time.monotonic() + 1.6
         self.next_blink = time.monotonic() + 2.5
         self.follow_mouse = False
@@ -48,11 +50,15 @@ class EyesWidget(QWidget):
             mouse = QCursor.pos()
             center = self.mapToGlobal(self.rect().center())
             dx = mouse.x() - center.x()
+            dy = mouse.y() - center.y()
             self.target_gaze = max(-1.,min(1.,dx / max(180.,self.width()*2.)))
+            self.target_gaze_y = max(-1.,min(1.,dy / 240.))
         elif now >= self.next_look:
             self.target_gaze = random.choice([-0.65, -0.35, 0.0, 0.35, 0.65])
             self.next_look = now + random.uniform(1.4, 3.7)
+            self.target_gaze_y = random.uniform(-.4, .4)
         self.gaze += (self.target_gaze - self.gaze) * 0.14
+        self.gaze_y += (self.target_gaze_y - self.gaze_y) * 0.14
         if now >= self.next_blink and self.blink_begin < 0:
             self.blink_begin = now
             self.next_blink = now + random.uniform(2.3, 5.0)
@@ -79,7 +85,7 @@ class EyesWidget(QWidget):
         height = max(2., eh * blink)
         for index in range(2):
             x = left + index * (ew + gap)
-            y = (h - height) / 2
+            y = (h - height) / 2 + self.gaze_y * min(4.,h*.12)
             path = QPainterPath()
             radius = min(ew * .36, height * .45, 9)
             path.addRoundedRect(x, y, ew, height, radius, radius)
