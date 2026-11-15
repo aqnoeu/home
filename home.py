@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 )
 from update_service import UpdateWorker, launch_update, VERSION
 from home_ui import HomePanel
+from home_integrations import load_preferences, save_preferences, ChromeBridge, IntegrationsDialog
 
 
 class EyesWidget(QWidget):
@@ -32,6 +33,8 @@ class EyesWidget(QWidget):
         self.target_gaze = 0.0
         self.next_look = time.monotonic() + 1.6
         self.next_blink = time.monotonic() + 2.5
+        self.follow_mouse = False
+        self.react_clicks = False
         self.blink_begin = -1.0
         self.timer = QTimer(self)
         self.timer.setInterval(40)
@@ -40,7 +43,13 @@ class EyesWidget(QWidget):
 
     def animate(self):
         now = time.monotonic()
-        if now >= self.next_look:
+        if self.follow_mouse:
+            from PySide6.QtGui import QCursor
+            mouse = QCursor.pos()
+            center = self.mapToGlobal(self.rect().center())
+            dx = mouse.x() - center.x()
+            self.target_gaze = max(-1.,min(1.,dx / max(180.,self.width()*2.)))
+        elif now >= self.next_look:
             self.target_gaze = random.choice([-0.65, -0.35, 0.0, 0.35, 0.65])
             self.next_look = now + random.uniform(1.4, 3.7)
         self.gaze += (self.target_gaze - self.gaze) * 0.14
@@ -178,6 +187,11 @@ class Home(QWidget):
         self.edit_dialog = None
         self.worker = None
         self.available_update = None
+        self.integration_prefs = load_preferences()
+        self.chrome_bridge = ChromeBridge(self.integration_prefs)
+        self.last_page = None
+        self.chrome_bridge.received.connect(self._remember_page)
+        self.eyes_dialog = None
         # Detecta clique externo mesmo quando outro programa recebe o foco.
         self._outside_timer = QTimer(self)
         self._outside_timer.setInterval(45)
@@ -190,6 +204,8 @@ class Home(QWidget):
         self.setAttribute(Qt.WA_NoSystemBackground, True)
         self.setMouseTracking(True)
         self.eyes = EyesWidget(self)
+        self.eyes.follow_mouse = self.integration_prefs['eyes_follow_mouse']
+        self.eyes.react_clicks = self.integration_prefs['eyes_react_clicks']
         self.panel = HomePanel(self)
         self.panel.hide()
         self.panel.mood_changed.connect(self.set_mood)
@@ -197,12 +213,29 @@ class Home(QWidget):
         self.update_btn = self.panel.update_btn
         self.edit_btn = self.panel.edit_btn
         self.quit_btn = self.panel.quit_btn
+        self.interactions_btn = self.panel.interactions_btn
+        self.interactions_btn.clicked.connect(self.open_integrations)
         self.update_btn.clicked.connect(self.update_clicked)
         self.edit_btn.clicked.connect(self.begin_edit)
         self.quit_btn.clicked.connect(QApplication.instance().quit)
         self.eyes.setFixedHeight(self.settings['closed_h'])
         self.setGeometry(self.target_rect())
         self.position_children()
+        try:
+            self.chrome_bridge.start()
+        except OSError:
+            pass  # Porta local indisponivel; a interface ainda funciona.
+
+    def _remember_page(self,title,url,content):
+        self.last_page = (title,url,content)
+
+    def open_integrations(self):
+        if self.editing:
+            return
+        dialog = IntegrationsDialog(self)
+        dialog.exec()
+        self.eyes.follow_mouse = self.integration_prefs['eyes_follow_mouse']
+        self.eyes.react_clicks = self.integration_prefs['eyes_react_clicks']
 
     def _watch_outside_click(self):
         if os.name != 'nt':
@@ -212,6 +245,8 @@ class Home(QWidget):
         down = left_down or right_down
         new_click = down and not self._mouse_was_down
         self._mouse_was_down = down
+        if new_click and getattr(self,'eyes',None) and self.eyes.react_clicks:
+            self.eyes.blink_begin = time.monotonic()
         if not new_click or not self.expanded or self.editing or self.drag:
             return
         # Nao fecha durante confirmacoes de atualizacao e caixas de aviso.
@@ -462,6 +497,7 @@ class Home(QWidget):
         QApplication.instance().quit()
 
     def closeEvent(self,event):
+        self.chrome_bridge.stop()
         self.save_settings()
         if self.edit_dialog:
             self.edit_dialog.close()
