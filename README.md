@@ -117,3 +117,10 @@ Caso você esteja usando o Home anterior, use **Atualizações** para receber a 
 ## Escolher a voz do Home
 
 No painel expandido, abra **Voz e microfone**. O seletor lista apenas as vozes **SAPI5 realmente disponíveis no Windows** (não inclui necessariamente as vozes naturais do Narrador). Escolha a voz, ajuste **Velocidade** (90–280) e **Volume** (0–100%) e clique em **Testar voz selecionada** para ouvir uma prévia mesmo sem microfone. As preferências são salvas em `.home_integrations.json` e aplicadas às respostas faladas do **Assistente** e dos comandos de voz. A opção **Automática** prioriza uma voz em português. Caso nenhuma voz SAPI5 esteja disponível, a interface apresenta o diagnóstico sem inventar opções.
+
+
+## Kokoro Alex — fala neural local (pt-BR)
+
+Em **Voz e microfone → Mecanismo de fala**, selecione **Alex — Kokoro**. Clique em **Instalar Alex** para baixar, uma única vez, os arquivos do modelo (~340 MB), armazenados em `%LOCALAPPDATA%\\Home\\models\\kokoro-v1.0`. Os arquivos são baixados por HTTPS da [release oficial do kokoro-onnx](https://github.com/thewh1teagle/kokoro-onnx/releases/tag/model-files-v1.1), com SHA-256 verificado antes da ativação. **O microfone não é necessário.** Depois da instalação, a geração é offline e o áudio é reproduzido no dispositivo pelo SoundDevice. O botão **Testar voz selecionada** permite ouvir Alex, e o Assistente digitado usa a mesma preferência.
+
+Se o modelo não estiver instalado, a síntese continua com a voz Windows SAPI5, sem impedir o uso do Home. Pode-se reverter para SAPI5 a qualquer momento, sem perder o modelo baixado. **Kokoro-82M**: Apache-2.0; biblioteca **kokoro-onnx**: MIT. Dependências do mecanismo de fonetização podem possuir outras licenças e devem ser consideradas em qualquer redistribuição. A integração foi organizada em `home_kokoro.py` para que uma futura versão Android possa reutilizar o contrato de síntese de áudio, ainda que necessite de um empacotamento e interface específicos.
