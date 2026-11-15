@@ -62,6 +62,15 @@ jobs:
           Compress-Archive -Path chrome-extension/* -DestinationPath release/Home-Chrome-Extension.zip -Force
           $hash = (Get-FileHash release/Home-Windows.zip -Algorithm SHA256).Hash.ToLower()
           "$hash  Home-Windows.zip" | Set-Content -Encoding ascii release/SHA256SUMS.txt
+      - name: Disponibilizar pacote para teste mesmo sem Release
+        uses: actions/upload-artifact@v4
+        with:
+          name: Home-Windows-candidato
+          path: |
+            release/Home-Windows.zip
+            release/Home-Chrome-Extension.zip
+            release/SHA256SUMS.txt
+          retention-days: 14
       - name: Publicar Release automaticamente
         shell: pwsh
         env:
