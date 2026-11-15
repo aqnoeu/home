@@ -67,7 +67,11 @@ class KokoroDownloadWorker(QThread):
             return
         try:
             MODEL_ROOT.mkdir(parents=True, exist_ok=True)
+            if self.isInterruptionRequested():
+                return
             for name, url in MODEL_URLS.items():
+                if self.isInterruptionRequested():
+                    return
                 dest = MODEL_ROOT / name
                 if dest.is_file() and MIN_SIZES[name] <= dest.stat().st_size <= MAX_SIZES[name]:
                     continue
@@ -83,6 +87,8 @@ class KokoroDownloadWorker(QThread):
                             total = 0
                             digest = hashlib.sha256()
                             while True:
+                                if self.isInterruptionRequested():
+                                    return
                                 chunk = response.read(512 * 1024)
                                 if not chunk:
                                     break
