@@ -252,6 +252,8 @@ class VoiceManager(QObject):
         self.pending_push = False
         self.last_error = ""
         self.pending_action = None
+        self.pending_phrase = ""
+        self.download_worker = None
 
     def set_state(self, state):
         self.state.emit(state)
@@ -336,11 +338,13 @@ class VoiceManager(QObject):
             return
         # A confirmação aparece dentro da página Voz, nunca em um popup.
         self.pending_action = (key, response)
+        self.pending_phrase = phrase
         self.confirmation_requested.emit(phrase, key)
 
     def decide_pending(self, approved):
         pending = self.pending_action
         self.pending_action = None
+        self.pending_phrase = ""
         if not pending:
             return
         if not approved:
@@ -440,6 +444,8 @@ class VoiceDialog(QDialog):
         confirmation_layout.addLayout(buttons)
         self.confirm.hide()
         outer.addWidget(self.confirm)
+        if self.manager.pending_action:
+            self.show_confirmation(self.manager.pending_phrase, self.manager.pending_action[0])
         self.download_worker=None
         if model_is_complete():
             self.model_btn.setText("✓ Modelo de português instalado")
@@ -459,15 +465,9 @@ class VoiceDialog(QDialog):
     def download(self):
         if self.download_worker and self.download_worker.isRunning():
             return
-        answer=QMessageBox.question(
-            self,"Baixar modelo de voz",
-            "Baixar o modelo português do site oficial Vosk?\n"
-            "O download fica armazenado somente no seu computador.",
-            QMessageBox.Yes|QMessageBox.No,QMessageBox.No)
-        if answer != QMessageBox.Yes:
-            return
         self.model_btn.setEnabled(False)
-        self.download_worker=ModelDownloader(self)
+        self.download_worker=ModelDownloader(self.manager)
+        self.manager.download_worker=self.download_worker
         self.download_worker.progress.connect(self.model_btn.setText)
         self.download_worker.failed.connect(lambda err: self.model_btn.setText("Falha: "+err[:100]))
         self.download_worker.completed.connect(lambda: self.model_btn.setText("✓ Modelo de português instalado"))
