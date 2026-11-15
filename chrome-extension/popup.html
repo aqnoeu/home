@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="pt-BR">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Home — Chrome</title><link rel="stylesheet" href="popup.css"></head>
+<body>
+<main>
+  <h1>Home</h1>
+  <p>Você escolhe o que compartilhar. Nada é lido automaticamente.</p>
+  <label for="code">Código de conexão (copie no Home → Interações)</label>
+  <input id="code" type="password" autocomplete="off" placeholder="Cole o código do Home">
+  <button id="save" type="button">Salvar código neste navegador</button>
+  <hr>
+  <p class="warning">Ao compartilhar, o título, o endereço e até 5.000 caracteres visíveis da aba vão ao Home local. Evite páginas com dados sensíveis.</p>
+  <button id="share" type="button">Compartilhar esta aba com Home</button>
+  <p id="result" role="status" aria-live="polite"></p>
+</main>
+<script src="popup.js"></script>
+</body></html>
