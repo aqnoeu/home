@@ -384,6 +384,8 @@ class VoiceManager(QObject):
         # A confirmação aparece dentro da página Voz, nunca em um popup.
         self.pending_action = (key, response)
         self.pending_phrase = phrase
+        # A espera por confirmação não deve manter os olhos em "pensando".
+        self.set_state("Confirmação pendente.")
         self.confirmation_requested.emit(phrase, key)
 
     def decide_pending(self, approved):
@@ -441,12 +443,14 @@ class VoiceManager(QObject):
             next_message = self.speech_queue.pop(0)
             self.speak(next_message, force=True)
             return
+        # Sempre encerrar visualmente a fala antes de tentar reativar o microfone.
+        # start("wake") pode sair cedo se o worker anterior ainda estiver ativo.
+        self.set_state("")
         if self.restart_wake and self.prefs.get("voice_wake") and self.prefs.get("voice_microphone"):
             self.mode = "wake"
             if not self.worker or not self.worker.isRunning():
                 self.start("wake")
-        else:
-            self.set_state("")
+
 
 
 class VoiceDialog(QDialog):
