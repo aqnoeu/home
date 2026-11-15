@@ -29,11 +29,18 @@ def load_preferences():
     base = {"eyes_follow_mouse": False, "eyes_react_clicks": False,
             "windows_controls": False, "chrome_reading": False,
             "voice_microphone": False, "voice_wake": False, "voice_speech": False,
+            "voice_id": "", "voice_rate": 165, "voice_volume": 100,
             "token": secrets.token_urlsafe(32)}
     try:
         source = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
         for key in base:
             if key == "token" and isinstance(source.get(key), str) and len(source[key]) >= 32:
+                base[key] = source[key]
+            elif key in ("voice_id",) and isinstance(source.get(key), str) and len(source[key]) < 512:
+                base[key] = source[key]
+            elif key == "voice_rate" and type(source.get(key)) is int and 90 <= source[key] <= 280:
+                base[key] = source[key]
+            elif key == "voice_volume" and type(source.get(key)) is int and 0 <= source[key] <= 100:
                 base[key] = source[key]
             elif key != "token" and isinstance(source.get(key), bool):
                 base[key] = source[key]
