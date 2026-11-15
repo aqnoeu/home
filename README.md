@@ -28,7 +28,7 @@ Não existe atualização automática sem confirmação do usuário. As configur
 ## Compilação e publicação
 O workflow `.github/workflows/windows-release.yml` compila `Home.exe` e `HomeUpdater.exe` com PyInstaller em runner Windows.
 
-**Somente execução manual:** Actions → Publicar Home para Windows → Run workflow, informando a versão que consta em `update_service.py` e as notas aprovadas. Um commit normal não dispara Release.
+**Release automática:** alterações em `home.py`, `update_service.py`, `updater.py` ou `requirements.txt` enviadas à branch `main` acionam o GitHub Actions. A versão patch aumenta automaticamente, os executáveis são compilados e uma nova Release é publicada se a compilação passar. Também é possível iniciar manualmente em Actions. **Publicar código na main agora significa autorizar sua publicação como Release**, sem etapa adicional de aprovação.
 
 Ainda não há .exe validado em uma máquina Windows nesta etapa; trate a versão como candidata a testes até a aprovação.
 
