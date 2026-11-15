@@ -108,7 +108,9 @@ class EyesWidget(QWidget):
         elif self.voice_state == 'thinking':
             height_factor = 0.72
         elif self.voice_state == 'speaking':
-            height_factor = 0.86 + 0.14 * math.sin(time.monotonic() * 13)
+            # Fala: expressão estável, sem pulsação por frame.
+            # A oscilação anterior (~2 Hz) parecia um loop de esticar/comprimir.
+            height_factor = 0.96
         else:
             height_factor = 1.0
         blink *= height_factor
