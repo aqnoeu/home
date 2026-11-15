@@ -58,3 +58,39 @@ As preferências das integrações ficam em `~/.home_integrations.json` e são p
 
 ### Status
 Compilação e verificação de sintaxe são realizadas por GitHub Actions em Windows. Reações do mouse, execução dos aplicativos e leitura do Chrome dependem de teste manual no computador do usuário. Não execute arquivos de fontes não confiáveis.
+
+
+## Voz e microfone (Home Voice)
+
+O Home inclui um cartão **Voz e microfone** com dois modos: **Falar agora** (botão) e ativação por **"Ei, Home"** (opcional). Ambos usam reconhecimento offline em português pelo Vosk e respostas pelas vozes locais do Windows (pyttsx3/SAPI5).
+
+### Primeira configuração
+
+1. Atualize o Home pelo botão **Atualizações** após a publicação da Release que inclui o módulo de voz.
+2. Abra **Voz e microfone** no Home expandido.
+3. Clique em **Baixar modelo de português (aprox. 31 MB)** e confirme. O download é feito do [site oficial do Vosk](https://alphacephei.com/vosk/models), para a pasta `%LOCALAPPDATA%\Home\models\vosk-model-small-pt-0.3`.
+4. Ative **Permitir que o Home use o microfone**. O padrão é **desativado**.
+5. Para falar pelo botão, clique em **Falar agora / parar**. Para invocar sem clicar, ative **Escuta contínua de "Ei, Home"**. Esse segundo modo mantém o microfone aberto localmente enquanto ligado.
+6. Ative **Permitir respostas faladas** se quiser ouvir a resposta no alto-falante.
+7. Para executar controles do Windows por voz, ative **Permitir controles do Windows** em **Interações**; cada comando reconhecido ainda solicita confirmação antes de agir.
+
+### Comandos iniciais
+- "Ei, Home, abra a calculadora"
+- "Ei, Home, abra o Bloco de Notas"
+- "Ei, Home, abra o Explorador de Arquivos"
+- "Ei, Home, aumente o volume"
+- "Ei, Home, pause a música"
+
+Também pode dizer os mesmos comandos diretamente pelo botão, sem "Ei, Home". Ainda não há um modelo conversacional de IA: respostas são mensagens associadas a comandos seguros predeterminados.
+
+### Privacidade e limitações
+- Microfone, escuta da palavra de ativação e voz sintetizada têm controles independentes, todos **desativados por padrão**.
+- A transcrição roda no computador: **nenhuma gravação ou texto é enviado a servidor de IA**; o Home não salva áudio.
+- O Home mostra um indicador discreto quando o microfone está ativo.
+- O modo "Ei, Home" usa reconhecimento contínuo local de frases, não um detector de palavra-chave dedicado: pode reconhecer incorretamente ou ignorar frases, especialmente em ambientes ruidosos.
+- O sistema de fala utiliza vozes **instaladas** no Windows. Se não houver uma voz portuguesa, a qualidade ou o idioma da fala poderá variar.
+- O modelo Vosk não é incluído no executável e é baixado somente com autorização.
+- Microfones bloqueados nas configurações de privacidade do Windows precisam ser autorizados no próprio sistema.
+- É possível desativar o microfone a qualquer momento no menu **Voz e microfone**.
+
+O projeto continua com a aparência grafite, o Modo Edição, a extensão opcional para Chrome, olhos interativos e atualizador por GitHub Releases.
