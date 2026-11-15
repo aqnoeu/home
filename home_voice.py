@@ -338,7 +338,7 @@ class VoiceManager(QObject):
         self.set_state("speaking")
         self.speaker = SpeechWorker(message)
         speaker = self.speaker
-        speaker.done.connect(lambda: self.speech_finished(speaker))
+        speaker.finished.connect(lambda: self.speech_finished(speaker))
         speaker.failed.connect(lambda error: self.state.emit("Voz indisponível: " + error[:90]))
         speaker.start()
 
