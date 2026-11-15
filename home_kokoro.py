@@ -4,6 +4,7 @@ Arquivos do modelo só são baixados após ação explícita do usuário. O
 motor recebe texto e devolve amostras: o aplicativo escolhe como reproduzi-las.
 """
 import os
+import hashlib
 import tempfile
 import urllib.request
 from pathlib import Path
@@ -17,6 +18,10 @@ MODEL_URLS = {
     "voices-v1.0.bin": "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.1/voices-v1.0.bin",
 }
 # Limites conservadores para rejeitar conteúdos incompletos / downloads inesperados.
+MODEL_SHA256 = {
+    "kokoro-v1.0.onnx": "beb0d1848dee9a49da392cc3df26958d46cfa35d321edf434f52949153f0df3a",
+    "voices-v1.0.bin": "bca610b8308e8d99f32e6fe4197e7ec01679264efed0cac9140fe9c29f1fbf7d",
+}
 MIN_SIZES = {"kokoro-v1.0.onnx": 100_000_000, "voices-v1.0.bin": 500_000}
 MAX_SIZES = {"kokoro-v1.0.onnx": 500_000_000, "voices-v1.0.bin": 50_000_000}
 PREVIEW_TEXT = "Olá! Eu sou o Home. Esta é a voz Alex, em português brasileiro."
@@ -76,6 +81,7 @@ class KokoroDownloadWorker(QThread):
                             if not response.url.startswith("https://"):
                                 raise RuntimeError("Origem do modelo não utiliza HTTPS.")
                             total = 0
+                            digest = hashlib.sha256()
                             while True:
                                 chunk = response.read(512 * 1024)
                                 if not chunk:
@@ -84,10 +90,13 @@ class KokoroDownloadWorker(QThread):
                                 if total > MAX_SIZES[name]:
                                     raise RuntimeError("Arquivo maior que o tamanho esperado.")
                                 output.write(chunk)
+                                digest.update(chunk)
                                 if total % (20 * 1024 * 1024) < len(chunk):
                                     self.progress.emit(f"Baixando {name}: {total // 1048576} MB")
                     if total < MIN_SIZES[name]:
                         raise RuntimeError("Download incompleto: " + name)
+                    if digest.hexdigest() != MODEL_SHA256[name]:
+                        raise RuntimeError("Integridade SHA-256 inválida para " + name)
                     os.replace(temporary, dest)
                 finally:
                     if os.path.exists(temporary):
