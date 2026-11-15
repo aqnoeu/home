@@ -246,6 +246,7 @@ class VoiceManager(QObject):
         self.prefs = home.integration_prefs
         self.worker = None
         self.speaker = None
+        self.speech_queue = []
         self.mode = None
         self.restart_wake = False
         self.dialog = None
@@ -361,6 +362,10 @@ class VoiceManager(QObject):
             self.speak("Não consegui executar o comando.")
 
     def speak(self, message, force=False):
+        if self.speaker and self.speaker.isRunning():
+            self.speech_queue.append(message)
+            self.speech_queue = self.speech_queue[-5:]
+            return
         if not force and not self.prefs.get("voice_speech"):
             self.set_state(message)
             if self.restart_wake and (not self.worker or not self.worker.isRunning()):
@@ -379,6 +384,10 @@ class VoiceManager(QObject):
     def speech_finished(self, speaker):
         if self.speaker is speaker:
             self.speaker = None
+        if self.speech_queue:
+            next_message = self.speech_queue.pop(0)
+            self.speak(next_message, force=True)
+            return
         if self.restart_wake and self.prefs.get("voice_wake") and self.prefs.get("voice_microphone"):
             self.mode = "wake"
             if not self.worker or not self.worker.isRunning():
