@@ -17,15 +17,14 @@ class EyeSpeechTests(unittest.TestCase):
     def setUp(self):
         self.eyes = EyesWidget()
         self.eyes.timer.stop()
-        self.parent = QWidget()
-        self.home = MagicMock()
+        self.home = QWidget()
         self.home.eyes = self.eyes
         self.home.integration_prefs = {"voice_wake": False, "voice_microphone": False}
         self.manager = VoiceManager(self.home)
 
     def tearDown(self):
         self.eyes.close()
-        self.parent.close()
+        self.home.close()
 
     def test_speech_completion_always_clears_visual_state(self):
         speaker = MagicMock()
