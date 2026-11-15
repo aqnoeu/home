@@ -416,6 +416,8 @@ class Home(QWidget):
         self.apply_settings()
         if self.edit_dialog:
             self.edit_dialog.sync()
+        if self.page == 'edit' and hasattr(self.workspace.current, 'sync'):
+            self.workspace.current.sync()
 
     def paintEvent(self,event):
         p = QPainter(self)
