@@ -85,6 +85,14 @@ jobs:
           page.send()
           assert spoken and spoken[-1][1] is True
           assert any('Não preciso do microfone' in msg for role,msg in home.assistant_history if role=='home')
+          home.navigate('voice')
+          voice_page = home.workspace.current
+          assert voice_page.voice_combo.count() >= 1
+          assert voice_page.rate_slider.value() >= 90
+          voice_page.rate_slider.setValue(190)
+          voice_page.volume_slider.setValue(65)
+          assert home.integration_prefs['voice_rate'] == 190
+          assert home.integration_prefs['voice_volume'] == 65
           home.navigate('hub')
           assert home.page == 'hub'
           home.collapse()
@@ -94,7 +102,7 @@ jobs:
           '@ | Set-Content navigation_smoke.py -Encoding utf8
           python navigation_smoke.py
       - name: Compilar Home
-        run: pyinstaller --noconfirm --clean --onefile --windowed --collect-all vosk --collect-binaries sounddevice --hidden-import sounddevice --hidden-import pyttsx3 --hidden-import pyttsx3.drivers.sapi5 --name Home home.py
+        run: pyinstaller --noconfirm --clean --onefile --windowed --collect-all vosk --collect-binaries sounddevice --hidden-import sounddevice --hidden-import pyttsx3 --hidden-import pythoncom --hidden-import pyttsx3.drivers.sapi5 --name Home home.py
       - name: Verificar biblioteca nativa Vosk no Home.exe
         shell: pwsh
         run: |
