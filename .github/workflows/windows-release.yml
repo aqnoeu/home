@@ -1,0 +1,51 @@
+name: Publicar Home para Windows (aprovacao manual)
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Versao aprovada, por exemplo 0.7.0'
+        required: true
+        type: string
+      notes:
+        description: 'Notas da versao aprovada'
+        required: true
+        type: string
+permissions:
+  contents: write
+jobs:
+  windows-release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validar numero da versao
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          if ($env:RELEASE_VERSION -notmatch '^\d+\.\d+\.\d+$') { throw 'Versao invalida' }
+          $source = Get-Content update_service.py -Raw
+          if ($source -notmatch "VERSION = '$([regex]::Escape($env:RELEASE_VERSION))'") { throw 'Versao nao corresponde ao codigo' }
+      - name: Instalar ferramentas
+        run: python -m pip install --upgrade PySide6 pyinstaller
+      - name: Compilar aplicativo
+        run: pyinstaller --noconfirm --clean --onefile --windowed --name Home home.py
+      - name: Compilar atualizador
+        run: pyinstaller --noconfirm --clean --onefile --windowed --name HomeUpdater updater.py
+      - name: Empacotar e gerar checksum
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release | Out-Null
+          Compress-Archive -Path dist/Home.exe,dist/HomeUpdater.exe -DestinationPath release/Home-Windows.zip -Force
+          $hash = (Get-FileHash release/Home-Windows.zip -Algorithm SHA256).Hash.ToLower()
+          "$hash  Home-Windows.zip" | Set-Content -Encoding ascii release/SHA256SUMS.txt
+      - name: Publicar somente apos acionamento manual
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_NOTES: ${{ inputs.notes }}
+        run: |
+          gh release create "v$env:RELEASE_VERSION" release/Home-Windows.zip release/SHA256SUMS.txt --title "Home v$env:RELEASE_VERSION" --notes "$env:RELEASE_NOTES" --target "$env:GITHUB_SHA"
