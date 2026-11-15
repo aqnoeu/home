@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/windows-release.yml'
       - 'home.py'
+      - 'home_navigation.py'
       - 'home_ui.py'
       - 'home_integrations.py'
       - 'home_voice.py'
@@ -52,16 +53,42 @@ jobs:
       - name: Instalar dependencias
         run: python -m pip install --upgrade -r requirements.txt pyinstaller
       - name: Verificar sintaxe
-        run: python -m py_compile home.py home_ui.py home_integrations.py home_voice.py updater.py update_service.py
+        run: python -m py_compile home.py home_ui.py home_navigation.py home_integrations.py home_voice.py updater.py update_service.py
       - name: Testar comandos de voz e wake word
         run: python -m unittest discover -s tests -v
+      - name: Testar navegacao interna sem popups
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          @'
+          from PySide6.QtWidgets import QApplication
+          from home import Home
+          app=QApplication([])
+          home=Home()
+          home.show()
+          home.toggle()
+          for section in ('voice','integrations','edit','updates','exit'):
+              home.navigate(section)
+              assert home.page == section
+              assert home.workspace.current is not None
+              assert not home.workspace.current.isWindow(), section
+              assert home.width() >= 380
+          home.navigate('hub')
+          assert home.page == 'hub'
+          home.collapse()
+          assert not home.expanded
+          home.shutdown()
+          print('Navegacao integrada verificada.')
+          '@ | Set-Content navigation_smoke.py -Encoding utf8
+          python navigation_smoke.py
       - name: Compilar Home
         run: pyinstaller --noconfirm --clean --onefile --windowed --collect-all vosk --collect-binaries sounddevice --hidden-import sounddevice --hidden-import pyttsx3 --hidden-import pyttsx3.drivers.sapi5 --name Home home.py
       - name: Verificar biblioteca nativa Vosk no Home.exe
         shell: pwsh
         run: |
           $contents = (pyi-archive_viewer -l dist/Home.exe | Out-String)
-          if ($contents -notmatch 'vosk[/\\\\]libvosk\\.dll') {
+          if ($contents -notmatch 'libvosk[.]dll') {
             throw 'O executavel nao contem vosk/libvosk.dll; compilacao bloqueada.'
           }
           Write-Host 'Vosk DLL incluida no executavel.'
