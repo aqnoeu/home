@@ -210,25 +210,30 @@ class ListeningWorker(QThread):
 
 
 class VoicesWorker(QThread):
-    """Enumeração SAPI5 fora da thread principal para não travar a interface."""
+    """Enumeração SAPI5 fora da interface; inicialização COM por thread."""
     loaded = Signal(object)
     failed = Signal(str)
 
     def run(self):
+        import pythoncom
+        pythoncom.CoInitialize()
         try:
             import pyttsx3
             engine = pyttsx3.init(driverName="sapi5")
-            voices = []
-            for v in engine.getProperty("voices"):
-                voices.append((str(v.id), str(v.name), str(v.languages)))
+            voices = [
+                (str(v.id), str(v.name), str(v.languages))
+                for v in engine.getProperty("voices")
+            ]
             engine.stop()
             self.loaded.emit(voices)
         except Exception as exc:
             self.failed.emit(str(exc))
+        finally:
+            pythoncom.CoUninitialize()
 
 
 def preferred_voice(voices, selected_id=""):
-    """Retorna o ID salvo quando disponível ou a primeira voz em português."""
+    """Retorna o ID salvo se existir; do contrário, prefere português."""
     available = [(str(v.id), str(v.name), str(v.languages)) for v in voices]
     if selected_id and any(voice_id == selected_id for voice_id, _, _ in available):
         return selected_id
@@ -251,6 +256,8 @@ class SpeechWorker(QThread):
         self.volume = max(0, min(100, int(volume)))
 
     def run(self):
+        import pythoncom
+        pythoncom.CoInitialize()
         try:
             import pyttsx3
             engine = pyttsx3.init(driverName="sapi5")
@@ -264,7 +271,9 @@ class SpeechWorker(QThread):
             engine.stop()
         except Exception as exc:
             self.failed.emit(str(exc))
-        self.done.emit()
+        finally:
+            pythoncom.CoUninitialize()
+            self.done.emit()
 
 
 class VoiceManager(QObject):
