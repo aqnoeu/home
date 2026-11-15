@@ -4,6 +4,7 @@ on:
     branches: [main]
     paths:
       - 'home.py'
+      - 'home_ui.py'
       - 'update_service.py'
       - 'updater.py'
       - 'requirements.txt'
