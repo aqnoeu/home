@@ -64,6 +64,7 @@ class Workspace(QWidget):
         self.home=home
         self.section="hub"
         self.current=None
+        self._stretch=None
         self.setStyleSheet("""
             QWidget#workspace{background:#17181a;border:1px solid #3d4042;border-radius:19px}
             QWidget#pagehost{background:transparent;border:none}
@@ -120,6 +121,9 @@ class Workspace(QWidget):
             old=self.current
             self.current=None
             self.host_layout.removeWidget(old)
+            if self._stretch is not None:
+                self.host_layout.removeItem(self._stretch)
+                self._stretch=None
             if hasattr(old,"disconnect_signals"):
                 old.disconnect_signals()
             if hasattr(old,"home") and hasattr(old,"page_text"):
@@ -157,6 +161,7 @@ class Workspace(QWidget):
                 button.clicked.connect(lambda:self.requested.emit("hub"))
         self.host_layout.addWidget(page)
         self.host_layout.addStretch()
+        self._stretch=self.host_layout.itemAt(self.host_layout.count()-1)
         self.current=page
         page.show()
         self.scroll.verticalScrollBar().setValue(0)
