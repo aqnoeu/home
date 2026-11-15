@@ -64,6 +64,9 @@ jobs:
         run: |
           @'
           from PySide6.QtWidgets import QApplication
+          from home_voice import VoicesWorker
+          # No teste headless, usar catálogo fictício; não inicializar SAPI/COM.
+          VoicesWorker.run = lambda self: self.loaded.emit([("voice-test", "Voz de teste", "pt-BR")])
           from home import Home
           app=QApplication([])
           home=Home()
