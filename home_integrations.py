@@ -30,11 +30,14 @@ def load_preferences():
             "windows_controls": False, "chrome_reading": False,
             "voice_microphone": False, "voice_wake": False, "voice_speech": False,
             "voice_id": "", "voice_rate": 165, "voice_volume": 100,
+            "voice_engine": "kokoro",
             "token": secrets.token_urlsafe(32)}
     try:
         source = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
         for key in base:
             if key == "token" and isinstance(source.get(key), str) and len(source[key]) >= 32:
+                base[key] = source[key]
+            elif key == "voice_engine" and source.get(key) in ("kokoro", "sapi5"):
                 base[key] = source[key]
             elif key in ("voice_id",) and isinstance(source.get(key), str) and len(source[key]) < 512:
                 base[key] = source[key]
