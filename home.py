@@ -208,6 +208,7 @@ class Home(QWidget):
         self.integration_prefs = load_preferences()
         self.chrome_bridge = ChromeBridge(self.integration_prefs)
         self.last_page = None
+        self.assistant_history = []
         self.chrome_bridge.received.connect(self._remember_page)
         self.eyes_dialog = None
         # Detecta clique externo mesmo quando outro programa recebe o foco.
