@@ -1,5 +1,7 @@
 """Home v0.7 — widget notch Windows; olhos animados, edicao e atualizador."""
 import json
+import ctypes
+import os
 import math
 import random
 import sys
@@ -176,6 +178,12 @@ class Home(QWidget):
         self.edit_dialog = None
         self.worker = None
         self.available_update = None
+        # Detecta clique externo mesmo quando outro programa recebe o foco.
+        self._outside_timer = QTimer(self)
+        self._outside_timer.setInterval(45)
+        self._outside_timer.timeout.connect(self._watch_outside_click)
+        self._mouse_was_down = False
+        self._outside_timer.start()
         self.setWindowTitle(f'Home v{VERSION}')
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
         self.setAttribute(Qt.WA_TranslucentBackground, True)
@@ -195,6 +203,24 @@ class Home(QWidget):
         self.eyes.setFixedHeight(self.settings['closed_h'])
         self.setGeometry(self.target_rect())
         self.position_children()
+
+    def _watch_outside_click(self):
+        if os.name != 'nt':
+            return
+        left_down = bool(ctypes.windll.user32.GetAsyncKeyState(0x01) & 0x8000)
+        right_down = bool(ctypes.windll.user32.GetAsyncKeyState(0x02) & 0x8000)
+        down = left_down or right_down
+        new_click = down and not self._mouse_was_down
+        self._mouse_was_down = down
+        if not new_click or not self.expanded or self.editing or self.drag:
+            return
+        # Nao fecha durante confirmacoes de atualizacao e caixas de aviso.
+        if QApplication.activeModalWidget() is not None:
+            return
+        from PySide6.QtGui import QCursor
+        cursor_pos = QCursor.pos()
+        if not self.geometry().contains(cursor_pos):
+            self.toggle()
 
     def position_children(self):
         if self.expanded:
