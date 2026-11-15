@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QFormLayout, QSpinBox, QDialog, QHBoxLayout, QGroupBox, QSizePolicy
 )
 from update_service import UpdateWorker, launch_update, VERSION
+from home_ui import HomePanel
 
 
 class EyesWidget(QWidget):
@@ -99,7 +100,7 @@ class EditDialog(QDialog):
         self.setWindowFlags(Qt.Window | Qt.WindowStaysOnTopHint)
         self.setMinimumWidth(330)
         self.setStyleSheet("""
-            QDialog {background:#141a24;color:white}
+            QDialog {background:#191a1c;color:white}
             QLabel,QGroupBox {color:#e9eef6}
             QGroupBox {border:1px solid #374251;border-radius:8px;margin-top:9px;padding:10px}
             QGroupBox::title {subcontrol-origin:margin;left:10px;padding:0 5px}
@@ -108,11 +109,11 @@ class EditDialog(QDialog):
             QPushButton:hover {background:#456384}
         """)
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel('Arraste as alcas azuis da direita e de baixo.\nAlterne entre os tamanhos recolhido e expandido.'))
+        layout.addWidget(QLabel('Arraste as alcas da direita e de baixo.\nAlterne entre os tamanhos recolhido e expandido.'))
         self.inputs = {}
         groups = [
             ('Recolhido', [('closed_w', 'Largura', 115, 650), ('closed_h', 'Altura', 18, 110)]),
-            ('Expandido', [('open_w', 'Largura', 260, 850), ('open_h', 'Altura', 190, 650)]),
+            ('Expandido', [('open_w', 'Largura', 380, 850), ('open_h', 'Altura', 265, 650)]),
             ('Posicao', [('offset', 'Distancia da esquerda', 0, 5000)])
         ]
         for title, fields in groups:
@@ -162,7 +163,7 @@ class EditDialog(QDialog):
 
 class Home(QWidget):
     CONFIG = Path.home() / '.home_notch.json'
-    DEFAULTS = dict(offset=36,closed_w=180,closed_h=22,open_w=380,open_h=265)
+    DEFAULTS = dict(offset=36,closed_w=180,closed_h=22,open_w=520,open_h=350)
     SHOULDER = 15
 
     def __init__(self):
@@ -181,30 +182,37 @@ class Home(QWidget):
         self.setAttribute(Qt.WA_NoSystemBackground, True)
         self.setMouseTracking(True)
         self.eyes = EyesWidget(self)
-        self.status = QLabel('●  Em espera')
-        self.status.setAlignment(Qt.AlignCenter)
-        self.status.setStyleSheet('color:#79e3c4;background:transparent')
-        self.mood_btn = QPushButton('Expressao: Normal')
-        self.mood_btn.clicked.connect(self.next_mood)
-        self.update_btn = QPushButton('↻  Verificar atualizacoes')
+        self.panel = HomePanel(self)
+        self.panel.hide()
+        self.panel.mood_changed.connect(self.set_mood)
+        self.panel.more.clicked.connect(self.next_mood)
+        self.update_btn = self.panel.update_btn
+        self.edit_btn = self.panel.edit_btn
+        self.quit_btn = self.panel.quit_btn
         self.update_btn.clicked.connect(self.update_clicked)
-        self.edit_btn = QPushButton('✎  Editar tamanho')
         self.edit_btn.clicked.connect(self.begin_edit)
-        self.quit_btn = QPushButton('Fechar Home')
         self.quit_btn.clicked.connect(QApplication.instance().quit)
-        self.controls = (self.status,self.mood_btn,self.update_btn,self.edit_btn,self.quit_btn)
-        for btn in (self.mood_btn,self.update_btn,self.edit_btn,self.quit_btn):
-            btn.setCursor(Qt.PointingHandCursor)
-            btn.setStyleSheet('QPushButton{color:white;background:#253144;padding:7px;border-radius:8px} QPushButton:hover{background:#33465e}')
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(27,0,27,0)
-        layout.setSpacing(5)
-        layout.addWidget(self.eyes)
-        for item in self.controls:
-            layout.addWidget(item)
-            item.hide()
         self.eyes.setFixedHeight(self.settings['closed_h'])
         self.setGeometry(self.target_rect())
+        self.position_children()
+
+    def position_children(self):
+        if self.expanded:
+            eye_h = min(38, max(24, self.height() // 9))
+            panel_y = min(77, max(52, int(self.height() * .22)))
+            self.eyes.setFixedHeight(eye_h)
+            self.eyes.setGeometry(24, 3, max(30, self.width()-48), eye_h)
+            self.panel.setGeometry(15, panel_y, max(1,self.width()-30), max(1,self.height()-panel_y-5))
+        else:
+            eye_h = self.settings['closed_h']
+            self.eyes.setFixedHeight(eye_h)
+            self.eyes.setGeometry(17, 0, max(30,self.width()-34), eye_h)
+        self.eyes.raise_()
+
+    def resizeEvent(self,event):
+        super().resizeEvent(event)
+        if hasattr(self,'panel'):
+            self.position_children()
 
     def load_settings(self):
         data = dict(self.DEFAULTS)
@@ -242,6 +250,7 @@ class Home(QWidget):
         if not self.expanded:
             self.eyes.setFixedHeight(self.settings['closed_h'])
         self.setGeometry(self.target_rect())
+        self.position_children()
         self.save_settings()
         self.update()
 
@@ -270,9 +279,9 @@ class Home(QWidget):
         shape.lineTo(s,s)
         shape.cubicTo(s,s*.38,s*.52,0,0,0)
         shape.closeSubpath()
-        p.fillPath(shape,QColor('#05070b'))
+        p.fillPath(shape,QColor('#060607'))
         if self.editing:
-            p.setPen(QPen(QColor('#49cbe8'),1.7,Qt.DashLine))
+            p.setPen(QPen(QColor('#8d8e90'),1.7,Qt.DashLine))
             p.drawPath(shape)
             p.setPen(Qt.NoPen)
             p.setBrush(QColor('#49cbe8'))
@@ -304,7 +313,7 @@ class Home(QWidget):
 
     def resize_drag(self,kind,initial,current,start):
         key = ('open_w' if self.expanded else 'closed_w') if kind=='width' else ('open_h' if self.expanded else 'closed_h')
-        bounds = {'open_w':(260,850),'closed_w':(115,650),'open_h':(190,650),'closed_h':(18,110)}
+        bounds = {'open_w':(380,850),'closed_w':(115,650),'open_h':(265,650),'closed_h':(18,110)}
         low,high = bounds[key]
         self.change_setting(key,max(low,min(high,start+round(current-initial))))
 
@@ -339,17 +348,21 @@ class Home(QWidget):
         else:
             super().mouseReleaseEvent(event)
 
+    def set_mood(self,index):
+        self.eyes.mood = {0:0,1:1,2:3}.get(index,0)
+        self.panel.set_mood(index)
+        self.eyes.update()
+
     def next_mood(self):
-        self.eyes.mood=(self.eyes.mood+1)%len(EyesWidget.MOODS)
-        self.mood_btn.setText('Expressao: '+EyesWidget.MOODS[self.eyes.mood])
+        self.eyes.mood = (self.eyes.mood+1) % len(EyesWidget.MOODS)
+        index={0:0,1:1,3:2}.get(self.eyes.mood,-1)
+        self.panel.set_mood(index)
         self.eyes.update()
 
     def toggle(self):
         self.expanded = not self.expanded
-        self.layout().setContentsMargins(27,4,27,8) if self.expanded else self.layout().setContentsMargins(27,0,27,0)
-        self.eyes.setFixedHeight(36 if self.expanded else self.settings['closed_h'])
-        for item in self.controls:
-            item.setVisible(self.expanded)
+        self.panel.setVisible(self.expanded)
+        self.position_children()
         if hasattr(self,'animation'):
             self.animation.stop()
         self.animation=QPropertyAnimation(self,b'geometry',self)
@@ -368,6 +381,7 @@ class Home(QWidget):
                 self.edit_dialog.activateWindow()
             return
         self.editing=True
+        self.panel.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         self.edit_dialog=EditDialog(self)
         self.edit_dialog.finished.connect(self.end_edit)
         self.edit_dialog.show()
@@ -375,6 +389,7 @@ class Home(QWidget):
 
     def end_edit(self,*args):
         self.editing=False
+        self.panel.setAttribute(Qt.WA_TransparentForMouseEvents, False)
         self.edit_dialog=None
         self.setCursor(Qt.ArrowCursor)
         self.save_settings()
