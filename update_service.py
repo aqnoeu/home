@@ -14,7 +14,7 @@ from PySide6.QtCore import QThread, Signal
 
 OWNER, REPO = 'aqnoeu', 'home'
 LATEST = f'https://api.github.com/repos/{OWNER}/{REPO}/releases/latest'
-VERSION = '0.7.0'
+VERSION = '0.7.1'
 ASSET = 'Home-Windows.zip'
 SUMS = 'SHA256SUMS.txt'
 LIMIT = 90 * 1024 * 1024
