@@ -17,7 +17,12 @@ LATEST = f'https://api.github.com/repos/{OWNER}/{REPO}/releases/latest'
 VERSION = '0.7.1'
 ASSET = 'Home-Windows.zip'
 SUMS = 'SHA256SUMS.txt'
-LIMIT = 90 * 1024 * 1024
+# O executável Windows ganhou o runtime neural Kokoro/ONNX.
+# Limite de download comprimido (protegido por SHA-256 e origem permitida).
+LIMIT = 300 * 1024 * 1024
+# Limites de extração, para não confiar em metadados de ZIP sem verificações.
+MAX_EXTRACTED_FILE = 650 * 1024 * 1024
+MAX_EXTRACTED_TOTAL = 950 * 1024 * 1024
 
 def version_tuple(s):
     try:
@@ -59,9 +64,24 @@ def stage_update(info):
         with zipfile.ZipFile(BytesIO(data)) as z:
             if set(z.namelist())!={'Home.exe','HomeUpdater.exe'}:
                 raise ValueError('Pacote contem arquivos inesperados')
+            entries = {item.filename: item for item in z.infolist()}
+            if any(item.file_size > MAX_EXTRACTED_FILE for item in entries.values()):
+                raise ValueError('Executavel excede o limite de extracao')
+            if sum(item.file_size for item in entries.values()) > MAX_EXTRACTED_TOTAL:
+                raise ValueError('Pacote excede o limite de extracao')
             for name in ('Home.exe','HomeUpdater.exe'):
                 with z.open(name) as src,(staged/name).open('wb') as dst:
-                    shutil.copyfileobj(src,dst)
+                    copied = 0
+                    while True:
+                        chunk = src.read(1024 * 1024)
+                        if not chunk:
+                            break
+                        copied += len(chunk)
+                        if copied > MAX_EXTRACTED_FILE:
+                            raise ValueError('Executavel excede o limite de extracao')
+                        dst.write(chunk)
+                    if copied != entries[name].file_size:
+                        raise ValueError('Arquivo extraido incompleto')
         return staged
     except BaseException:
         shutil.rmtree(staged,ignore_errors=True)
