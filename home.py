@@ -23,7 +23,7 @@ class EyesWidget(QWidget):
         self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.setFixedHeight(26)
+        self.setFixedHeight(22)
         self.mood = 0
         self.gaze = 0.0
         self.target_gaze = 0.0
@@ -111,7 +111,7 @@ class EditDialog(QDialog):
         layout.addWidget(QLabel('Arraste as alcas azuis da direita e de baixo.\nAlterne entre os tamanhos recolhido e expandido.'))
         self.inputs = {}
         groups = [
-            ('Recolhido', [('closed_w', 'Largura', 115, 650), ('closed_h', 'Altura', 28, 110)]),
+            ('Recolhido', [('closed_w', 'Largura', 115, 650), ('closed_h', 'Altura', 18, 110)]),
             ('Expandido', [('open_w', 'Largura', 260, 850), ('open_h', 'Altura', 190, 650)]),
             ('Posicao', [('offset', 'Distancia da esquerda', 0, 5000)])
         ]
@@ -162,7 +162,7 @@ class EditDialog(QDialog):
 
 class Home(QWidget):
     CONFIG = Path.home() / '.home_notch.json'
-    DEFAULTS = dict(offset=36,closed_w=180,closed_h=38,open_w=380,open_h=265)
+    DEFAULTS = dict(offset=36,closed_w=180,closed_h=22,open_w=380,open_h=265)
     SHOULDER = 15
 
     def __init__(self):
@@ -197,12 +197,13 @@ class Home(QWidget):
             btn.setCursor(Qt.PointingHandCursor)
             btn.setStyleSheet('QPushButton{color:white;background:#253144;padding:7px;border-radius:8px} QPushButton:hover{background:#33465e}')
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(27,4,27,8)
+        layout.setContentsMargins(27,0,27,0)
         layout.setSpacing(5)
         layout.addWidget(self.eyes)
         for item in self.controls:
             layout.addWidget(item)
             item.hide()
+        self.eyes.setFixedHeight(self.settings['closed_h'])
         self.setGeometry(self.target_rect())
 
     def load_settings(self):
@@ -238,12 +239,16 @@ class Home(QWidget):
     def apply_settings(self):
         if hasattr(self,'animation'):
             self.animation.stop()
+        if not self.expanded:
+            self.eyes.setFixedHeight(self.settings['closed_h'])
         self.setGeometry(self.target_rect())
         self.save_settings()
         self.update()
 
     def change_setting(self,key,value):
         self.settings[key] = value
+        if key == 'closed_h' and not self.expanded:
+            self.eyes.setFixedHeight(value)
         self.apply_settings()
         if self.edit_dialog:
             self.edit_dialog.sync()
@@ -252,8 +257,8 @@ class Home(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         w,h = float(self.width()),float(self.height())
-        s = float(self.SHOULDER)
-        radius = min(20. if self.expanded else 13.,h/2)
+        s = min(float(self.SHOULDER), h * .43)
+        radius = min(20. if self.expanded else 13.,h*.48)
         shape = QPainterPath()
         shape.moveTo(0,0)
         shape.lineTo(w,0)
@@ -299,7 +304,7 @@ class Home(QWidget):
 
     def resize_drag(self,kind,initial,current,start):
         key = ('open_w' if self.expanded else 'closed_w') if kind=='width' else ('open_h' if self.expanded else 'closed_h')
-        bounds = {'open_w':(260,850),'closed_w':(115,650),'open_h':(190,650),'closed_h':(28,110)}
+        bounds = {'open_w':(260,850),'closed_w':(115,650),'open_h':(190,650),'closed_h':(18,110)}
         low,high = bounds[key]
         self.change_setting(key,max(low,min(high,start+round(current-initial))))
 
@@ -341,7 +346,8 @@ class Home(QWidget):
 
     def toggle(self):
         self.expanded = not self.expanded
-        self.eyes.setFixedHeight(36 if self.expanded else 26)
+        self.layout().setContentsMargins(27,4,27,8) if self.expanded else self.layout().setContentsMargins(27,0,27,0)
+        self.eyes.setFixedHeight(36 if self.expanded else self.settings['closed_h'])
         for item in self.controls:
             item.setVisible(self.expanded)
         if hasattr(self,'animation'):
