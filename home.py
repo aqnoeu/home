@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 )
 from update_service import UpdateWorker, launch_update, VERSION
 from home_ui import HomePanel
+from home_navigation import Workspace
 from home_integrations import load_preferences, save_preferences, ChromeBridge, IntegrationsDialog
 from home_voice import VoiceManager, VoiceDialog
 
@@ -226,20 +227,24 @@ class Home(QWidget):
         self.voice = VoiceManager(self)
         self.panel = HomePanel(self)
         self.panel.hide()
+        self.page = "hub"
+        self.workspace = Workspace(self, self)
+        self.workspace.hide()
+        self.workspace.requested.connect(self.navigate)
         self.panel.mood_changed.connect(self.set_mood)
         self.panel.more.clicked.connect(self.next_mood)
         self.update_btn = self.panel.update_btn
         self.edit_btn = self.panel.edit_btn
         self.quit_btn = self.panel.quit_btn
         self.voice_btn = self.panel.voice_btn
-        self.voice_btn.clicked.connect(self.open_voice)
+        self.voice_btn.clicked.connect(lambda:self.navigate('voice'))
         self.voice.state.connect(self.on_voice_status)
         self.on_voice_status("")
         self.interactions_btn = self.panel.interactions_btn
-        self.interactions_btn.clicked.connect(self.open_integrations)
-        self.update_btn.clicked.connect(self.update_clicked)
-        self.edit_btn.clicked.connect(self.begin_edit)
-        self.quit_btn.clicked.connect(QApplication.instance().quit)
+        self.interactions_btn.clicked.connect(lambda:self.navigate('integrations'))
+        self.update_btn.clicked.connect(lambda:self.navigate('updates'))
+        self.edit_btn.clicked.connect(lambda:self.navigate('edit'))
+        self.quit_btn.clicked.connect(lambda:self.navigate('exit'))
         self.eyes.setFixedHeight(self.settings['closed_h'])
         self.setGeometry(self.target_rect())
         self.position_children()
@@ -269,20 +274,52 @@ class Home(QWidget):
             self.panel.mic_status.setText("")
         self.panel.mic_status.setToolTip(status or "Microfone em espera")
 
-    def open_voice(self):
-        if self.editing:
+    def navigate(self, section):
+        if section == 'hub':
+            self.editing = False
+            self.page = 'hub'
+            self.workspace.hide()
+            self.panel.setVisible(self.expanded)
+            self.eyes.follow_mouse = self.integration_prefs['eyes_follow_mouse']
+            self.eyes.react_clicks = self.integration_prefs['eyes_react_clicks']
+            self.on_voice_status("")
+        else:
+            self.expanded = True
+            self.page = section
+            self.editing = section == 'edit'
+            self.panel.hide()
+            self.workspace.set_section(section)
+            self.workspace.show()
+        self.animate_to_target()
+
+    def collapse(self):
+        if not self.expanded:
             return
-        dialog = VoiceDialog(self)
-        dialog.exec()
-        self.on_voice_status("")
+        self.expanded=False
+        self.editing=False
+        self.page='hub'
+        self.workspace.hide()
+        self.panel.hide()
+        self.animate_to_target()
+
+    def animate_to_target(self):
+        if hasattr(self,'animation'):
+            self.animation.stop()
+        self.animation=QPropertyAnimation(self,b'geometry',self)
+        self.animation.setStartValue(self.geometry())
+        self.animation.setEndValue(self.target_rect())
+        self.animation.setDuration(280)
+        self.animation.setEasingCurve(QEasingCurve.OutCubic)
+        self.animation.start()
+        self.position_children()
+        if self.edit_dialog:
+            self.edit_dialog.sync()
+
+    def open_voice(self):
+        self.navigate('voice')
 
     def open_integrations(self):
-        if self.editing:
-            return
-        dialog = IntegrationsDialog(self)
-        dialog.exec()
-        self.eyes.follow_mouse = self.integration_prefs['eyes_follow_mouse']
-        self.eyes.react_clicks = self.integration_prefs['eyes_react_clicks']
+        self.navigate('integrations')
 
     def _watch_outside_click(self):
         if os.name != 'nt':
@@ -311,6 +348,7 @@ class Home(QWidget):
             self.eyes.setFixedHeight(eye_h)
             self.eyes.setGeometry(24, 3, max(30, self.width()-48), eye_h)
             self.panel.setGeometry(15, panel_y, max(1,self.width()-30), max(1,self.height()-panel_y-5))
+            self.workspace.setGeometry(15, panel_y, max(1,self.width()-30), max(1,self.height()-panel_y-5))
         else:
             eye_h = self.settings['closed_h']
             self.eyes.setFixedHeight(eye_h)
@@ -348,6 +386,8 @@ class Home(QWidget):
     def target_rect(self):
         b = self.screen.geometry()
         w,h = self.sizes()
+        if self.expanded and self.page != 'hub':
+            w,h = 690,610
         w,h = min(w,b.width()),min(h,b.height())
         x = max(0,min(self.settings['offset'],b.width()-w))
         return QRect(b.x()+x,b.y(),w,h)
@@ -468,32 +508,17 @@ class Home(QWidget):
         self.eyes.update()
 
     def toggle(self):
-        self.expanded = not self.expanded
-        self.panel.setVisible(self.expanded)
-        self.position_children()
-        if hasattr(self,'animation'):
-            self.animation.stop()
-        self.animation=QPropertyAnimation(self,b'geometry',self)
-        self.animation.setStartValue(self.geometry())
-        self.animation.setEndValue(self.target_rect())
-        self.animation.setDuration(280)
-        self.animation.setEasingCurve(QEasingCurve.OutCubic)
-        self.animation.start()
-        if self.edit_dialog:
-            self.edit_dialog.sync()
+        if self.expanded:
+            self.collapse()
+            return
+        self.expanded=True
+        self.page='hub'
+        self.panel.show()
+        self.workspace.hide()
+        self.animate_to_target()
 
     def begin_edit(self):
-        if self.editing:
-            if self.edit_dialog:
-                self.edit_dialog.raise_()
-                self.edit_dialog.activateWindow()
-            return
-        self.editing=True
-        self.panel.setAttribute(Qt.WA_TransparentForMouseEvents, True)
-        self.edit_dialog=EditDialog(self)
-        self.edit_dialog.finished.connect(self.end_edit)
-        self.edit_dialog.show()
-        self.update()
+        self.navigate('edit')
 
     def end_edit(self,*args):
         self.editing=False
@@ -526,15 +551,21 @@ class Home(QWidget):
 
     def checked(self,info):
         self.available_update=info
+        if self.page == 'updates':
+            self.workspace.update_result(info)
         if info:
             self.update_btn.setText('⬇  Instalar '+info['version'])
         else:
             self.update_btn.setText('✓  Verificar atualizacoes')
-            QMessageBox.information(self,'Home','Voce ja esta na versao mais recente publicada.')
+            if self.page != 'updates':
+                QMessageBox.information(self,'Home','Voce ja esta na versao mais recente publicada.')
 
     def failed(self,msg):
         self.update_btn.setText('↻  Verificar atualizacoes')
-        QMessageBox.warning(self,'Atualizacao indisponivel',msg)
+        if self.page == 'updates':
+            self.workspace.update_failed(msg)
+        else:
+            QMessageBox.warning(self,'Atualizacao indisponivel',msg)
 
     def staged(self,path):
         try: launch_update(path)
