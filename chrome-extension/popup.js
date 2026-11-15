@@ -41,3 +41,20 @@ document.getElementById("share").addEventListener("click", async () => {
     result.textContent = "Erro: " + (err.message || String(err));
   }
 });
+document.getElementById("tabs").addEventListener("click", async () => {
+  const list = document.getElementById("tabList");
+  list.replaceChildren();
+  const allowed = await chrome.permissions.request({permissions:["tabs"]});
+  if (!allowed) { result.textContent = "Permissão de abas não concedida."; return; }
+  const tabs = await chrome.tabs.query({currentWindow:true});
+  for (const tab of tabs.slice(0,60)) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = (tab.title || "Aba sem título").slice(0,80);
+    button.addEventListener("click", async () => {
+      await chrome.tabs.update(tab.id,{active:true});
+      result.textContent = "Aba selecionada. Abra novamente a extensão nessa aba para compartilhar.";
+    });
+    list.appendChild(button);
+  }
+});
