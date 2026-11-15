@@ -179,7 +179,7 @@ class ListeningWorker(QThread):
                         if final:
                             self.heard.emit(final)
                         else:
-                            self.mode_changed.emit("Não entendi. Tente novamente.")
+                            self.mode_changed.emit("Não detectei fala. Verifique o microfone padrão do Windows e tente novamente.")
                         return
                     try:
                         data = audio_q.get(timeout=0.15)
@@ -249,6 +249,7 @@ class VoiceManager(QObject):
         self.restart_wake = False
         self.dialog = None
         self.pending_push = False
+        self.last_error = ""
 
     def set_state(self, state):
         self.state.emit(state)
@@ -264,14 +265,15 @@ class VoiceManager(QObject):
         if self.worker and self.worker.isRunning():
             return
         self.mode = mode
+        self.last_error = ""
         self.restart_wake = mode == "wake"
         self.worker = ListeningWorker(mode)
         worker = self.worker
         worker.heard.connect(self.handle_heard)
         worker.error.connect(self.handle_error)
-        worker.mode_changed.connect(self.state.emit)
+        worker.mode_changed.connect(self.set_state)
         worker.finished.connect(lambda: self.on_finished(worker))
-        self.set_state("listening")
+        self.set_state("Preparando microfone...")
         worker.start()
 
     def on_finished(self, worker):
@@ -283,8 +285,8 @@ class VoiceManager(QObject):
             return
         if self.restart_wake and self.mode == "wake" and not self.speaker and self.prefs.get("voice_wake") and self.prefs.get("voice_microphone"):
             self.start("wake")
-        elif not self.speaker:
-            self.set_state("")
+        elif not self.speaker and not self.last_error:
+            self.set_state("Microfone pronto. Clique em Falar agora." if self.prefs.get("voice_microphone") else "Microfone desativado.")
 
     def stop(self):
         self.pending_push = False
@@ -292,7 +294,7 @@ class VoiceManager(QObject):
         self.mode = None
         if self.worker:
             self.worker.stop()
-        self.set_state("")
+        self.set_state("Microfone pronto. Clique em Falar agora." if self.prefs.get("voice_microphone") else "Microfone desativado.")
 
     def toggle_push(self):
         if self.worker and self.worker.isRunning():
@@ -314,7 +316,8 @@ class VoiceManager(QObject):
     def handle_error(self, message):
         self.restart_wake = False
         self.mode = None
-        self.set_state("Falha no microfone: " + message[:120])
+        self.last_error = "Falha no microfone: " + message[:220]
+        self.set_state(self.last_error)
 
     def handle_heard(self, phrase):
         self.restart_wake = self.mode == "wake"
@@ -404,7 +407,9 @@ class VoiceDialog(QDialog):
         self.push_btn.clicked.connect(self.manager.toggle_push)
         outer.addWidget(self.push_btn)
         outer.addWidget(QLabel("Comandos: calculadora, bloco de notas, arquivos, volume e música."))
-        self.state_label=QLabel("Microfone inativo.")
+        self.state_label=QLabel(
+            "Microfone pronto. Clique em Falar agora." if self.prefs.get("voice_microphone")
+            else "Microfone desativado. Ative a permissão acima.")
         self.state_label.setWordWrap(True)
         outer.addWidget(self.state_label)
         self.manager.state.connect(self.state_label.setText)
@@ -421,6 +426,10 @@ class VoiceDialog(QDialog):
         self.prefs[key]=bool(value)
         save_preferences(self.prefs)
         self.manager.refresh_permissions()
+        if key == "voice_microphone":
+            self.state_label.setText(
+                "Microfone pronto. Clique em Falar agora." if value
+                else "Microfone desativado. Ative a permissão acima.")
 
     def download(self):
         if self.download_worker and self.download_worker.isRunning():
