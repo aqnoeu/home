@@ -70,6 +70,8 @@ jobs:
           home.toggle()
           for section in ('voice','integrations','edit','updates','exit'):
               home.navigate(section)
+              home.animation.setCurrentTime(300)
+              app.processEvents()
               assert home.page == section
               assert home.workspace.current is not None
               assert not home.workspace.current.isWindow(), section
