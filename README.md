@@ -112,3 +112,8 @@ A página **Voz** inclui suas permissões, botão de fala, estado do microfone, 
 Essa organização oferece uma estrutura expansível para uma futura página de assistente de IA, **sem** habilitar IA ou conceder novas permissões no momento.
 
 Caso você esteja usando o Home anterior, use **Atualizações** para receber a nova interface depois da publicação da Release no GitHub.
+
+
+## Escolher a voz do Home
+
+No painel expandido, abra **Voz e microfone**. O seletor lista apenas as vozes **SAPI5 realmente disponíveis no Windows** (não inclui necessariamente as vozes naturais do Narrador). Escolha a voz, ajuste **Velocidade** (90–280) e **Volume** (0–100%) e clique em **Testar voz selecionada** para ouvir uma prévia mesmo sem microfone. As preferências são salvas em `.home_integrations.json` e aplicadas às respostas faladas do **Assistente** e dos comandos de voz. A opção **Automática** prioriza uma voz em português. Caso nenhuma voz SAPI5 esteja disponível, a interface apresenta o diagnóstico sem inventar opções.
