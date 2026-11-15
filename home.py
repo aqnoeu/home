@@ -35,37 +35,55 @@ class EyesWidget(QWidget):
         self.target_gaze = 0.0
         self.gaze_y = 0.0
         self.target_gaze_y = 0.0
-        self.next_look = time.monotonic() + 1.6
-        self.next_blink = time.monotonic() + 2.5
+        now = time.monotonic()
+        self._last_frame = now
+        self.next_look = now + random.uniform(2.6, 4.2)
+        self.next_blink = now + random.uniform(3.5, 6.0)
+        self.last_click_blink = float('-inf')
+        self.blink_duration = 0.38
         self.follow_mouse = False
         self.react_clicks = False
         self.voice_state = ''
         self.blink_begin = -1.0
         self.timer = QTimer(self)
-        self.timer.setInterval(40)
+        self.timer.setInterval(50)
         self.timer.timeout.connect(self.animate)
         self.timer.start()
 
+    def blink_on_click(self, now=None):
+        """Uma reação discreta ao clique, sem piscar repetidamente em sequência."""
+        now = time.monotonic() if now is None else now
+        if now - self.last_click_blink < 1.25 or self.blink_begin >= 0:
+            return False
+        self.last_click_blink = now
+        self.blink_begin = now
+        self.next_blink = now + random.uniform(4.0, 7.0)
+        return True
+
     def animate(self):
         now = time.monotonic()
+        dt = max(0.0, min(now - self._last_frame, 0.15))
+        self._last_frame = now
         if self.follow_mouse:
             from PySide6.QtGui import QCursor
             mouse = QCursor.pos()
             center = self.mapToGlobal(self.rect().center())
             dx = mouse.x() - center.x()
             dy = mouse.y() - center.y()
-            self.target_gaze = max(-1.,min(1.,dx / max(180.,self.width()*2.)))
-            self.target_gaze_y = max(-1.,min(1.,dy / 240.))
+            self.target_gaze = max(-0.75, min(0.75, dx / max(240., self.width() * 2.5)))
+            self.target_gaze_y = max(-0.45, min(0.45, dy / 420.))
         elif now >= self.next_look:
-            self.target_gaze = random.choice([-0.65, -0.35, 0.0, 0.35, 0.65])
-            self.next_look = now + random.uniform(1.4, 3.7)
-            self.target_gaze_y = random.uniform(-.4, .4)
-        self.gaze += (self.target_gaze - self.gaze) * 0.14
-        self.gaze_y += (self.target_gaze_y - self.gaze_y) * 0.14
+            self.target_gaze = random.choice([-0.45, -0.25, 0.0, 0.0, 0.25, 0.45])
+            self.target_gaze_y = random.uniform(-0.22, 0.22)
+            self.next_look = now + random.uniform(3.8, 7.0)
+        # Suavização baseada em tempo real: mesma velocidade mesmo com atrasos do timer.
+        weight = 1.0 - math.exp(-dt / 0.58)
+        self.gaze += (self.target_gaze - self.gaze) * weight
+        self.gaze_y += (self.target_gaze_y - self.gaze_y) * weight
         if now >= self.next_blink and self.blink_begin < 0:
             self.blink_begin = now
-            self.next_blink = now + random.uniform(2.3, 5.0)
-        if self.blink_begin >= 0 and now - self.blink_begin > 0.30:
+            self.next_blink = now + random.uniform(4.5, 8.0)
+        if self.blink_begin >= 0 and now - self.blink_begin >= self.blink_duration:
             self.blink_begin = -1.0
         self.update()
 
@@ -81,7 +99,7 @@ class EyesWidget(QWidget):
         left = w / 2 + self.gaze * min(10, w * .055) - (ew * 2 + gap) / 2
         blink = 1.0
         if self.blink_begin >= 0:
-            progress = (time.monotonic() - self.blink_begin) / .30
+            progress = (time.monotonic() - self.blink_begin) / self.blink_duration
             blink = max(.07, 1.0 - math.sin(min(1., progress) * math.pi) * .95)
         if self.mood == 2:
             blink *= .54
@@ -339,7 +357,7 @@ class Home(QWidget):
         new_click = down and not self._mouse_was_down
         self._mouse_was_down = down
         if new_click and getattr(self,'eyes',None) and self.eyes.react_clicks:
-            self.eyes.blink_begin = time.monotonic()
+            self.eyes.blink_on_click()
         if not new_click or not self.expanded or self.editing or self.drag:
             return
         # Nao fecha durante confirmacoes de atualizacao e caixas de aviso.
