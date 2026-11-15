@@ -55,7 +55,15 @@ jobs:
       - name: Testar comandos de voz e wake word
         run: python -m unittest discover -s tests -v
       - name: Compilar Home
-        run: pyinstaller --noconfirm --clean --onefile --windowed --hidden-import vosk --hidden-import sounddevice --hidden-import pyttsx3 --hidden-import pyttsx3.drivers.sapi5 --name Home home.py
+        run: pyinstaller --noconfirm --clean --onefile --windowed --collect-all vosk --collect-binaries sounddevice --hidden-import sounddevice --hidden-import pyttsx3 --hidden-import pyttsx3.drivers.sapi5 --name Home home.py
+      - name: Verificar biblioteca nativa Vosk no Home.exe
+        shell: pwsh
+        run: |
+          $contents = (pyi-archive_viewer -l dist/Home.exe | Out-String)
+          if ($contents -notmatch 'vosk[/\\\\]libvosk\\.dll') {
+            throw 'O executavel nao contem vosk/libvosk.dll; compilacao bloqueada.'
+          }
+          Write-Host 'Vosk DLL incluida no executavel.'
       - name: Compilar atualizador
         run: pyinstaller --noconfirm --clean --onefile --windowed --name HomeUpdater updater.py
       - name: Empacotar e calcular hash
