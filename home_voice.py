@@ -19,7 +19,7 @@ from pathlib import Path
 from PySide6.QtCore import QThread, Signal, QObject
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QCheckBox, QMessageBox, QGroupBox
+    QCheckBox, QMessageBox, QGroupBox, QWidget
 )
 
 from home_integrations import execute_windows_action, save_preferences
@@ -238,6 +238,7 @@ class SpeechWorker(QThread):
 class VoiceManager(QObject):
     state = Signal(str)
     command = Signal(str)
+    confirmation_requested = Signal(str, str)
 
     def __init__(self, home):
         super().__init__(home)
@@ -250,6 +251,7 @@ class VoiceManager(QObject):
         self.dialog = None
         self.pending_push = False
         self.last_error = ""
+        self.pending_action = None
 
     def set_state(self, state):
         self.state.emit(state)
@@ -332,20 +334,27 @@ class VoiceManager(QObject):
         if not self.prefs.get("windows_controls"):
             self.speak("Ative os controles do Windows nas permissões.")
             return
-        # Sempre solicitar consentimento específico antes de alterar programas/som.
-        answer = QMessageBox.question(
-            self.home, "Home — Confirmar comando de voz",
-            f"Você disse: {phrase}\n\nAutoriza: {key}?",
-            QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
-        if answer != QMessageBox.Yes:
+        # A confirmação aparece dentro da página Voz, nunca em um popup.
+        self.pending_action = (key, response)
+        self.confirmation_requested.emit(phrase, key)
+
+    def decide_pending(self, approved):
+        pending = self.pending_action
+        self.pending_action = None
+        if not pending:
+            return
+        if not approved:
             self.speak("Comando cancelado.")
+            return
+        key, response = pending
+        if not self.prefs.get("windows_controls"):
+            self.speak("Permissão do Windows desativada.")
             return
         try:
             execute_windows_action(key)
             self.speak(response)
-        except Exception as exc:
+        except Exception:
             self.speak("Não consegui executar o comando.")
-            self.set_state(str(exc)[:90])
 
     def speak(self, message):
         if not self.prefs.get("voice_speech"):
@@ -414,7 +423,23 @@ class VoiceDialog(QDialog):
         outer.addWidget(self.state_label)
         self.manager.state.connect(self.state_label.setText)
         self.manager.command.connect(self.heard)
+        self.manager.confirmation_requested.connect(self.show_confirmation)
         self.finished.connect(self.disconnect_signals)
+        self.confirm = QWidget()
+        confirmation_layout = QVBoxLayout(self.confirm)
+        self.confirm_label = QLabel("")
+        self.confirm_label.setWordWrap(True)
+        confirmation_layout.addWidget(self.confirm_label)
+        buttons = QHBoxLayout()
+        self.yes_btn = QPushButton("Sim, executar")
+        self.yes_btn.clicked.connect(lambda:self.confirm_action(True))
+        self.no_btn = QPushButton("Não, cancelar")
+        self.no_btn.clicked.connect(lambda:self.confirm_action(False))
+        buttons.addWidget(self.yes_btn)
+        buttons.addWidget(self.no_btn)
+        confirmation_layout.addLayout(buttons)
+        self.confirm.hide()
+        outer.addWidget(self.confirm)
         self.download_worker=None
         if model_is_complete():
             self.model_btn.setText("✓ Modelo de português instalado")
@@ -450,6 +475,14 @@ class VoiceDialog(QDialog):
         self.download_worker.finished.connect(lambda: self.model_btn.setEnabled(True))
         self.download_worker.start()
 
+    def show_confirmation(self, phrase, action):
+        self.confirm_label.setText(f"Você disse: {phrase}\n\nAutoriza a ação: {action}?")
+        self.confirm.show()
+
+    def confirm_action(self, approved):
+        self.confirm.hide()
+        self.manager.decide_pending(approved)
+
     def heard(self, text):
         self.state_label.setText("Reconhecido: " + text)
 
@@ -457,5 +490,6 @@ class VoiceDialog(QDialog):
         try:
             self.manager.state.disconnect(self.state_label.setText)
             self.manager.command.disconnect(self.heard)
+            self.manager.confirmation_requested.disconnect(self.show_confirmation)
         except (RuntimeError,TypeError):
             pass
