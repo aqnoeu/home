@@ -225,6 +225,7 @@ class Home(QWidget):
         self.eyes.follow_mouse = self.integration_prefs['eyes_follow_mouse']
         self.eyes.react_clicks = self.integration_prefs['eyes_react_clicks']
         self.voice = VoiceManager(self)
+        self.voice.confirmation_requested.connect(self.on_voice_confirmation)
         self.panel = HomePanel(self)
         self.panel.hide()
         self.page = "hub"
@@ -274,10 +275,15 @@ class Home(QWidget):
             self.panel.mic_status.setText("")
         self.panel.mic_status.setToolTip(status or "Microfone em espera")
 
+    def on_voice_confirmation(self, phrase, action):
+        if self.page != 'voice' or not self.expanded:
+            self.navigate('voice')
+
     def navigate(self, section):
         if section == 'hub':
             self.editing = False
             self.page = 'hub'
+            self.workspace.set_section('hub')
             self.workspace.hide()
             self.panel.setVisible(self.expanded)
             self.eyes.follow_mouse = self.integration_prefs['eyes_follow_mouse']
@@ -298,6 +304,7 @@ class Home(QWidget):
         self.expanded=False
         self.editing=False
         self.page='hub'
+        self.workspace.set_section('hub')
         self.workspace.hide()
         self.panel.hide()
         self.animate_to_target()
