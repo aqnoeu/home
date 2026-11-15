@@ -61,7 +61,7 @@ def interpret(sentence):
 
 def wake_command(sentence):
     s = normalize(sentence)
-    match = re.search(r"\b(?:ei|hey)\s+(?:home|rome|romi)\b", s)
+    match = re.search(r"\b(?:ei|hey)[\s,]+(?:home|rome|romi)\b", s)
     return None if not match else s[match.end():].strip(" ,.!?")
 
 
