@@ -6,6 +6,7 @@ on:
       - '.github/workflows/windows-release.yml'
       - 'home.py'
       - 'home_navigation.py'
+      - 'home_assistant.py'
       - 'home_ui.py'
       - 'home_integrations.py'
       - 'home_voice.py'
@@ -53,7 +54,7 @@ jobs:
       - name: Instalar dependencias
         run: python -m pip install --upgrade -r requirements.txt pyinstaller
       - name: Verificar sintaxe
-        run: python -m py_compile home.py home_ui.py home_navigation.py home_integrations.py home_voice.py updater.py update_service.py
+        run: python -m py_compile home.py home_ui.py home_navigation.py home_assistant.py home_integrations.py home_voice.py updater.py update_service.py
       - name: Testar comandos de voz e wake word
         run: python -m unittest discover -s tests -v
       - name: Testar navegacao interna sem popups
@@ -68,7 +69,7 @@ jobs:
           home=Home()
           home.show()
           home.toggle()
-          for section in ('voice','integrations','edit','updates','exit'):
+          for section in ('assistant','voice','integrations','edit','updates','exit'):
               home.navigate(section)
               home.animation.setCurrentTime(300)
               app.processEvents()
@@ -76,6 +77,14 @@ jobs:
               assert home.workspace.current is not None
               assert not home.workspace.current.isWindow(), section
               assert home.width() >= 380
+          home.navigate('assistant')
+          page=home.workspace.current
+          spoken=[]
+          home.voice.speak=lambda msg,force=False: spoken.append((msg,force))
+          page.entry.setText('teste de voz')
+          page.send()
+          assert spoken and spoken[-1][1] is True
+          assert any('Não preciso do microfone' in msg for role,msg in home.assistant_history if role=='home')
           home.navigate('hub')
           assert home.page == 'hub'
           home.collapse()
