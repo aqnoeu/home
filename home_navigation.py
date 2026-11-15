@@ -58,7 +58,7 @@ class Workspace(QWidget):
     requested = Signal(str)
 
     SECTIONS = (
-        ("hub","⌂ Hub"),("voice","◉ Voz"),
+        ("hub","⌂ Hub"),("assistant","✎ Assistente"),("voice","◉ Voz"),
         ("integrations","⌘ Interações"),("edit","⤢ Edição"),
         ("updates","↻ Atualizações"),("exit","⏻ Encerrar"),
     )
@@ -138,10 +138,13 @@ class Workspace(QWidget):
         self.section=section
         for name,button in self.navbuttons.items():
             button.setChecked(section==name)
-        titles={"voice":"Voz e microfone","integrations":"Interações com Windows e Chrome",
+        titles={"assistant":"Assistente — Digite e ouça","voice":"Voz e microfone","integrations":"Interações com Windows e Chrome",
                 "edit":"Modo edição","updates":"Atualizações","exit":"Encerrar o Home"}
         self.heading.setText(titles.get(section,"Home"))
-        if section=="voice":
+        if section=="assistant":
+            from home_assistant import AssistantPage
+            page=AssistantPage(self.home)
+        elif section=="voice":
             from home_voice import VoiceDialog
             page=VoiceDialog(self.home)
         elif section=="integrations":
