@@ -610,7 +610,8 @@ class Home(QWidget):
         if self.voice.speaker and self.voice.speaker.isRunning():
             self.voice.speaker.wait(6000)
         if self.voice.kokoro_download_worker and self.voice.kokoro_download_worker.isRunning():
-            self.voice.kokoro_download_worker.wait(10000)
+            self.voice.kokoro_download_worker.requestInterruption()
+            self.voice.kokoro_download_worker.wait(65000)
         for worker in list(self.voice.voice_list_workers):
             if worker.isRunning():
                 worker.wait(6000)
