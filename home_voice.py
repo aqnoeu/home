@@ -2,6 +2,7 @@
 
 O microfone só é aberto após consentimento explícito. Áudio não é salvo nem enviado.
 """
+import hashlib
 import json
 import os
 import queue
@@ -27,7 +28,18 @@ MODEL_NAME = "vosk-model-small-pt-0.3"
 MODEL_URL = "https://alphacephei.com/vosk/models/" + MODEL_NAME + ".zip"
 MODEL_DIR = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "Home" / "models" / MODEL_NAME
 MAX_DOWNLOAD = 65 * 1024 * 1024
+MODEL_SHA256 = '6e1ce909032e1afa7a88e68a3d628ecafff302bdf195befab308826c395e93b7'
 SAMPLE_RATE = 16000
+
+def model_is_complete(directory=MODEL_DIR):
+    """Aceita os layouts Vosk legado (flat) e atual (am/conf/graph)."""
+    root = Path(directory)
+    old_files = ("final.mdl", "mfcc.conf", "Gr.fst", "HCLr.fst")
+    new_files = ("am/final.mdl", "conf/model.conf", "conf/mfcc.conf",
+                 "graph/Gr.fst", "graph/HCLr.fst")
+    return (all((root / name).is_file() for name in old_files)
+            or all((root / name).is_file() for name in new_files))
+
 
 
 def normalize(sentence):
@@ -73,7 +85,7 @@ class ModelDownloader(QThread):
     progress = Signal(str)
 
     def run(self):
-        if MODEL_DIR.joinpath("am", "final.mdl").exists():
+        if model_is_complete():
             self.completed.emit()
             return
         parent = MODEL_DIR.parent
@@ -82,6 +94,7 @@ class ModelDownloader(QThread):
         try:
             archive = temp_dir / "model.zip"
             req = urllib.request.Request(MODEL_URL, headers={"User-Agent": "Home-Voice/1.0"})
+            digest = hashlib.sha256()
             with urllib.request.urlopen(req, timeout=45) as response, archive.open("wb") as out:
                 if response.url != MODEL_URL:
                     raise RuntimeError("Endereço de download inesperado.")
@@ -94,8 +107,11 @@ class ModelDownloader(QThread):
                     if total > MAX_DOWNLOAD:
                         raise RuntimeError("Modelo excede o limite permitido.")
                     out.write(chunk)
+                    digest.update(chunk)
                     if total % (5 * 1024 * 1024) < len(chunk):
                         self.progress.emit(f"Baixados {total // 1048576} MB...")
+            if digest.hexdigest() != MODEL_SHA256:
+                raise RuntimeError("Arquivo baixado não passou na verificação SHA-256. Tente novamente.")
             with zipfile.ZipFile(archive) as z:
                 members = z.infolist()
                 if sum(x.file_size for x in members) > 250 * 1024 * 1024:
@@ -112,7 +128,7 @@ class ModelDownloader(QThread):
                     with z.open(item) as src, dst.open("wb") as dest:
                         shutil.copyfileobj(src, dest)
             unpacked = temp_dir / "unpacked"
-            if not (unpacked / "am" / "final.mdl").exists():
+            if not model_is_complete(unpacked):
                 raise RuntimeError("Modelo de voz incompleto.")
             if MODEL_DIR.exists():
                 shutil.rmtree(MODEL_DIR)
@@ -141,7 +157,7 @@ class ListeningWorker(QThread):
         try:
             import sounddevice as sd
             from vosk import Model, KaldiRecognizer, SetLogLevel
-            if not MODEL_DIR.joinpath("am", "final.mdl").exists():
+            if not model_is_complete():
                 raise RuntimeError("Instale primeiro o modelo de português.")
             SetLogLevel(-1)
             model = Model(str(MODEL_DIR))
@@ -395,7 +411,7 @@ class VoiceDialog(QDialog):
         self.manager.command.connect(self.heard)
         self.finished.connect(self.disconnect_signals)
         self.download_worker=None
-        if MODEL_DIR.joinpath("am","final.mdl").exists():
+        if model_is_complete():
             self.model_btn.setText("✓ Modelo de português instalado")
         close=QPushButton("Concluir")
         close.clicked.connect(self.accept)
