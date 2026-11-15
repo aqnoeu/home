@@ -34,3 +34,27 @@ Ainda não há .exe validado em uma máquina Windows nesta etapa; trate a versã
 
 ## Crédito
 Os olhos são um desenho independente em PySide6 inspirado na ideia visual do [FluxGarage/RoboEyes](https://github.com/FluxGarage/RoboEyes); não há cópia da biblioteca para Arduino.
+
+
+## Interações locais (versão em desenvolvimento)
+No painel expandido, clique em **Interações**. Os recursos começam desligados.
+
+- **Olhos:** ative “acompanhar o mouse” e “reagir a cliques” separadamente.
+- **Windows:** ative a permissão e clique explicitamente na ação desejada: Bloco de Notas, Calculadora, Explorador, volume ou controles de mídia. O Home não aceita comandos arbitrários.
+- **Chrome:** ative “Receber páginas autorizadas do Chrome” no Home, clique em “Copiar código de conexão” e configure a extensão abaixo. Cada aba só é lida após clicar em “Compartilhar esta aba com Home”.
+
+### Instalação da extensão Chrome (uma vez)
+1. Baixe `Home-Chrome-Extension.zip` na [última Release](https://github.com/aqnoeu/home/releases/latest) e extraia para uma pasta fixa, por exemplo `Documentos/Home-Chrome-Extension`.
+2. Abra `chrome://extensions` no Chrome, habilite **Modo do desenvolvedor** e clique em **Carregar sem compactação**.
+3. Selecione a pasta extraída que contém `manifest.json`.
+4. No Home, acesse **Interações**, marque **Receber páginas autorizadas do Chrome** e clique em **Copiar código de conexão**.
+5. Abra a extensão, cole o código e clique em **Salvar código neste navegador**.
+6. Abra uma página comum e clique em **Compartilhar esta aba com Home**. A página aparece no painel de Interações do Home.
+7. O botão **Listar abas abertas** solicita uma permissão opcional do Chrome e exibe títulos apenas dentro da extensão. Para compartilhar uma aba selecionada, abra a extensão nela e autorize explicitamente.
+
+**Privacidade:** a extensão não lê todas as páginas em segundo plano. Ao compartilhar, ela transmite ao processo Home local (127.0.0.1) o título, a URL e até 5.000 caracteres visíveis da aba. Não envie páginas com senhas, informações bancárias ou outros dados sensíveis. O código de conexão é salvo no armazenamento local do Chrome; a ponte Home não é exposta na rede. É possível desativar as permissões no Home a qualquer momento. Não há envio para serviços de IA.
+
+As preferências das integrações ficam em `~/.home_integrations.json` e são preservadas nas atualizações. Se quiser revogar o código da extensão, remova esse arquivo com o Home fechado e inicie novamente (isso redefine as permissões). A extensão é um pacote separado do autoatualizador do Home; quando houver mudança nela, é necessário substituir os arquivos da extensão e recarregá-la em `chrome://extensions`.
+
+### Status
+Compilação e verificação de sintaxe são realizadas por GitHub Actions em Windows. Reações do mouse, execução dos aplicativos e leitura do Chrome dependem de teste manual no computador do usuário. Não execute arquivos de fontes não confiáveis.
