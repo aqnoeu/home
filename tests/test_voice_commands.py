@@ -1,6 +1,8 @@
 """Testes de comandos e ativação sem acessar microfone ou Windows."""
+import tempfile
 import unittest
-from home_voice import interpret, normalize, wake_command
+from pathlib import Path
+from home_voice import interpret, normalize, wake_command, model_is_complete
 from home_integrations import load_preferences
 
 
@@ -17,6 +19,24 @@ class TestVoiceCommands(unittest.TestCase):
         self.assertEqual(interpret("próxima música")[0], "next")
         self.assertIsNone(interpret("apague meus arquivos"))
         self.assertIsNone(interpret("execute powershell"))
+
+    def test_vosk_model_formats(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.assertFalse(model_is_complete(root))
+            for file in ("final.mdl", "mfcc.conf", "Gr.fst", "HCLr.fst"):
+                (root / file).write_bytes(b"test")
+            self.assertTrue(model_is_complete(root))
+            (root / "Gr.fst").unlink()
+            self.assertFalse(model_is_complete(root))
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for file in ("am/final.mdl", "conf/model.conf", "conf/mfcc.conf",
+                         "graph/Gr.fst", "graph/HCLr.fst"):
+                p = root / file
+                p.parent.mkdir(parents=True, exist_ok=True)
+                p.write_bytes(b"test")
+            self.assertTrue(model_is_complete(root))
 
     def test_normalization(self):
         self.assertEqual(normalize("Próxima MÚSICA"), "proxima musica")
