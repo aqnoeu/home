@@ -94,3 +94,10 @@ Também pode dizer os mesmos comandos diretamente pelo botão, sem "Ei, Home". A
 - É possível desativar o microfone a qualquer momento no menu **Voz e microfone**.
 
 O projeto continua com a aparência grafite, o Modo Edição, a extensão opcional para Chrome, olhos interativos e atualizador por GitHub Releases.
+
+
+### Correção do erro "Modelo de voz incompleto"
+
+As primeiras versões do Home procuravam apenas `am/final.mdl`, mas o modelo oficial de português `vosk-model-small-pt-0.3` usa a estrutura antiga do Vosk com `final.mdl`, `mfcc.conf`, `Gr.fst` e `HCLr.fst` na raiz. O Home agora aceita ambas as estruturas e verifica o SHA-256 do ZIP oficial antes da extração.
+
+Se o download falhar, atualize o Home para a Release com a correção e clique novamente em **Baixar modelo de português**. O Home limpa automaticamente a pasta temporária de um download interrompido; não é necessário apagar manualmente arquivos nem alterar as permissões do microfone.
