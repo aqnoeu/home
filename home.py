@@ -249,6 +249,7 @@ class Home(QWidget):
             pass  # Porta local indisponivel; a interface ainda funciona.
         if self.integration_prefs.get('voice_microphone') and self.integration_prefs.get('voice_wake'):
             self.voice.start('wake')
+        QApplication.instance().aboutToQuit.connect(self.shutdown)
 
     def _remember_page(self,title,url,content):
         self.last_page = (title,url,content)
@@ -542,10 +543,17 @@ class Home(QWidget):
             return
         QApplication.instance().quit()
 
-    def closeEvent(self,event):
+    def shutdown(self):
         self.voice.stop()
+        if self.voice.worker and self.voice.worker.isRunning():
+            self.voice.worker.wait(2500)
+        if self.voice.speaker and self.voice.speaker.isRunning():
+            self.voice.speaker.wait(6000)
         self.chrome_bridge.stop()
         self.save_settings()
+
+    def closeEvent(self,event):
+        self.shutdown()
         if self.edit_dialog:
             self.edit_dialog.close()
         super().closeEvent(event)
