@@ -170,6 +170,9 @@ class IntegrationsDialog(QDialog):
             layout.addWidget(box)
 
         layout.addWidget(QLabel("Windows — ações individuais (somente após clique)"))
+        self.action_status = QLabel("")
+        self.action_status.setWordWrap(True)
+        layout.addWidget(self.action_status)
         buttons = QHBoxLayout()
         for key, label in [("notepad","Bloco de Notas"),("calc","Calculadora"),("explorer","Arquivos")]:
             button = QPushButton(label)
@@ -208,12 +211,13 @@ class IntegrationsDialog(QDialog):
 
     def act(self, key):
         if not self.prefs.get("windows_controls"):
-            QMessageBox.information(self, "Permissão necessária", "Ative os controles do Windows antes.")
+            self.action_status.setText("Ative os controles do Windows antes.")
             return
         try:
             execute_windows_action(key)
+            self.action_status.setText("Ação executada: " + key)
         except Exception as exc:
-            QMessageBox.warning(self, "Ação não executada", str(exc))
+            self.action_status.setText("Ação não executada: " + str(exc))
 
     def on_page(self,title,url,text):
         self.page_info.setText(f"{title}\n{url}")
