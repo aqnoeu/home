@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 from update_service import UpdateWorker, launch_update, VERSION
 from home_ui import HomePanel
 from home_integrations import load_preferences, save_preferences, ChromeBridge, IntegrationsDialog
+from home_voice import VoiceManager, VoiceDialog
 
 
 class EyesWidget(QWidget):
@@ -37,6 +38,7 @@ class EyesWidget(QWidget):
         self.next_blink = time.monotonic() + 2.5
         self.follow_mouse = False
         self.react_clicks = False
+        self.voice_state = ''
         self.blink_begin = -1.0
         self.timer = QTimer(self)
         self.timer.setInterval(40)
@@ -82,6 +84,15 @@ class EyesWidget(QWidget):
             blink = max(.07, 1.0 - math.sin(min(1., progress) * math.pi) * .95)
         if self.mood == 2:
             blink *= .54
+        if self.voice_state == 'listening':
+            height_factor = 1.08
+        elif self.voice_state == 'thinking':
+            height_factor = 0.72
+        elif self.voice_state == 'speaking':
+            height_factor = 0.86 + 0.14 * math.sin(time.monotonic() * 13)
+        else:
+            height_factor = 1.0
+        blink *= height_factor
         height = max(2., eh * blink)
         for index in range(2):
             x = left + index * (ew + gap)
@@ -212,6 +223,7 @@ class Home(QWidget):
         self.eyes = EyesWidget(self)
         self.eyes.follow_mouse = self.integration_prefs['eyes_follow_mouse']
         self.eyes.react_clicks = self.integration_prefs['eyes_react_clicks']
+        self.voice = VoiceManager(self)
         self.panel = HomePanel(self)
         self.panel.hide()
         self.panel.mood_changed.connect(self.set_mood)
@@ -219,6 +231,8 @@ class Home(QWidget):
         self.update_btn = self.panel.update_btn
         self.edit_btn = self.panel.edit_btn
         self.quit_btn = self.panel.quit_btn
+        self.voice_btn = self.panel.voice_btn
+        self.voice_btn.clicked.connect(self.open_voice)
         self.interactions_btn = self.panel.interactions_btn
         self.interactions_btn.clicked.connect(self.open_integrations)
         self.update_btn.clicked.connect(self.update_clicked)
@@ -231,9 +245,17 @@ class Home(QWidget):
             self.chrome_bridge.start()
         except OSError:
             pass  # Porta local indisponivel; a interface ainda funciona.
+        if self.integration_prefs.get('voice_microphone') and self.integration_prefs.get('voice_wake'):
+            self.voice.start('wake')
 
     def _remember_page(self,title,url,content):
         self.last_page = (title,url,content)
+
+    def open_voice(self):
+        if self.editing:
+            return
+        dialog = VoiceDialog(self)
+        dialog.exec()
 
     def open_integrations(self):
         if self.editing:
@@ -503,6 +525,7 @@ class Home(QWidget):
         QApplication.instance().quit()
 
     def closeEvent(self,event):
+        self.voice.stop()
         self.chrome_bridge.stop()
         self.save_settings()
         if self.edit_dialog:
