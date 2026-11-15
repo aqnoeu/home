@@ -193,7 +193,9 @@ class IntegrationsDialog(QDialog):
         self.page_text.setReadOnly(True)
         self.page_text.setPlaceholderText("O texto autorizado da página aparece aqui; não é enviado à nuvem.")
         layout.addWidget(self.page_text, 1)
-        self.home.chrome_bridge.received.connect(self.on_page)\n        if self.home.last_page:\n            self.on_page(*self.home.last_page)
+        self.home.chrome_bridge.received.connect(self.on_page)
+        if self.home.last_page:
+            self.on_page(*self.home.last_page)
         end = QPushButton("Concluir")
         end.clicked.connect(self.accept)
         layout.addWidget(end)
