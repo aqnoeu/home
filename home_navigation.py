@@ -41,13 +41,16 @@ class EditPage(QWidget):
         layout.addWidget(btn)
         layout.addStretch()
 
-    def reset(self):
-        self.home.settings.update(self.home.DEFAULTS)
-        self.home.apply_settings()
-        for key,spin in self.inputs.items():
+    def sync(self):
+        for key, spin in self.inputs.items():
             spin.blockSignals(True)
             spin.setValue(self.home.settings[key])
             spin.blockSignals(False)
+
+    def reset(self):
+        self.home.settings.update(self.home.DEFAULTS)
+        self.home.apply_settings()
+        self.sync()
 
 
 class Workspace(QWidget):
