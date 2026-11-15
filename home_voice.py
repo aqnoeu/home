@@ -16,10 +16,10 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-from PySide6.QtCore import QThread, Signal, QObject
+from PySide6.QtCore import QThread, Signal, QObject, Qt
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QCheckBox, QMessageBox, QGroupBox, QWidget
+    QCheckBox, QMessageBox, QGroupBox, QWidget, QComboBox, QSlider
 )
 
 from home_integrations import execute_windows_action, save_preferences
@@ -209,24 +209,56 @@ class ListeningWorker(QThread):
             self.error.emit(str(exc))
 
 
-class SpeechWorker(QThread):
-    done = Signal()
+class VoicesWorker(QThread):
+    """Enumeração SAPI5 fora da thread principal para não travar a interface."""
+    loaded = Signal(object)
     failed = Signal(str)
-
-    def __init__(self, message):
-        super().__init__()
-        self.message = message
 
     def run(self):
         try:
             import pyttsx3
             engine = pyttsx3.init(driverName="sapi5")
-            for voice in engine.getProperty("voices"):
-                info = (str(voice.id) + " " + str(voice.name) + " " + str(voice.languages)).lower()
-                if any(value in info for value in ("pt-br", "pt_br", "portuguese", "brazil", "português")):
-                    engine.setProperty("voice", voice.id)
-                    break
-            engine.setProperty("rate", 165)
+            voices = []
+            for v in engine.getProperty("voices"):
+                voices.append((str(v.id), str(v.name), str(v.languages)))
+            engine.stop()
+            self.loaded.emit(voices)
+        except Exception as exc:
+            self.failed.emit(str(exc))
+
+
+def preferred_voice(voices, selected_id=""):
+    """Retorna o ID salvo quando disponível ou a primeira voz em português."""
+    available = [(str(v.id), str(v.name), str(v.languages)) for v in voices]
+    if selected_id and any(voice_id == selected_id for voice_id, _, _ in available):
+        return selected_id
+    for voice_id, name, language in available:
+        info = (voice_id + " " + name + " " + language).casefold()
+        if any(x in info for x in ("pt-br", "pt_br", "portuguese", "brazil", "português", "pt-pt")):
+            return voice_id
+    return None
+
+
+class SpeechWorker(QThread):
+    done = Signal()
+    failed = Signal(str)
+
+    def __init__(self, message, voice_id="", rate=165, volume=100):
+        super().__init__()
+        self.message = message
+        self.voice_id = voice_id
+        self.rate = max(90, min(280, int(rate)))
+        self.volume = max(0, min(100, int(volume)))
+
+    def run(self):
+        try:
+            import pyttsx3
+            engine = pyttsx3.init(driverName="sapi5")
+            voice_id = preferred_voice(engine.getProperty("voices"), self.voice_id)
+            if voice_id:
+                engine.setProperty("voice", voice_id)
+            engine.setProperty("rate", self.rate)
+            engine.setProperty("volume", self.volume / 100.0)
             engine.say(self.message)
             engine.runAndWait()
             engine.stop()
@@ -375,7 +407,9 @@ class VoiceManager(QObject):
                 self.mode = "wake"
             return
         self.set_state("speaking")
-        self.speaker = SpeechWorker(message)
+        self.speaker = SpeechWorker(
+            message, self.prefs.get("voice_id", ""),
+            self.prefs.get("voice_rate", 165), self.prefs.get("voice_volume", 100))
         speaker = self.speaker
         speaker.finished.connect(lambda: self.speech_finished(speaker))
         speaker.failed.connect(lambda error: self.state.emit("Voz indisponível: " + error[:90]))
@@ -422,6 +456,48 @@ class VoiceDialog(QDialog):
             c.setChecked(self.prefs.get(key, False))
             c.toggled.connect(lambda value, k=key: self.changed(k,value))
             outer.addWidget(c)
+        # Controles de síntese independentes do microfone e do modelo Vosk.
+        outer.addWidget(QLabel("Voz do assistente • vozes disponíveis no Windows (SAPI5)"))
+        self.voice_combo = QComboBox()
+        self.voice_combo.setStyleSheet(
+            "QComboBox{background:#2d2f32;color:#eee;border:1px solid #505154;"
+            "border-radius:8px;padding:8px}"
+            "QComboBox QAbstractItemView{background:#292b2e;color:#eee}")
+        self.voice_combo.addItem("Carregando vozes do Windows...", "")
+        self.voice_combo.setEnabled(False)
+        self.voice_combo.currentIndexChanged.connect(self.select_voice)
+        outer.addWidget(self.voice_combo)
+        reload_button = QPushButton("↻ Atualizar lista de vozes")
+        reload_button.clicked.connect(self.load_voices)
+        outer.addWidget(reload_button)
+        outer.addWidget(QLabel("Velocidade da fala"))
+        self.rate_slider = QSlider(Qt.Horizontal)
+        self.rate_slider.setRange(90, 280)
+        self.rate_slider.setValue(int(self.prefs.get("voice_rate", 165)))
+        self.rate_label = QLabel(str(self.rate_slider.value()))
+        self.rate_slider.valueChanged.connect(self.change_rate)
+        rate_row = QHBoxLayout()
+        rate_row.addWidget(self.rate_slider, 1)
+        rate_row.addWidget(self.rate_label)
+        outer.addLayout(rate_row)
+        outer.addWidget(QLabel("Volume da voz"))
+        self.volume_slider = QSlider(Qt.Horizontal)
+        self.volume_slider.setRange(0, 100)
+        self.volume_slider.setValue(int(self.prefs.get("voice_volume", 100)))
+        self.volume_label = QLabel(str(self.volume_slider.value()) + "%")
+        self.volume_slider.valueChanged.connect(self.change_volume)
+        volume_row = QHBoxLayout()
+        volume_row.addWidget(self.volume_slider, 1)
+        volume_row.addWidget(self.volume_label)
+        outer.addLayout(volume_row)
+        self.preview_button = QPushButton("▶ Testar voz selecionada")
+        self.preview_button.clicked.connect(self.preview_voice)
+        outer.addWidget(self.preview_button)
+        self.voice_info = QLabel("As vozes SAPI5 variam conforme a instalação do Windows.")
+        self.voice_info.setWordWrap(True)
+        outer.addWidget(self.voice_info)
+        self.voices_worker = None
+        self.load_voices()
         self.model_btn=QPushButton("Baixar modelo de português (aprox. 31 MB)")
         self.model_btn.clicked.connect(self.download)
         outer.addWidget(self.model_btn)
@@ -461,6 +537,59 @@ class VoiceDialog(QDialog):
         close=QPushButton("Concluir")
         close.clicked.connect(self.accept)
         outer.addWidget(close)
+
+    def load_voices(self):
+        if self.voices_worker and self.voices_worker.isRunning():
+            return
+        self.voice_info.setText("Procurando vozes compatíveis no Windows...")
+        self.voice_combo.setEnabled(False)
+        self.voices_worker = VoicesWorker(self.manager)
+        worker = self.voices_worker
+        worker.loaded.connect(self.show_voices)
+        worker.failed.connect(self.voice_error)
+        worker.start()
+
+    def show_voices(self, voices):
+        selected = self.prefs.get("voice_id", "")
+        self.voice_combo.blockSignals(True)
+        self.voice_combo.clear()
+        self.voice_combo.addItem("Automática (preferir português)", "")
+        for voice_id, name, languages in voices:
+            self.voice_combo.addItem(f"{name}  ·  {languages}", voice_id)
+        idx = self.voice_combo.findData(selected)
+        self.voice_combo.setCurrentIndex(max(0, idx))
+        self.voice_combo.blockSignals(False)
+        self.voice_combo.setEnabled(True)
+        self.voice_info.setText(
+            f"{len(voices)} voz(es) SAPI5 encontrada(s). A seleção é salva automaticamente."
+            if voices else "Nenhuma voz SAPI5 encontrada. Verifique as vozes instaladas no Windows.")
+
+    def voice_error(self, error):
+        self.voice_combo.clear()
+        self.voice_combo.addItem("Vozes indisponíveis", "")
+        self.voice_info.setText("Não foi possível consultar as vozes do Windows: " + error[:160])
+
+    def select_voice(self, index):
+        if index < 0:
+            return
+        self.prefs["voice_id"] = str(self.voice_combo.itemData(index) or "")
+        save_preferences(self.prefs)
+
+    def change_rate(self, value):
+        self.prefs["voice_rate"] = int(value)
+        self.rate_label.setText(str(value))
+        save_preferences(self.prefs)
+
+    def change_volume(self, value):
+        self.prefs["voice_volume"] = int(value)
+        self.volume_label.setText(str(value) + "%")
+        save_preferences(self.prefs)
+
+    def preview_voice(self):
+        self.voice_info.setText("Reproduzindo exemplo com a voz escolhida...")
+        self.manager.speak(
+            "Olá! Eu sou o Home. Esta é uma demonstração da voz selecionada.",
+            force=True)
 
     def changed(self, key, value):
         self.prefs[key]=bool(value)
