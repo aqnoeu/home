@@ -233,6 +233,8 @@ class Home(QWidget):
         self.quit_btn = self.panel.quit_btn
         self.voice_btn = self.panel.voice_btn
         self.voice_btn.clicked.connect(self.open_voice)
+        self.voice.state.connect(self.on_voice_status)
+        self.on_voice_status("")
         self.interactions_btn = self.panel.interactions_btn
         self.interactions_btn.clicked.connect(self.open_integrations)
         self.update_btn.clicked.connect(self.update_clicked)
@@ -251,11 +253,27 @@ class Home(QWidget):
     def _remember_page(self,title,url,content):
         self.last_page = (title,url,content)
 
+    def on_voice_status(self, status):
+        if not self.integration_prefs.get('voice_microphone'):
+            self.panel.mic_status.setText("")
+        elif status == "listening":
+            self.panel.mic_status.setText("● MIC  ")
+        elif status == "speaking":
+            self.panel.mic_status.setText("◉ FALA  ")
+        elif status == "thinking":
+            self.panel.mic_status.setText("…  ")
+        elif self.integration_prefs.get('voice_wake'):
+            self.panel.mic_status.setText("● EI HOME  ")
+        else:
+            self.panel.mic_status.setText("")
+        self.panel.mic_status.setToolTip(status or "Microfone em espera")
+
     def open_voice(self):
         if self.editing:
             return
         dialog = VoiceDialog(self)
         dialog.exec()
+        self.on_voice_status("")
 
     def open_integrations(self):
         if self.editing:
