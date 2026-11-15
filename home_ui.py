@@ -126,8 +126,8 @@ class HomePanel(QFrame):
         row.addWidget(self.edit_btn, 0, 1)
         row.addWidget(self.interactions_btn, 1, 0)
         row.addWidget(self.voice_btn, 1, 1)
-        row.addWidget(self.assistant_btn, 2, 0, 1, 2)
-        row.addWidget(self.quit_btn, 3, 0, 1, 2)
+        row.addWidget(self.assistant_btn, 2, 0)
+        row.addWidget(self.quit_btn, 2, 1)
         self.root.addWidget(self.cards, 1)
 
         self.line2 = QFrame()
