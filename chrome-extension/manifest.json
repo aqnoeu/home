@@ -14,5 +14,8 @@
   "action": {
     "default_title": "Compartilhar com Home",
     "default_popup": "popup.html"
-  }
+  },
+  "optional_permissions": [
+    "tabs"
+  ]
 }
