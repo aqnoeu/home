@@ -61,7 +61,7 @@ def interpret(sentence):
 
 def wake_command(sentence):
     s = normalize(sentence)
-    match = re.search(r"\b(?:ei|hey)\s+(?:home|rome|rômi)\b", s)
+    match = re.search(r"\b(?:ei|hey)\s+(?:home|rome|romi)\b", s)
     return None if not match else s[match.end():].strip(" ,.!?")
 
 
@@ -391,6 +391,7 @@ class VoiceDialog(QDialog):
         outer.addWidget(self.state_label)
         self.manager.state.connect(self.state_label.setText)
         self.manager.command.connect(self.heard)
+        self.finished.connect(self.disconnect_signals)
         self.download_worker=None
         if MODEL_DIR.joinpath("am","final.mdl").exists():
             self.model_btn.setText("✓ Modelo de português instalado")
@@ -425,10 +426,9 @@ class VoiceDialog(QDialog):
     def heard(self, text):
         self.state_label.setText("Reconhecido: " + text)
 
-    def closeEvent(self,event):
+    def disconnect_signals(self,*args):
         try:
             self.manager.state.disconnect(self.state_label.setText)
             self.manager.command.disconnect(self.heard)
         except (RuntimeError,TypeError):
             pass
-        super().closeEvent(event)
