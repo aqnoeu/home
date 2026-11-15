@@ -279,7 +279,7 @@ class VoiceManager(QObject):
     def refresh_permissions(self):
         if not self.prefs.get("voice_microphone") or not self.prefs.get("voice_wake"):
             self.stop()
-        elif not self.worker or not self.worker.isRunning():
+        elif (not self.speaker or not self.speaker.isRunning()) and (not self.worker or not self.worker.isRunning()):
             self.start("wake")
 
     def handle_error(self, message):
@@ -318,7 +318,10 @@ class VoiceManager(QObject):
     def speak(self, message):
         if not self.prefs.get("voice_speech"):
             self.set_state(message)
-            if self.restart_wake:
+            if self.restart_wake and (not self.worker or not self.worker.isRunning()):
+                self.mode = "wake"
+                self.start("wake")
+            elif self.restart_wake:
                 self.mode = "wake"
             return
         self.set_state("speaking")
@@ -333,6 +336,8 @@ class VoiceManager(QObject):
             self.speaker = None
         if self.restart_wake and self.prefs.get("voice_wake") and self.prefs.get("voice_microphone"):
             self.mode = "wake"
+            if not self.worker or not self.worker.isRunning():
+                self.start("wake")
         else:
             self.set_state("")
 
