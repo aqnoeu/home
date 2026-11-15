@@ -3,6 +3,7 @@ on:
   push:
     branches: [main]
     paths:
+      - '.github/workflows/windows-release.yml'
       - 'home.py'
       - 'home_ui.py'
       - 'home_integrations.py'
