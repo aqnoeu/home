@@ -360,8 +360,8 @@ class VoiceManager(QObject):
         except Exception:
             self.speak("Não consegui executar o comando.")
 
-    def speak(self, message):
-        if not self.prefs.get("voice_speech"):
+    def speak(self, message, force=False):
+        if not force and not self.prefs.get("voice_speech"):
             self.set_state(message)
             if self.restart_wake and (not self.worker or not self.worker.isRunning()):
                 self.mode = "wake"
