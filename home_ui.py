@@ -120,12 +120,14 @@ class HomePanel(QFrame):
         self.edit_btn=ActionCard("⤢", "Modo edição", "Ajustar tamanho")
         self.interactions_btn=ActionCard("⌘", "Interações", "Windows e Chrome")
         self.voice_btn=ActionCard("◉", "Voz e microfone", "Ei, Home / botão")
+        self.assistant_btn=ActionCard("✎", "Assistente", "Digite e ouça respostas")
         self.quit_btn=ActionCard("⏻", "Encerrar", "Fechar o Home")
         row.addWidget(self.update_btn, 0, 0)
         row.addWidget(self.edit_btn, 0, 1)
         row.addWidget(self.interactions_btn, 1, 0)
         row.addWidget(self.voice_btn, 1, 1)
-        row.addWidget(self.quit_btn, 2, 0, 1, 2)
+        row.addWidget(self.assistant_btn, 2, 0, 1, 2)
+        row.addWidget(self.quit_btn, 3, 0, 1, 2)
         self.root.addWidget(self.cards, 1)
 
         self.line2 = QFrame()
@@ -166,5 +168,5 @@ class HomePanel(QFrame):
         self.more.setVisible(not compact)
         self.root.setContentsMargins(10 if compact else 15,7 if compact else 13,10 if compact else 15,6 if compact else 12)
         self.root.setSpacing(5 if compact else 10)
-        for card in (self.update_btn,self.edit_btn,self.interactions_btn,self.voice_btn,self.quit_btn):
+        for card in (self.update_btn,self.edit_btn,self.interactions_btn,self.voice_btn,self.assistant_btn,self.quit_btn):
             card.set_content()
