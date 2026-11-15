@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QApplication, QWidget, QLabel, QPushButton, QMessageBox, QVBoxLayout,
     QFormLayout, QSpinBox, QDialog, QHBoxLayout, QGroupBox, QSizePolicy
 )
-from update_service import UpdateWorker, launch_update
+from update_service import UpdateWorker, launch_update, VERSION
 
 
 class EyesWidget(QWidget):
@@ -175,7 +175,7 @@ class Home(QWidget):
         self.edit_dialog = None
         self.worker = None
         self.available_update = None
-        self.setWindowTitle('Home v0.7')
+        self.setWindowTitle(f'Home v{VERSION}')
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
         self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setAttribute(Qt.WA_NoSystemBackground, True)
