@@ -240,6 +240,7 @@ class Home(QWidget):
         self.quit_btn = self.panel.quit_btn
         self.voice_btn = self.panel.voice_btn
         self.voice_btn.clicked.connect(lambda:self.navigate('voice'))
+        self.panel.assistant_btn.clicked.connect(lambda:self.navigate('assistant'))
         self.voice.state.connect(self.on_voice_status)
         self.on_voice_status("")
         self.interactions_btn = self.panel.interactions_btn
