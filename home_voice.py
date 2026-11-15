@@ -38,11 +38,13 @@ def normalize(sentence):
 def interpret(sentence):
     """Somente comandos predeterminados, sem shell, scripts ou navegação."""
     s = normalize(sentence)
-    if any(word in s for word in ("bloco de notas", "notepad")):
+    open_verbs = ("abra ", "abre ", "abrir ", "inicie ", "iniciar ", "mostre ")
+    request_to_open = s.startswith(open_verbs)
+    if request_to_open and any(word in s for word in ("bloco de notas", "notepad")):
         return ("notepad", "Abrindo o Bloco de Notas.")
-    if "calculadora" in s:
+    if request_to_open and "calculadora" in s:
         return ("calc", "Abrindo a Calculadora.")
-    if any(word in s for word in ("explorador", "arquivos")):
+    if request_to_open and any(word in s for word in ("explorador", "arquivos")):
         return ("explorer", "Abrindo o Explorador de Arquivos.")
     if any(word in s for word in ("aumentar volume", "aumente o volume", "volume mais", "mais volume")):
         return ("volume_up", "Aumentando o volume.")
