@@ -27,7 +27,9 @@ MEDIA_KEYS = {"volume_up": 0xAF, "volume_down": 0xAE, "mute": 0xAD,
 
 def load_preferences():
     base = {"eyes_follow_mouse": False, "eyes_react_clicks": False,
-            "windows_controls": False, "chrome_reading": False,\n            "voice_microphone": False, "voice_wake": False, "voice_speech": False,\n            "token": secrets.token_urlsafe(32)}
+            "windows_controls": False, "chrome_reading": False,
+            "voice_microphone": False, "voice_wake": False, "voice_speech": False,
+            "token": secrets.token_urlsafe(32)}
     try:
         source = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
         for key in base:
