@@ -296,6 +296,7 @@ class VoiceManager(QObject):
         self.pending_action = None
         self.pending_phrase = ""
         self.download_worker = None
+        self.voice_list_workers = []
 
     def set_state(self, state):
         self.state.emit(state)
@@ -554,6 +555,9 @@ class VoiceDialog(QDialog):
         self.voice_combo.setEnabled(False)
         self.voices_worker = VoicesWorker(self.manager)
         worker = self.voices_worker
+        self.manager.voice_list_workers.append(worker)
+        worker.finished.connect(lambda: self.manager.voice_list_workers.remove(worker)
+                                if worker in self.manager.voice_list_workers else None)
         worker.loaded.connect(self.show_voices)
         worker.failed.connect(self.voice_error)
         worker.start()
