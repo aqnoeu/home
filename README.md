@@ -101,3 +101,14 @@ O projeto continua com a aparência grafite, o Modo Edição, a extensão opcion
 As primeiras versões do Home procuravam apenas `am/final.mdl`, mas o modelo oficial de português `vosk-model-small-pt-0.3` usa a estrutura antiga do Vosk com `final.mdl`, `mfcc.conf`, `Gr.fst` e `HCLr.fst` na raiz. O Home agora aceita ambas as estruturas e verifica o SHA-256 do ZIP oficial antes da extração.
 
 Se o download falhar, atualize o Home para a Release com a correção e clique novamente em **Baixar modelo de português**. O Home limpa automaticamente a pasta temporária de um download interrompido; não é necessário apagar manualmente arquivos nem alterar as permissões do microfone.
+
+
+## Interface navegável no próprio entalhe
+
+Os cartões do Hub não abrem mais janelas de configuração separadas. Ao escolher **Voz**, **Interações**, **Modo edição**, **Atualizações** ou **Encerrar**, o próprio Home aumenta temporariamente para um tamanho de leitura confortável (até 690 × 610 px, respeitando a resolução da tela). Uma barra de navegação permite alternar entre as funcionalidades e retornar ao Hub; ao voltar, as dimensões salvas do Hub são restauradas. Os olhinhos continuam visíveis acima do conteúdo.
+
+A página **Voz** inclui suas permissões, botão de fala, estado do microfone, modelo instalado e confirmação **Sim/Não** de ações reconhecidas, sem popups adicionais. A página **Atualizações** permite procurar versões e confirmar a instalação internamente. O **Modo edição** dispõe dos controles de largura, altura e distância da esquerda, preservando as configurações anteriores.
+
+Essa organização oferece uma estrutura expansível para uma futura página de assistente de IA, **sem** habilitar IA ou conceder novas permissões no momento.
+
+Caso você esteja usando o Home anterior, use **Atualizações** para receber a nova interface depois da publicação da Release no GitHub.
