@@ -14,6 +14,7 @@ from PySide6.QtCore import QThread, Signal
 
 API = "https://api.groq.com/openai/v1/chat/completions"
 MODEL = "openai/gpt-oss-20b"
+FALLBACK_MODELS = ("llama-3.3-70b-versatile", "llama-3.1-8b-instant")
 SERVICE = "HOME-Groq"
 ACCOUNT = "personal-api-key"
 SYSTEM = (
@@ -121,11 +122,11 @@ def explain_groq_http_error(exc):
     return "Groq HTTP %s: solicitação não concluída." % exc.code
 
 
-def verify_groq_credentials(api_key=None):
-    """Diagnose authentication without depending on chat-completion permissions."""
+def available_groq_models(api_key=None):
+    """Read available model identifiers using the locally saved credential."""
     key = api_key or get_key()
     if not key:
-        raise RuntimeError("Nenhuma chave pessoal recuperada do Windows.")
+        raise RuntimeError("Nenhuma chave Groq recuperada do Windows.")
     request = urllib.request.Request(
         "https://api.groq.com/openai/v1/models",
         headers={"Authorization": "Bearer " + key, "Accept": "application/json"},
@@ -139,9 +140,49 @@ def verify_groq_credentials(api_key=None):
     except urllib.error.URLError:
         raise RuntimeError("Não foi possível alcançar a Groq. Verifique rede e firewall.") from None
     if not isinstance(payload, dict) or not isinstance(payload.get("data"), list):
-        raise RuntimeError("Resposta de autenticação inesperada da Groq.")
-    models = {item.get("id") for item in payload["data"] if isinstance(item, dict)}
-    return MODEL in models
+        raise RuntimeError("Resposta de modelos inesperada da Groq.")
+    return {item["id"] for item in payload["data"]
+            if isinstance(item, dict) and isinstance(item.get("id"), str)}
+
+
+def verify_groq_credentials(api_key=None):
+    """A successful model listing proves authentication, not chat permission."""
+    available_groq_models(api_key)
+    return True
+
+
+def _chat_request(key, model, messages):
+    """Make one attempt; keep HTTP errors intact for precise retry decisions."""
+    payload = {
+        "model": model,
+        "messages": messages,
+        "temperature": 0.4,
+        "max_completion_tokens": 500,
+        "response_format": {"type": "json_object"},
+        "stream": False,
+    }
+    if model.startswith("openai/gpt-oss-"):
+        payload.update({"reasoning_effort": "low", "include_reasoning": False})
+    request = urllib.request.Request(
+        API, data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers={"Authorization": "Bearer " + key,
+                 "Content-Type": "application/json"}, method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=28) as response:
+        raw = response.read(128001)
+    if len(raw) > 128000:
+        raise RuntimeError("A resposta da Groq excedeu o limite.")
+    try:
+        answer = json.loads(raw)["choices"][0]["message"]["content"]
+        if not isinstance(answer, str) or not answer.strip():
+            raise ValueError("empty answer")
+        decoded = json.loads(answer)
+        speech = decoded["resposta"]
+        if not isinstance(speech, str) or not speech.strip():
+            raise ValueError("missing resposta")
+        return speech.strip()[:850], normalize_emotion(decoded.get("emocao"))
+    except (ValueError, TypeError, IndexError, KeyError, AttributeError):
+        raise RuntimeError("A Groq não retornou JSON válido de resposta e emoção.") from None
 
 
 def ask_groq(message, history=None, api_key=None, structured=False):
@@ -151,50 +192,41 @@ def ask_groq(message, history=None, api_key=None, structured=False):
     question = (message or "").strip()
     if not question or len(question) > 750:
         raise ValueError("Pergunta vazia ou maior que 750 caracteres.")
-    messages = [{"role":"system", "content":SYSTEM}]
+    messages = [{"role": "system", "content": SYSTEM}]
     for turn in (history or [])[-8:]:
-        if turn.get("role") in ("user", "assistant") and isinstance(turn.get("content"), str):
-            messages.append({"role":turn["role"], "content":turn["content"][:850]})
-    messages.append({"role":"user","content":question})
-    request=urllib.request.Request(
-        API,
-        data=json.dumps({
-            "model":MODEL,
-            "messages":messages,
-            "temperature":0.5,
-            "max_completion_tokens":450,
-            "reasoning_effort":"low",
-            "include_reasoning":False,
-            "response_format":{"type":"json_object"},
-            "stream":False
-        },ensure_ascii=False).encode("utf-8"),
-        headers={"Authorization":"Bearer "+key, "Content-Type":"application/json"},
-        method="POST",
+        if (isinstance(turn, dict) and turn.get("role") in ("user", "assistant")
+                and isinstance(turn.get("content"), str)):
+            messages.append({"role": turn["role"], "content": turn["content"][:850]})
+    messages.append({"role": "user", "content": question})
+
+    # A 403 can mean model permissions, not an invalid API key.
+    # Retry only well-known alternatives under the SAME local credential.
+    rejected = []
+    for model in (MODEL,) + FALLBACK_MODELS:
+        try:
+            speech, emotion = _chat_request(key, model, messages)
+            return (speech, emotion) if structured else speech
+        except urllib.error.HTTPError as exc:
+            description = explain_groq_http_error(exc)
+            if exc.code in (403, 404):
+                rejected.append(model + ": " + description)
+                continue
+            raise RuntimeError(description) from None
+        except urllib.error.URLError:
+            raise RuntimeError("Não foi possível conectar à Groq. Verifique a internet.") from None
+    raise RuntimeError(
+        "A Groq recusou todos os modelos testados (" +
+        ", ".join((MODEL,) + FALLBACK_MODELS) +
+        "). Confira permissões do projeto/organização. " +
+        (rejected[-1] if rejected else "")
     )
-    try:
-        with urllib.request.urlopen(request,timeout=28) as response:
-            raw=response.read(128001)
-            if len(raw)>128000:
-                raise RuntimeError("Resposta da Groq excedeu o limite.")
-    except urllib.error.HTTPError as exc:
-        raise RuntimeError(explain_groq_http_error(exc)) from None
-    except urllib.error.URLError:
-        raise RuntimeError("Não foi possível conectar à Groq. Verifique a internet.") from None
-    try:
-        answer=json.loads(raw)["choices"][0]["message"]["content"].strip()
-    except (ValueError, TypeError, IndexError, KeyError, AttributeError):
-        raise RuntimeError("A Groq retornou uma resposta inválida.") from None
-    if not answer:
-        raise RuntimeError("A Groq não enviou texto para responder.")
-    try:
-        decoded=json.loads(answer)
-        speech=decoded["resposta"]
-        if not isinstance(speech,str) or not speech.strip():
-            raise ValueError("resposta vazia")
-        emotion=normalize_emotion(decoded.get("emocao"))
-    except (ValueError,TypeError,KeyError):
-        raise RuntimeError("A Groq não retornou JSON de resposta e emoção.") from None
-    return (speech.strip()[:850], emotion) if structured else speech.strip()[:850]
+
+
+def diagnose_groq_chat(api_key=None):
+    """Validate the REAL completion path; models listing alone is not enough."""
+    available_groq_models(api_key)
+    return ask_groq("Responda com um JSON contendo resposta igual a oi e emocao neutro.",
+                    api_key=api_key, structured=True)
 
 
 class GroqWorker(QThread):
@@ -212,10 +244,8 @@ class GroqWorker(QThread):
     def run(self):
         try:
             if self.check_credentials:
-                model_available = verify_groq_credentials()
-                self.credentials_checked.emit(model_available)
-                if not model_available:
-                    raise RuntimeError("Chave aceita pela Groq, mas o modelo do HOME não está listado nesta conta.")
+                verify_groq_credentials()
+                self.credentials_checked.emit(True)
             speech,emotion=ask_groq(self.question,self.history,structured=True)
             self.emotional_answer.emit(speech,emotion)
             self.answered.emit(speech)
