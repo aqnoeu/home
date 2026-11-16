@@ -195,6 +195,61 @@ class AssistantPage(QWidget):
         self.add_bubble(role,message)
         self.refresh_chat_selector()
 
+    def refresh_chat_selector(self):
+        selected=self.home.chat_store.active()
+        self.chat_selector.blockSignals(True)
+        self.chat_selector.clear()
+        for item in self.home.chat_store.all():
+            self.chat_selector.addItem(item["title"][:45],item["id"])
+        index=self.chat_selector.findData(selected)
+        if index>=0:self.chat_selector.setCurrentIndex(index)
+        self.chat_selector.blockSignals(False)
+
+    def load_chat_messages(self):
+        self.message_host=QWidget()
+        self.message_layout=QVBoxLayout(self.message_host)
+        self.message_layout.setAlignment(Qt.AlignTop)
+        self.message_layout.setSpacing(10)
+        self.messages.setWidget(self.message_host)
+        for role,message in self.home.assistant_history:
+            self.add_bubble(role,message)
+        if not self.home.assistant_history:
+            self.add_bubble("home","Escreva uma mensagem para começar esta conversa.")
+
+    def select_chat(self,index):
+        if index<0:return
+        target=self.chat_selector.itemData(index)
+        if not target or target==self.home.chat_store.active():return
+        self.home.select_chat(target)
+        self.pending_chat_delete=False
+        self.delete_chat_btn.setText("Excluir")
+        if hasattr(self,"messages"):
+            self.load_chat_messages()
+
+    def new_chat(self):
+        self.home.chat_store.new()
+        self.home.assistant_history=[]
+        self.pending_chat_delete=False
+        self.delete_chat_btn.setText("Excluir")
+        self.refresh_chat_selector()
+        self.load_chat_messages()
+        self.status.setText("Nova conversa criada. Histórico anterior preservado.")
+
+    def delete_chat(self):
+        if not self.pending_chat_delete:
+            self.pending_chat_delete=True
+            self.delete_chat_btn.setText("Confirmar exclusão")
+            self.status.setText("Clique novamente para excluir permanentemente esta conversa.")
+            return
+        self.home.chat_store.delete(self.home.chat_store.active())
+        self.home.chat_store.new()
+        self.home.assistant_history=[]
+        self.pending_chat_delete=False
+        self.delete_chat_btn.setText("Excluir")
+        self.refresh_chat_selector()
+        self.load_chat_messages()
+        self.status.setText("Conversa excluída deste computador.")
+
     def say(self,message):
         if self.talk.isChecked():
             self.home.voice.speak(message, force=True)
