@@ -191,6 +191,10 @@ class Workspace(QWidget):
         self.install_btn.setVisible(bool(self.home.available_update))
         self.install_btn.clicked.connect(self.show_confirmation)
         layout.addWidget(self.install_btn)
+        android_btn=QPushButton("Home para Android — QR Code")
+        android_btn.setObjectName("primary")
+        android_btn.clicked.connect(self.show_android_qr)
+        layout.addWidget(android_btn)
         self.confirm=QWidget()
         row=QHBoxLayout(self.confirm)
         row.addWidget(QLabel("Autoriza baixar e reiniciar o Home?"))
@@ -204,6 +208,46 @@ class Workspace(QWidget):
         layout.addWidget(self.confirm)
         layout.addStretch()
         return page
+
+    def show_android_qr(self):
+        """QR Code permanente para a pagina oficial de downloads, sem pareamento com PC."""
+        import qrcode
+        from PySide6.QtGui import QColor, QPainter, QPixmap
+        from PySide6.QtWidgets import QDialog
+        url = "https://github.com/aqnoeu/home/releases"
+        qr = qrcode.QRCode(border=2, box_size=1,
+                            error_correction=qrcode.constants.ERROR_CORRECT_M)
+        qr.add_data(url)
+        qr.make(fit=True)
+        matrix = qr.get_matrix()
+        cell = 7
+        side = len(matrix) * cell
+        pixmap = QPixmap(side, side)
+        pixmap.fill(QColor("white"))
+        painter = QPainter(pixmap)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor("#08090b"))
+        for y, line in enumerate(matrix):
+            for x, is_black in enumerate(line):
+                if is_black:
+                    painter.drawRect(x*cell, y*cell, cell, cell)
+        painter.end()
+        popup = QDialog(self)
+        popup.setWindowTitle("Home para Android")
+        popup.setStyleSheet("QDialog{background:#17181a;color:#eeeeee} QLabel{color:#eeeeee}")
+        layout = QVBoxLayout(popup)
+        info = QLabel("Escaneie para abrir as Releases do Home.\\n"
+                      "Quando houver APK publicado, selecione Home-Android.apk.")
+        info.setWordWrap(True)
+        layout.addWidget(info)
+        image = QLabel()
+        image.setPixmap(pixmap)
+        image.setAlignment(Qt.AlignCenter)
+        layout.addWidget(image)
+        close = QPushButton("Fechar")
+        close.clicked.connect(popup.accept)
+        layout.addWidget(close)
+        popup.exec()
 
     def check_updates(self):
         self.update_status.setText("Consultando GitHub...")
