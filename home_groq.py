@@ -14,7 +14,7 @@ from PySide6.QtCore import QThread, Signal
 
 API = "https://api.groq.com/openai/v1/chat/completions"
 MODEL = "openai/gpt-oss-20b"
-FALLBACK_MODELS = ("llama-3.3-70b-versatile", "llama-3.1-8b-instant")
+FALLBACK_MODELS = ("openai/gpt-oss-120b", "qwen/qwen3.8-27b")
 SERVICE = "HOME-Groq"
 ACCOUNT = "personal-api-key"
 SYSTEM = (
