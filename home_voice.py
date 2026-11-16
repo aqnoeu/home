@@ -375,20 +375,7 @@ class VoiceManager(QObject):
         self.command.emit(phrase)
         action = interpret(phrase)
         if action is None:
-            from home_ai import AiWorker, load_ai_settings
-            config = load_ai_settings()
-            if config.get("endpoint") and config.get("token"):
-                if not hasattr(self.home, "_ai_workers"):
-                    self.home._ai_workers = []
-                worker = AiWorker(phrase, self.home.eyes.mood,
-                                  config["endpoint"], config["token"], self.home)
-                self.home._ai_workers.append(worker)
-                worker.replied.connect(lambda answer, mood: self.speak(answer))
-                worker.failed.connect(lambda error: self.speak("Não consegui consultar a IA: " + error[:100]))
-                worker.finished.connect(lambda w=worker: self.home._ai_workers.remove(w) if w in self.home._ai_workers else None)
-                worker.start()
-                return
-            self.speak("Não reconheci esse comando. Configure a IA no Assistente para conversar.")
+            self.speak("Não reconheci esse comando.")
             return
         key, response = action
         if not self.prefs.get("windows_controls"):
