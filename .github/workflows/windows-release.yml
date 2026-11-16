@@ -61,6 +61,23 @@ jobs:
         run: python -m py_compile home.py home_ui.py home_navigation.py home_assistant.py home_integrations.py home_voice.py home_faber.py updater.py update_service.py
       - name: Testar comandos de voz e wake word
         run: python -m unittest discover -s tests -v
+      - name: Verificar áudio REAL sintetizado pela Faber (sem alto-falante)
+        shell: pwsh
+        run: |
+          @'
+          from home_faber import FaberDownloadWorker, installed, synthesize
+          import numpy as np
+          worker=FaberDownloadWorker()
+          worker.run()
+          assert installed(), "Faber não foi instalada no teste"
+          samples, sample_rate=synthesize("Marinha sem vento não chega a porto")
+          samples=np.asarray(samples)
+          assert sample_rate >= 16000, "Taxa de amostragem inválida"
+          assert samples.size > sample_rate//2, "A síntese gerou áudio vazio/curto"
+          assert np.max(np.abs(samples)) > 0.001, "Áudio silencioso"
+          print(f"Faber validada: {samples.size} amostras, {sample_rate} Hz")
+          '@ | Set-Content faber_audio_check.py -Encoding utf8
+          python faber_audio_check.py
       - name: Testar navegacao interna sem popups
         shell: pwsh
         env:
