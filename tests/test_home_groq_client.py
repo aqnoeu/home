@@ -19,7 +19,8 @@ class FakeResponse:
         return False
 
     def read(self, size=-1):
-        return self.data[:size]
+        # json.load() calls read() with -1 to request the full response.
+        return self.data if size is None or size < 0 else self.data[:size]
 
 
 def http_error(code, message="blocked", error_code="model_permission_blocked_project"):
