@@ -36,7 +36,9 @@ def get_key():
         if own and own.strip().startswith("gsk_"):
             return own.strip()
     except Exception:
-        pass
+        # A failure reading the Windows vault must never silently select a
+        # packaged key and cause misleading HTTP 401 responses.
+        return None
     return BUILTIN_GROQ_KEY.strip() if BUILTIN_GROQ_KEY.strip().startswith("gsk_") else None
 
 
@@ -50,6 +52,12 @@ def save_key(value):
         raise ValueError("Chave Groq inválida. Copie a chave criada no painel Groq.")
     import keyring
     keyring.set_password(SERVICE, ACCOUNT, value)
+    # Verify the exact key can be read back, rather than just trusting that
+    # the credential manager accepted the write.
+    recovered = keyring.get_password(SERVICE, ACCOUNT)
+    if recovered is None or recovered.strip() != value:
+        raise RuntimeError("A chave não pôde ser recuperada do Gerenciador de Credenciais do Windows.")
+    return True
 
 
 def clear_key():
