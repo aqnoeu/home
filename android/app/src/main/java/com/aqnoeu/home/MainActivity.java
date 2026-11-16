@@ -120,11 +120,47 @@ public final class MainActivity extends Activity {
         status=text("",12);root.addView(status);
         switch(page){
             case "assistant":
-                root.addView(text("Home • expressões e conversas",14));
-                addButton("✨ Me surpreenda",()->localReaction("surprise"));
-                addButton("♡ Como você está?",()->localReaction("mood"));
-                addButton("🎉 Comemorar!",()->localReaction("celebrate"));
-                status.setText("Home reage a interações locais. Sem servidor, chaves ou configuração de nuvem.");
+                root.addView(text("Home • converse com inteligência Groq",15));
+                TextView connection=text(HomeGroq.connected(this)
+                    ? "✓ Inteligência conectada neste aparelho"
+                    : "Conecte a Groq uma vez para responder perguntas.",13);
+                root.addView(connection);
+                addButton("Conectar / trocar chave Groq",()->HomeGroq.configure(this,
+                    ()->connection.setText("✓ Inteligência conectada neste aparelho")));
+                EditText question=new EditText(this);
+                question.setHint("Pergunte ao Home...");
+                question.setTextColor(Color.WHITE);
+                question.setHintTextColor(0xffa4a6aa);
+                question.setSingleLine(false);
+                question.setMaxLines(3);
+                root.addView(question,new LinearLayout.LayoutParams(-1,dp(74)));
+                TextView reply=text("As respostas aparecerão aqui e serão faladas pela Faber, se instalada.",14);
+                root.addView(reply);
+                addButton("Enviar pergunta",()->{
+                    String query=question.getText().toString().trim();
+                    if(query.isEmpty())return;
+                    question.setText("");
+                    reply.setText("Home está pensando…");
+                    HomeGroq.ask(this,query,new HomeGroq.Callback(){
+                        @Override public void onAnswer(String answer){
+                            reply.setText(answer);
+                            if(FaberOffline.isInstalled(MainActivity.this))
+                                HomeVoice.speak(MainActivity.this,answer);
+                        }
+                        @Override public void onError(String error){reply.setText(error);}
+                    });
+                });
+                addButton("◉ Perguntar por voz",()->HomeVoice.listen(this));
+                addButton("Desconectar Groq",()->{
+                    new AlertDialog.Builder(this).setTitle("Desconectar Groq")
+                        .setMessage("Apagar a chave armazenada e o histórico desta sessão?")
+                        .setPositiveButton("Desconectar",(d,w)->{
+                            HomeGroq.disconnect(this);
+                            connection.setText("Groq desconectada.");
+                            reply.setText("A chave foi retirada deste celular.");
+                        }).setNegativeButton("Cancelar",null).show();
+                });
+                status.setText("A Groq responde às perguntas pela internet; Faber fala offline. A chave fica protegida pelo Android. Comandos do sistema não são executados pela IA.");
                 break;
             case "voice":
                 root.addView(text("Faber • Piper pt_BR-faber-medium",16));
@@ -144,7 +180,8 @@ public final class MainActivity extends Activity {
                 addButton("▶ Testar voz Faber offline",()->FaberOffline.speak(this,
                     "Olá! Eu sou o Home e esta é a voz Faber, funcionando diretamente no celular.",
                     faberStatus::setText));
-                addButton("◉ Falar agora",()->HomeVoice.listen(this));
+                addButton("◉ Perguntar ao Home por voz",()->HomeVoice.listen(this));
+                addButton("Configurar inteligência Groq",()->showPage("assistant"));
                 addButton("Diagnóstico da voz Faber",()->{
                     String report=FaberOffline.diagnostic(this);
                     new AlertDialog.Builder(this).setTitle("Diagnóstico • Faber")
@@ -155,7 +192,7 @@ public final class MainActivity extends Activity {
                             Toast.makeText(this,"Diagnóstico copiado",Toast.LENGTH_SHORT).show();
                         }).setNegativeButton("Fechar",null).show();
                 });
-                status.setText("Mesma voz Faber no Home Windows e Android. A fala é offline e não usa Google TTS, servidor ou chave. O reconhecimento de voz ainda usa o serviço instalado no Android.");
+                status.setText("Groq produz respostas pela internet quando conectada; Faber as fala offline, sem usar Google TTS. O reconhecimento de entrada depende do serviço do Android.");
                 break;
             case "interactions":
                 addButton("Ativar Notch",()->{
@@ -239,11 +276,25 @@ public final class MainActivity extends Activity {
         if(requestCode==HomeVoice.REQUEST_SPEECH && resultCode==RESULT_OK && data!=null) {
             java.util.ArrayList<String> result=data.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS);
             if(result!=null && !result.isEmpty()) {
-                String message=HomeVoice.localResponse(result.get(0));
-                HomeVoice.speak(this,message);
-                if(!isFinishing())new AlertDialog.Builder(this).setTitle("Home ouviu você")
-                    .setMessage(result.get(0)+"\n\nHome: "+message)
-                    .setPositiveButton("Certo!",null).show();
+                String heard=result.get(0);
+                if(!HomeGroq.connected(this)) {
+                    if(status!=null)status.setText("Conecte a Groq em Assistente para receber respostas inteligentes por voz.");
+                    Toast.makeText(this,"Conecte a Groq em Assistente.",Toast.LENGTH_LONG).show();
+                    return;
+                }
+                if(status!=null)status.setText("Home está pensando…");
+                HomeGroq.ask(this,heard,new HomeGroq.Callback(){
+                    @Override public void onAnswer(String answer){
+                        if(status!=null)status.setText(answer);
+                        if(FaberOffline.isInstalled(MainActivity.this))
+                            HomeVoice.speak(MainActivity.this,answer);
+                        else Toast.makeText(MainActivity.this,"Instale Faber em Voz para ouvir a resposta.",Toast.LENGTH_LONG).show();
+                    }
+                    @Override public void onError(String error){
+                        if(status!=null)status.setText(error);
+                        Toast.makeText(MainActivity.this,error,Toast.LENGTH_LONG).show();
+                    }
+                });
             }
         }
     }
