@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from home_integrations import execute_windows_action, save_preferences
+from home_faber import FaberDownloadWorker, FaberSpeechWorker, installed as faber_installed, PREVIEW_TEXT
 
 MODEL_NAME = "vosk-model-small-pt-0.3"
 MODEL_URL = "https://alphacephei.com/vosk/models/" + MODEL_NAME + ".zip"
@@ -297,6 +298,7 @@ class VoiceManager(QObject):
         self.pending_phrase = ""
         self.download_worker = None
         self.voice_list_workers = []
+        self.faber_download_worker = None
 
     def set_state(self, state):
         self.state.emit(state)
@@ -418,14 +420,16 @@ class VoiceManager(QObject):
             elif self.restart_wake:
                 self.mode = "wake"
             return
+        if not faber_installed():
+            self.set_state("Faber não instalada. Abra Voz e instale o modelo local gratuito.")
+            return
         self.set_state("speaking")
-        # A síntese foi desativada até que uma nova voz seja escolhida.
-        self.set_state("Voz de saída desativada; escolha uma nova voz futuramente.")
-        self.speaker = None
-        return
+        self.speaker = FaberSpeechWorker(
+            message, self.prefs.get("voice_rate",165),
+            self.prefs.get("voice_volume",100))
         speaker = self.speaker
         speaker.finished.connect(lambda: self.speech_finished(speaker))
-        speaker.failed.connect(lambda error: self.set_state("Voz selecionada falhou: " + error[:140]))
+        speaker.failed.connect(lambda error: self.state.emit("Falha ao falar: "+error[:160]))
         speaker.start()
 
     def speech_finished(self, speaker):
@@ -470,7 +474,29 @@ class VoiceDialog(QDialog):
             c.setChecked(self.prefs.get(key, False))
             c.toggled.connect(lambda value, k=key: self.changed(k,value))
             outer.addWidget(c)
-        outer.addWidget(QLabel("Voz de saída temporariamente desativada. Escolheremos outro modelo depois."))
+        outer.addWidget(QLabel("Voz Faber • Português brasileiro • gratuita e offline"))
+        self.faber_info = QLabel("")
+        self.faber_info.setWordWrap(True)
+        outer.addWidget(self.faber_info)
+        self.faber_button=QPushButton("Instalar Faber (~67 MB)")
+        self.faber_button.clicked.connect(self.download_faber)
+        outer.addWidget(self.faber_button)
+        self.refresh_faber()
+        self.rate_slider=QSlider(Qt.Horizontal)
+        self.rate_slider.setRange(90,280)
+        self.rate_slider.setValue(int(self.prefs.get("voice_rate",165)))
+        self.rate_slider.valueChanged.connect(self.change_rate)
+        outer.addWidget(QLabel("Velocidade da fala"))
+        outer.addWidget(self.rate_slider)
+        self.volume_slider=QSlider(Qt.Horizontal)
+        self.volume_slider.setRange(0,100)
+        self.volume_slider.setValue(int(self.prefs.get("voice_volume",100)))
+        self.volume_slider.valueChanged.connect(self.change_volume)
+        outer.addWidget(QLabel("Volume"))
+        outer.addWidget(self.volume_slider)
+        self.preview_button=QPushButton("▶ Testar Faber offline")
+        self.preview_button.clicked.connect(self.preview_faber)
+        outer.addWidget(self.preview_button)
         self.model_btn=QPushButton("Baixar modelo de português (aprox. 31 MB)")
         self.model_btn.clicked.connect(self.download)
         outer.addWidget(self.model_btn)
@@ -510,6 +536,39 @@ class VoiceDialog(QDialog):
         close=QPushButton("Concluir")
         close.clicked.connect(self.accept)
         outer.addWidget(close)
+
+    def refresh_faber(self):
+        installed = faber_installed()
+        self.faber_button.setText("✓ Faber instalada" if installed else "↓ Instalar Faber (~67 MB)")
+        self.faber_button.setEnabled(not installed)
+        self.faber_info.setText("Pronta para uso offline." if installed
+                                else "Download inicial de aproximadamente 67 MB. Sem chave, servidor ou assinatura.")
+
+    def download_faber(self):
+        if self.manager.faber_download_worker and self.manager.faber_download_worker.isRunning():
+            return
+        self.faber_button.setEnabled(False)
+        worker=FaberDownloadWorker(self.manager)
+        self.manager.faber_download_worker=worker
+        worker.progress.connect(self.faber_info.setText)
+        worker.completed.connect(self.refresh_faber)
+        worker.failed.connect(lambda message:self.faber_info.setText("Falha na instalação: "+message))
+        worker.finished.connect(self.refresh_faber)
+        worker.start()
+
+    def preview_faber(self):
+        if not faber_installed():
+            self.faber_info.setText("Instale Faber antes de testar.")
+            return
+        self.manager.speak(PREVIEW_TEXT,force=True)
+
+    def change_rate(self,value):
+        self.prefs["voice_rate"]=int(value)
+        save_preferences(self.prefs)
+
+    def change_volume(self,value):
+        self.prefs["voice_volume"]=int(value)
+        save_preferences(self.prefs)
 
     def changed(self, key, value):
         self.prefs[key]=bool(value)
