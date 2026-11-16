@@ -7,6 +7,7 @@ The assistant's generated text is sent to the local Faber Piper speech engine.
 import json
 import urllib.error
 import urllib.request
+from home_groq_builtin import BUILTIN_GROQ_KEY
 
 from PySide6.QtCore import QThread, Signal
 
@@ -24,11 +25,17 @@ SYSTEM = (
 
 
 def get_key():
+    if BUILTIN_GROQ_KEY.startswith("gsk_"):
+        return BUILTIN_GROQ_KEY
     try:
         import keyring
         return keyring.get_password(SERVICE, ACCOUNT)
     except Exception:
         return None
+
+
+def has_native_key():
+    return BUILTIN_GROQ_KEY.startswith("gsk_")
 
 
 def save_key(value):
@@ -50,7 +57,7 @@ def clear_key():
 def ask_groq(message, history=None, api_key=None):
     key = api_key or get_key()
     if not key:
-        raise RuntimeError("Conecte a Groq no Assistente antes de conversar.")
+        raise RuntimeError("A Groq ainda não foi provisionada nesta compilação do HOME.")
     question = (message or "").strip()
     if not question or len(question) > 750:
         raise ValueError("Pergunta vazia ou maior que 750 caracteres.")
