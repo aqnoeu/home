@@ -21,7 +21,7 @@ jobs:
       - name: Instalar dependências
         run: python -m pip install --upgrade -r requirements.txt
       - name: Verificar sintaxe
-        run: python -m py_compile home.py home_voice.py home_faber.py home_groq.py home_assistant.py home_integrations.py
+        run: python -m py_compile home.py home_voice.py home_faber.py home_groq.py home_emotions.py home_assistant.py home_integrations.py
       - name: Executar testes sem baixar modelos
         run: python -m unittest discover -s tests -v
       - name: Verificar áudio REAL sintetizado pela Faber (sem alto-falante)
