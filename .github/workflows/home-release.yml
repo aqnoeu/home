@@ -18,7 +18,8 @@ permissions:
   contents: write
 concurrency:
   group: home-unified-release
-  cancel-in-progress: false
+  # Discard obsolete builds while commits are still arriving.
+  cancel-in-progress: true
 
 jobs:
   version:
