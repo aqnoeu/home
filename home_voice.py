@@ -23,7 +23,6 @@ from PySide6.QtWidgets import (
 )
 
 from home_integrations import execute_windows_action, save_preferences
-from home_kokoro import KokoroDownloadWorker, KokoroSpeechWorker, installed as kokoro_installed, PREVIEW_TEXT
 
 MODEL_NAME = "vosk-model-small-pt-0.3"
 MODEL_URL = "https://alphacephei.com/vosk/models/" + MODEL_NAME + ".zip"
@@ -298,7 +297,6 @@ class VoiceManager(QObject):
         self.pending_phrase = ""
         self.download_worker = None
         self.voice_list_workers = []
-        self.kokoro_download_worker = None
 
     def set_state(self, state):
         self.state.emit(state)
@@ -421,19 +419,10 @@ class VoiceManager(QObject):
                 self.mode = "wake"
             return
         self.set_state("speaking")
-        if self.prefs.get("voice_engine") == "kokoro":
-            if not kokoro_installed():
-                # Nunca tocar uma voz diferente sem que o usuário a escolha.
-                self.set_state("Voz Alex indisponível: abra Voz e instale o modelo Kokoro (~330 MB).")
-                self.speaker = None
-                return
-            self.speaker = KokoroSpeechWorker(
-                message, self.prefs.get("voice_rate", 165),
-                self.prefs.get("voice_volume", 100))
-        else:
-            self.speaker = SpeechWorker(
-                message, self.prefs.get("voice_id", ""),
-                self.prefs.get("voice_rate", 165), self.prefs.get("voice_volume", 100))
+        # A síntese foi desativada até que uma nova voz seja escolhida.
+        self.set_state("Voz de saída desativada; escolha uma nova voz futuramente.")
+        self.speaker = None
+        return
         speaker = self.speaker
         speaker.finished.connect(lambda: self.speech_finished(speaker))
         speaker.failed.connect(lambda error: self.set_state("Voz selecionada falhou: " + error[:140]))
@@ -476,73 +465,12 @@ class VoiceDialog(QDialog):
         for key, text in [
             ("voice_microphone", "Permitir que o Home use o microfone"),
             ("voice_wake", 'Ativar escuta contínua de "Ei, Home"'),
-            ("voice_speech", "Permitir respostas faladas"),
         ]:
             c=QCheckBox(text)
             c.setChecked(self.prefs.get(key, False))
             c.toggled.connect(lambda value, k=key: self.changed(k,value))
             outer.addWidget(c)
-        # Motor de voz independente do reconhecimento/microfone.
-        outer.addWidget(QLabel("Mecanismo de fala"))
-        self.engine_combo = QComboBox()
-        self.engine_combo.addItem("Alex — Kokoro (pt-BR, neural e offline)", "kokoro")
-        self.engine_combo.addItem("Vozes do Windows (SAPI5)", "sapi5")
-        self.engine_combo.setCurrentIndex(
-            max(0, self.engine_combo.findData(self.prefs.get("voice_engine", "kokoro"))))
-        self.engine_combo.currentIndexChanged.connect(self.change_engine)
-        outer.addWidget(self.engine_combo)
-        self.kokoro_button = QPushButton("")
-        self.kokoro_button.clicked.connect(self.download_kokoro)
-        outer.addWidget(self.kokoro_button)
-        self.kokoro_label = QLabel(
-            "Alex usa modelo local Kokoro-82M (licença Apache 2.0). "
-            "A transferência inicial é grande (~330 MB) e exige internet; depois funciona offline. "
-            "Até instalar, o Home mostra a falta do modelo e não troca de voz automaticamente.")
-        self.kokoro_label.setWordWrap(True)
-        self.kokoro_label.setStyleSheet("color:#acadb0;font-size:11px")
-        outer.addWidget(self.kokoro_label)
-        self.refresh_kokoro()
-        outer.addWidget(QLabel("Voz alternativa • Windows SAPI5"))
-        self.voice_combo = QComboBox()
-        self.voice_combo.setStyleSheet(
-            "QComboBox{background:#2d2f32;color:#eee;border:1px solid #505154;"
-            "border-radius:8px;padding:8px}"
-            "QComboBox QAbstractItemView{background:#292b2e;color:#eee}")
-        self.voice_combo.addItem("Carregando vozes do Windows...", "")
-        self.voice_combo.setEnabled(False)
-        self.voice_combo.currentIndexChanged.connect(self.select_voice)
-        outer.addWidget(self.voice_combo)
-        reload_button = QPushButton("↻ Atualizar lista de vozes")
-        reload_button.clicked.connect(self.load_voices)
-        outer.addWidget(reload_button)
-        outer.addWidget(QLabel("Velocidade da fala"))
-        self.rate_slider = QSlider(Qt.Horizontal)
-        self.rate_slider.setRange(90, 280)
-        self.rate_slider.setValue(int(self.prefs.get("voice_rate", 165)))
-        self.rate_label = QLabel(str(self.rate_slider.value()))
-        self.rate_slider.valueChanged.connect(self.change_rate)
-        rate_row = QHBoxLayout()
-        rate_row.addWidget(self.rate_slider, 1)
-        rate_row.addWidget(self.rate_label)
-        outer.addLayout(rate_row)
-        outer.addWidget(QLabel("Volume da voz"))
-        self.volume_slider = QSlider(Qt.Horizontal)
-        self.volume_slider.setRange(0, 100)
-        self.volume_slider.setValue(int(self.prefs.get("voice_volume", 100)))
-        self.volume_label = QLabel(str(self.volume_slider.value()) + "%")
-        self.volume_slider.valueChanged.connect(self.change_volume)
-        volume_row = QHBoxLayout()
-        volume_row.addWidget(self.volume_slider, 1)
-        volume_row.addWidget(self.volume_label)
-        outer.addLayout(volume_row)
-        self.preview_button = QPushButton("▶ Testar voz selecionada")
-        self.preview_button.clicked.connect(self.preview_voice)
-        outer.addWidget(self.preview_button)
-        self.voice_info = QLabel("As vozes SAPI5 variam conforme a instalação do Windows.")
-        self.voice_info.setWordWrap(True)
-        outer.addWidget(self.voice_info)
-        self.voices_worker = None
-        self.load_voices()
+        outer.addWidget(QLabel("Voz de saída temporariamente desativada. Escolheremos outro modelo depois."))
         self.model_btn=QPushButton("Baixar modelo de português (aprox. 31 MB)")
         self.model_btn.clicked.connect(self.download)
         outer.addWidget(self.model_btn)
@@ -582,111 +510,6 @@ class VoiceDialog(QDialog):
         close=QPushButton("Concluir")
         close.clicked.connect(self.accept)
         outer.addWidget(close)
-
-    def refresh_kokoro(self):
-        ready = kokoro_installed()
-        self.kokoro_button.setText(
-            "✓ Alex instalada — disponível offline" if ready
-            else "⬇ Instalar Alex (Kokoro, ~330 MB)")
-        self.kokoro_button.setEnabled(not ready)
-
-    def change_engine(self, index):
-        if index < 0:
-            return
-        engine = self.engine_combo.itemData(index)
-        if engine not in ("kokoro", "sapi5"):
-            return
-        self.prefs["voice_engine"] = engine
-        save_preferences(self.prefs)
-        self.kokoro_label.setText(
-            "Alex selecionada. " + ("Modelo instalado; pronto para testar." if kokoro_installed()
-            else "Clique em Instalar Alex para ouvir esta voz.")
-            if engine == "kokoro" else
-            "Motor Windows SAPI5 selecionado. O Home continua funcionando sem o Kokoro.")
-
-    def download_kokoro(self):
-        if self.manager.kokoro_download_worker and self.manager.kokoro_download_worker.isRunning():
-            return
-        if kokoro_installed():
-            self.refresh_kokoro()
-            return
-        self.kokoro_button.setEnabled(False)
-        self.kokoro_button.setText("Preparando download...")
-        worker = KokoroDownloadWorker(self.manager)
-        self.manager.kokoro_download_worker = worker
-        worker.progress.connect(self.kokoro_button.setText)
-        worker.completed.connect(self.kokoro_ready)
-        worker.failed.connect(self.kokoro_error)
-        worker.finished.connect(self.refresh_kokoro)
-        worker.start()
-
-    def kokoro_ready(self):
-        self.refresh_kokoro()
-        self.kokoro_label.setText("Alex instalada! Clique em Testar voz selecionada.")
-
-    def kokoro_error(self, message):
-        self.refresh_kokoro()
-        self.kokoro_label.setText("Falha ao instalar Alex: " + message[:180])
-
-    def load_voices(self):
-        if self.voices_worker and self.voices_worker.isRunning():
-            return
-        self.voice_info.setText("Procurando vozes compatíveis no Windows...")
-        self.voice_combo.setEnabled(False)
-        self.voices_worker = VoicesWorker(self.manager)
-        worker = self.voices_worker
-        self.manager.voice_list_workers.append(worker)
-        worker.finished.connect(lambda: self.manager.voice_list_workers.remove(worker)
-                                if worker in self.manager.voice_list_workers else None)
-        worker.loaded.connect(self.show_voices)
-        worker.failed.connect(self.voice_error)
-        worker.start()
-
-    def show_voices(self, voices):
-        selected = self.prefs.get("voice_id", "")
-        self.voice_combo.blockSignals(True)
-        self.voice_combo.clear()
-        self.voice_combo.addItem("Automática (preferir português)", "")
-        for voice_id, name, languages in voices:
-            self.voice_combo.addItem(f"{name}  ·  {languages}", voice_id)
-        idx = self.voice_combo.findData(selected)
-        self.voice_combo.setCurrentIndex(max(0, idx))
-        self.voice_combo.blockSignals(False)
-        self.voice_combo.setEnabled(True)
-        self.voice_info.setText(
-            f"{len(voices)} voz(es) SAPI5 encontrada(s). A seleção é salva automaticamente."
-            if voices else "Nenhuma voz SAPI5 encontrada. Verifique as vozes instaladas no Windows.")
-
-    def voice_error(self, error):
-        self.voice_combo.clear()
-        self.voice_combo.addItem("Vozes indisponíveis", "")
-        self.voice_info.setText("Não foi possível consultar as vozes do Windows: " + error[:160])
-
-    def select_voice(self, index):
-        if index < 0:
-            return
-        self.prefs["voice_id"] = str(self.voice_combo.itemData(index) or "")
-        save_preferences(self.prefs)
-
-    def change_rate(self, value):
-        self.prefs["voice_rate"] = int(value)
-        self.rate_label.setText(str(value))
-        save_preferences(self.prefs)
-
-    def change_volume(self, value):
-        self.prefs["voice_volume"] = int(value)
-        self.volume_label.setText(str(value) + "%")
-        save_preferences(self.prefs)
-
-    def preview_voice(self):
-        if self.prefs.get("voice_engine") == "kokoro" and not kokoro_installed():
-            self.kokoro_label.setText("Instale a voz Alex primeiro, usando o botão acima.")
-            return
-        self.voice_info.setText("Reproduzindo exemplo com a voz escolhida...")
-        self.manager.speak(
-            PREVIEW_TEXT if self.prefs.get("voice_engine") == "kokoro"
-            else "Olá! Eu sou o Home. Esta é uma demonstração da voz selecionada.",
-            force=True)
 
     def changed(self, key, value):
         self.prefs[key]=bool(value)
