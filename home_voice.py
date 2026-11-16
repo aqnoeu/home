@@ -411,7 +411,7 @@ class VoiceManager(QObject):
         self.home.assistant_history.append(("user",worker.question))
         self.home.assistant_history.append(("home",response))
         self.home.assistant_history = self.home.assistant_history[-50:]
-        self.speak(response)
+        self.speak(response, force=True)
 
     def on_ai_error(self, worker, problem):
         if self.ai_worker is not worker:
