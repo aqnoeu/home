@@ -27,7 +27,8 @@ class EditPage(QWidget):
             ("closed_h","Recolhido · altura",(18,110)),
             ("open_w","Hub · largura",(380,850)),
             ("open_h","Hub · altura",(265,650)),
-            ("offset","Posição · distância da esquerda",(0,5000))
+            ("offset","Posição · distância da esquerda",(0,5000)),
+            ("eye_gap","Distância entre os olhos",(0,600))
         ]:
             spin=QSpinBox()
             spin.setRange(*limits)
