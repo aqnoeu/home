@@ -19,7 +19,7 @@ public final class EyesView extends View {
     private float gaze = 0, targetGaze = 0;
     private long nextLook = 0;
     public EyesView(Context context) { super(context); setLayerType(View.LAYER_TYPE_SOFTWARE, null); }
-    public void setEyeGap(float gap) { eyeGapDp = Math.max(0,Math.min(260,gap)); invalidate(); }
+    public void setEyeGap(float gap) { eyeGapDp = Math.max(0,Math.min(600,gap)); invalidate(); }
     public void setMood(int mood) { this.mood = Math.max(0, Math.min(3, mood)); invalidate(); }
     private float dp(float v) { return v * getResources().getDisplayMetrics().density; }
     @Override protected void onDraw(Canvas canvas) {
