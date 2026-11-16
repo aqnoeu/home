@@ -1,4 +1,4 @@
-plugins { id("com.android.application") }
+plugins { id("com.android.application"); id("org.jetbrains.kotlin.android") }
 
 android {
     namespace = "com.aqnoeu.home"
@@ -34,6 +34,9 @@ android {
     }
 }
 dependencies {
+    implementation(files("libs/sherpa-onnx.aar"))
+    implementation("org.jetbrains.kotlin:kotlin-stdlib:2.0.21")
+    implementation("org.apache.commons:commons-compress:1.27.1")
     implementation("com.google.zxing:core:3.5.3")
     implementation("androidx.core:core:1.15.0")
 }
