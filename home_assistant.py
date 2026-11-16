@@ -318,10 +318,13 @@ class AssistantPage(QWidget):
         if self.groq_worker and self.groq_worker.isRunning():
             self.groq_hint.setText("Já estou verificando a conexão.")
             return
-        worker=GroqWorker("Responda apenas com uma saudação curta.", parent=self.home)
+        worker=GroqWorker("Responda apenas com uma saudação curta.", parent=self.home, check_credentials=True)
         self.groq_worker=worker
         self.home.groq_worker=worker
         self.groq_hint.setText("Verificando conexão e permissão do modelo…")
+        worker.credentials_checked.connect(lambda available:self.groq_hint.setText(
+            "Chave autenticada. Verificando resposta do modelo…" if available
+            else "Chave autenticada, mas modelo indisponível."))
         worker.answered.connect(lambda text:self.groq_hint.setText(
             "✓ Autenticação aprovada. Groq funcionando neste PC: "+text[:90]))
         worker.failed.connect(lambda problem:self.groq_hint.setText(
