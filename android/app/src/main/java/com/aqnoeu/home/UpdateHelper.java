@@ -22,7 +22,9 @@ import java.util.Locale;
 public final class UpdateHelper {
     private static final String API = "https://api.github.com/repos/aqnoeu/home/releases?per_page=30";
     private static final String RELEASE_BASE = "https://github.com/aqnoeu/home/releases/download/";
-    private static final long MAX_APK = 150L * 1024 * 1024;
+    // The offline Vosk engine increased the signed APK to ~164 MiB in v2.0.6.
+    // Preserve a hard cap while allowing verified official voice-model builds.
+    private static final long MAX_APK = 256L * 1024 * 1024;
     private UpdateHelper() {}
 
     public static void check(Activity activity, TextView status) {
@@ -63,7 +65,7 @@ public final class UpdateHelper {
                 final String url = selectedAsset.getString("browser_download_url");
                 final String digest = selectedAsset.getString("digest").substring(7).toLowerCase(Locale.ROOT);
                 final long size = selectedAsset.optLong("size", 0);
-                if (size <= 0 || size > MAX_APK) throw new IOException("APK fora do limite de segurança");
+                if (size <= 0 || size > MAX_APK) throw new IOException("O APK oficial ultrapassa o limite de 256 MiB. Atualize manualmente pela página de versões.");
                 ui(activity, () -> {
                     status.setText("Atualização disponível: " + tag + " (instalada: " + BuildConfig.VERSION_NAME + ")");
                     if (activity instanceof MainActivity) {
