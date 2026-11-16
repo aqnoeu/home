@@ -13,6 +13,7 @@ from urllib.parse import urlsplit
 from PySide6.QtCore import QThread, Signal
 
 CONFIG_PATH = Path.home() / ".home_ai.json"
+DEFAULT_ENDPOINT = "https://home-ai.aqnoeu-home.workers.dev/ai"
 
 
 def load_ai_settings():
@@ -22,7 +23,7 @@ def load_ai_settings():
             return {"endpoint": str(data.get("endpoint", "")), "token": str(data.get("token", ""))}
     except (OSError, ValueError):
         pass
-    return {"endpoint": "", "token": ""}
+    return {"endpoint": DEFAULT_ENDPOINT, "token": ""}
 
 
 def save_ai_settings(endpoint, token):
