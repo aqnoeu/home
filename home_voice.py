@@ -487,16 +487,18 @@ class VoiceDialog(QDialog):
         self.manager = home.voice
         self.prefs = home.integration_prefs
         self.setWindowTitle("Home — Voz e microfone")
-        self.setMinimumWidth(435)
+        self.setMinimumWidth(395)
         self.setStyleSheet("""
-            QDialog{background:#18191b;color:#eee}
-            QLabel,QCheckBox,QGroupBox{color:#e4e4e4}
-            QGroupBox{border:1px solid #414246;border-radius:9px;margin-top:10px;padding:12px}
-            QPushButton{background:#2d2f32;color:#eee;border:1px solid #505154;border-radius:9px;padding:9px}
-            QPushButton:hover{background:#3b3d40}
+            QDialog{background:#0B111A;color:#eee}
+            QLabel,QCheckBox,QGroupBox{color:#FFFFFF}
+            QGroupBox{border:1px solid #324357;border-radius:9px;margin-top:10px;padding:12px}
+            QPushButton{background:#1C2737;color:#eee;border:1px solid #324357;border-radius:9px;padding:9px}
+            QPushButton:hover{background:#26384F}
         """)
         outer=QVBoxLayout(self)
-        outer.addWidget(QLabel("Português • processamento local • sem gravação de áudio"))
+        outer.setContentsMargins(16,18,16,14)
+        outer.setSpacing(10)
+        outer.addWidget(QLabel("Faber • voz offline, sem servidor de áudio"))
         for key, text in [
             ("voice_speech", "Permitir respostas faladas com Faber"),
             ("voice_microphone", "Permitir que o Home use o microfone"),
