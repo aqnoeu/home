@@ -120,7 +120,7 @@ public final class WakeWordService extends Service {
                 state("Chamada Ei, Home reconhecida.");
                 handler.removeCallbacks(restart);
                 if(recognizer!=null)recognizer.cancel();
-                String query=normalized.substring(trigger.length()).replaceFirst("^[,.:;!?\\\\s]+","").trim();
+                String query=normalized.substring(trigger.length()).replaceFirst("^[^a-z0-9]+","").trim();
                 Intent open=new Intent(this,MainActivity.class)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_SINGLE_TOP|Intent.FLAG_ACTIVITY_CLEAR_TOP)
                     .putExtra(EXTRA_QUERY,query);
