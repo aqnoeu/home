@@ -44,6 +44,9 @@ public final class MainActivity extends Activity {
     private void showStatus(String value) { status.setText(value); }
     @Override public void onCreate(Bundle bundle) {
         super.onCreate(bundle);
+        showHub();
+    }
+    private void showHub() {
         getWindow().setStatusBarColor(background);
         getWindow().setNavigationBarColor(background);
         ScrollView scroll = new ScrollView(this);
@@ -74,36 +77,7 @@ public final class MainActivity extends Activity {
                 if(Settings.canDrawOverlays(this)) startService(new Intent(this,OverlayService.class));
             });
         }
-        root.addView(text("Posição do Notch • Xiaomi 13 Pro",17));
-        android.content.SharedPreferences prefs = getSharedPreferences("home",MODE_PRIVATE);
-        Switch edgeSwitch = new Switch(this);
-        edgeSwitch.setText("Tentar posicionar atrás da barra transparente");
-        edgeSwitch.setTextColor(Color.WHITE);
-        edgeSwitch.setChecked(prefs.getBoolean("edge_mode",true));
-        root.addView(edgeSwitch);
-        edgeSwitch.setOnCheckedChangeListener((v,checked)->{
-            prefs.edit().putBoolean("edge_mode",checked).apply();
-            refreshNotch();
-        });
-        addPositionControl("Horizontal • esquerda / direita", "offset_x", -180, 180, 100);
-        addPositionControl("Vertical • subir / descer", "offset_y", -60, 120, 0);
-        addPositionControl("Aba de toque • altura", "handle_y", 0, 48, 4);
-        Switch touch = new Switch(this);
-        touch.setText("Mostrar aba de toque abaixo da barra");
-        touch.setTextColor(Color.WHITE);
-        touch.setChecked(prefs.getBoolean("touch_tab",true));
-        root.addView(touch);
-        touch.setOnCheckedChangeListener((button,enabled) -> {
-            prefs.edit().putBoolean("touch_tab",enabled).apply();
-            refreshNotch();
-        });
-        addButton("Restaurar posição para Xiaomi 13 Pro",()->{
-            prefs.edit().putInt("offset_x",100).putInt("offset_y",0)
-                .putBoolean("edge_mode",true).apply();
-            refreshNotch();
-            new AlertDialog.Builder(this).setMessage("Posição restaurada. Reabra a tela para atualizar os controles.")
-                .setPositiveButton("OK",null).show();
-        });
+        addButton("⤢ Modo edição • posição, tamanho e olhos",this::showEditor);
         root.addView(text("Personalidade do Home",17));
         TextView personalityNote = text("O Home já reage a interações simples, sem usar microfone nem enviar dados. A conversa por IA dependerá de um servidor seguro.",12);
         personalityNote.setTextColor(0xffaaadb0);
@@ -132,6 +106,53 @@ public final class MainActivity extends Activity {
         status=text("O Notch requer autorização para aparecer sobre outros aplicativos. Sua posição pode variar conforme o Android e a câmera frontal.",12);
         status.setTextColor(0xffb8bac0); root.addView(status);
         root.addView(text("Desenvolvido com @aqnoeu • v"+BuildConfig.VERSION_NAME,12));
+    }
+    private void showEditor() {
+        ScrollView scroller=new ScrollView(this);
+        scroller.setBackgroundColor(background);
+        root=new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding(dp(22),dp(24),dp(22),dp(24));
+        scroller.addView(root);
+        setContentView(scroller);
+        addButton("← Voltar ao Hub",()->showHub());
+        root.addView(text("Modo edição • Notch Android",17));
+        android.content.SharedPreferences prefs = getSharedPreferences("home",MODE_PRIVATE);
+        Switch edgeSwitch = new Switch(this);
+        edgeSwitch.setText("Tentar posicionar atrás da barra transparente");
+        edgeSwitch.setTextColor(Color.WHITE);
+        edgeSwitch.setChecked(prefs.getBoolean("edge_mode",true));
+        root.addView(edgeSwitch);
+        edgeSwitch.setOnCheckedChangeListener((v,checked)->{
+            prefs.edit().putBoolean("edge_mode",checked).apply();
+            refreshNotch();
+        });
+        addPositionControl("Horizontal • esquerda / direita", "offset_x", -180, 180, 100);
+        int displayWidth = Math.round(getResources().getDisplayMetrics().widthPixels / getResources().getDisplayMetrics().density);
+        addPositionControl("Largura do Notch", "notch_width", 90, Math.max(116,displayWidth-8),116);
+        addPositionControl("Altura do Notch", "notch_height",24,100,34);
+        addPositionControl("Distância entre os olhos", "eye_gap",0,260,9);
+        addPositionControl("Vertical • subir / descer", "offset_y", -60, 120, 0);
+        addPositionControl("Aba de toque • altura", "handle_y", 0, 48, 4);
+        Switch touch = new Switch(this);
+        touch.setText("Mostrar aba de toque abaixo da barra");
+        touch.setTextColor(Color.WHITE);
+        touch.setChecked(prefs.getBoolean("touch_tab",true));
+        root.addView(touch);
+        touch.setOnCheckedChangeListener((button,enabled) -> {
+            prefs.edit().putBoolean("touch_tab",enabled).apply();
+            refreshNotch();
+        });
+        addButton("Restaurar posição para Xiaomi 13 Pro",()->{
+            prefs.edit().putInt("offset_x",100).putInt("offset_y",0)
+                .putInt("notch_width",116).putInt("notch_height",34).putInt("eye_gap",9)
+                .putBoolean("edge_mode",true).apply();
+            refreshNotch();
+            new AlertDialog.Builder(this).setMessage("Posição restaurada. Reabra a tela para atualizar os controles.")
+                .setPositiveButton("OK",null).show();
+        });
+        status=text("As alterações são salvas automaticamente. Largura máxima tenta ocupar quase todo o topo; o Android pode limitar a sobreposição e a área clicável.",12);
+        root.addView(status);
     }
     private void localReaction(String command) {
         String response;
