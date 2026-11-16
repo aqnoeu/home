@@ -44,6 +44,7 @@ public final class MainActivity extends Activity {
     private void showStatus(String value) { status.setText(value); }
     @Override public void onCreate(Bundle bundle) {
         super.onCreate(bundle);
+        VoiceCleanup.cleanup(this);
         showHub();
     }
     private void showHub() {
@@ -126,37 +127,9 @@ public final class MainActivity extends Activity {
                 status.setText("Home reage a interações locais. Sem servidor, chaves ou configuração de nuvem.");
                 break;
             case "voice":
-                root.addView(text("Alex • Kokoro pm_alex • Gratuita e offline",16));
-                TextView alexStatus=text(AlexOffline.isInstalled(this)
-                    ? "✓ Modelo local instalado. Áudio produzido no próprio celular."
-                    : "Alex não instalada. Baixe o modelo gratuitamente (~329 MB) uma vez.",13);
-                root.addView(alexStatus);
-                addButton("⬇ Instalar voz Alex (~329 MB, Wi-Fi)",()->{
-                    if(AlexOffline.isInstalled(this)){
-                        alexStatus.setText("✓ Alex já instalada neste aparelho.");return;
-                    }
-                    new AlertDialog.Builder(this).setTitle("Instalar voz Alex")
-                        .setMessage("Download gratuito de aproximadamente 329 MB, com cerca de 850 MB livres necessários durante a instalação. Depois a fala funciona offline. Deseja baixar?")
-                        .setPositiveButton("Instalar",(dialog,which)->AlexOffline.installAsync(this,alexStatus::setText))
-                        .setNegativeButton("Cancelar",null).show();
-                });
-                addButton("▶ Testar Alex offline",()->AlexOffline.speak(this,
-                    "Olá! Eu sou o Home, com a voz Alex, em português brasileiro.",
-                    alexStatus::setText));
-                addButton("◉ Falar agora",()->HomeVoice.listen(this));
-                addButton("Diagnóstico da voz Alex",()->{
-                    String report=AlexOffline.report(this);
-                    new AlertDialog.Builder(this)
-                        .setTitle("Diagnóstico da voz Alex")
-                        .setMessage(report)
-                        .setPositiveButton("Copiar diagnóstico",(dialog,which)->{
-                            ClipboardManager clipboard=(ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
-                            clipboard.setPrimaryClip(ClipData.newPlainText("Home Alex diagnóstico",report));
-                            Toast.makeText(this,"Diagnóstico copiado",Toast.LENGTH_SHORT).show();
-                        })
-                        .setNegativeButton("Fechar",null).show();
-                });
-                status.setText("A síntese de voz é inteiramente local. Nenhuma voz do Google será usada como substituta. O reconhecimento da fala ainda usa o serviço configurado no Android.");
+                root.addView(text("Voz em definição",16));
+                addButton("◉ Falar agora (reconhecimento)",()->HomeVoice.listen(this));
+                status.setText("A voz Alex foi retirada. Não há nenhum motor de fala instalado pelo Home nesta versão. Escolheremos uma nova voz depois.");
                 break;
             case "interactions":
                 addButton("Ativar Notch",()->{
