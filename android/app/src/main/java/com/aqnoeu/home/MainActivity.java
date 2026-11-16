@@ -144,6 +144,18 @@ public final class MainActivity extends Activity {
                     "Olá! Eu sou o Home, com a voz Alex, em português brasileiro.",
                     alexStatus::setText));
                 addButton("◉ Falar agora",()->HomeVoice.listen(this));
+                addButton("Diagnóstico da voz Alex",()->{
+                    String report=AlexOffline.report(this);
+                    new AlertDialog.Builder(this)
+                        .setTitle("Diagnóstico da voz Alex")
+                        .setMessage(report)
+                        .setPositiveButton("Copiar diagnóstico",(dialog,which)->{
+                            ClipboardManager clipboard=(ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
+                            clipboard.setPrimaryClip(ClipData.newPlainText("Home Alex diagnóstico",report));
+                            Toast.makeText(this,"Diagnóstico copiado",Toast.LENGTH_SHORT).show();
+                        })
+                        .setNegativeButton("Fechar",null).show();
+                });
                 status.setText("A síntese de voz é inteiramente local. Nenhuma voz do Google será usada como substituta. O reconhecimento da fala ainda usa o serviço configurado no Android.");
                 break;
             case "interactions":
