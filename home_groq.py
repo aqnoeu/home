@@ -28,13 +28,16 @@ SYSTEM = (
 
 
 def get_key():
-    if BUILTIN_GROQ_KEY.startswith("gsk_"):
-        return BUILTIN_GROQ_KEY
+    # Always prefer a key entered by the owner on this PC. Older packaged keys
+    # must not override it (a common cause of HTTP 401 despite a valid user key).
     try:
         import keyring
-        return keyring.get_password(SERVICE, ACCOUNT)
+        own = keyring.get_password(SERVICE, ACCOUNT)
+        if own and own.strip().startswith("gsk_"):
+            return own.strip()
     except Exception:
-        return None
+        pass
+    return BUILTIN_GROQ_KEY.strip() if BUILTIN_GROQ_KEY.strip().startswith("gsk_") else None
 
 
 def has_native_key():
@@ -90,8 +93,12 @@ def ask_groq(message, history=None, api_key=None, structured=False):
             if len(raw)>128000:
                 raise RuntimeError("Resposta da Groq excedeu o limite.")
     except urllib.error.HTTPError as exc:
-        if exc.code in (401,403):
-            raise RuntimeError("Chave Groq recusada. Verifique em Conectar Groq.") from None
+        # 401 means invalid credential; 403 can also be project/model permissions.
+        # Do not print or return the authorization header or raw response body.
+        if exc.code == 401:
+            raise RuntimeError("Groq HTTP 401: credencial recusada. Substitua a chave no HOME PC.") from None
+        if exc.code == 403:
+            raise RuntimeError("Groq HTTP 403: acesso bloqueado ou modelo sem permissão no projeto; a chave pode ser válida.") from None
         if exc.code==429:
             raise RuntimeError("Limite da Groq atingido. Tente mais tarde.") from None
         raise RuntimeError("Groq indisponível (HTTP %s)." % exc.code) from None
