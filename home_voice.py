@@ -467,6 +467,7 @@ class VoiceDialog(QDialog):
         outer=QVBoxLayout(self)
         outer.addWidget(QLabel("Português • processamento local • sem gravação de áudio"))
         for key, text in [
+            ("voice_speech", "Permitir respostas faladas com Faber"),
             ("voice_microphone", "Permitir que o Home use o microfone"),
             ("voice_wake", 'Ativar escuta contínua de "Ei, Home"'),
         ]:
