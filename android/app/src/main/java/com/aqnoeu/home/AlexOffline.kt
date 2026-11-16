@@ -229,9 +229,14 @@ object AlexOffline {
                         }
                         offset += n
                     }
-                    val durationMs = (samples.size * 1000L / sampleRate).coerceAtMost(60000L)
-                    // AudioTrack.write is queued; keep native audio alive until the tail finishes.
-                    Thread.sleep(minOf(1200L, durationMs / 4))
+                    // AudioTrack.write queues samples. Wait for the entire phrase rather than
+                    // stopping playback immediately (the initial implementation cut speech).
+                    val deadline = System.currentTimeMillis() +
+                        (samples.size * 1000L / sampleRate).coerceAtMost(90000L) + 3000L
+                    while (player.playbackHeadPosition.toLong() < samples.size.toLong() &&
+                           System.currentTimeMillis() < deadline) {
+                        Thread.sleep(75)
+                    }
                 } finally {
                     try { player.stop() } catch (_: Exception) {}
                     player.release()
