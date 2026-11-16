@@ -152,6 +152,7 @@ public final class MainActivity extends Activity {
         intent.removeExtra(WakeWordService.EXTRA_QUERY);
         if(query==null)return;
         wakeBusy=true;
+        pauseWake();
         showPage("assistant");
         if(query.trim().isEmpty()){
             statusMessage("Estou ouvindo. Pode falar.");
@@ -175,11 +176,25 @@ public final class MainActivity extends Activity {
             statusMessage("Ei, Home habilitado. Verifique a notificação do microfone.");
         }catch(Exception e){statusMessage("Falha ao iniciar escuta: "+e.getMessage());}
     }
+    private void pauseWake(){
+        if(WakeWordService.enabled(this)){
+            try{startService(new Intent(this,WakeWordService.class).setAction(WakeWordService.PAUSE));}
+            catch(Exception ignored){}
+        }
+    }
+    private void speakAnswer(String answer){
+        if(FaberOffline.isInstalled(this)){
+            FaberOffline.speak(this,answer,message->{
+                if(message.startsWith("✓ Faber reproduzida") || message.startsWith("Falha") || message.startsWith("Instale"))resumeWake();
+            });
+        }else{resumeWake();}
+    }
     private void resumeWake(){
         if(!wakeBusy)return;
         wakeBusy=false;
         // Delay avoids recognition of the voice output (Faber).
-        new Handler(Looper.getMainLooper()).postDelayed(()->{
+        wakeHandler.removeCallbacksAndMessages(null);
+        wakeHandler.postDelayed(()->{
             if(WakeWordService.enabled(this))
                 try{startService(new Intent(this,WakeWordService.class).setAction(WakeWordService.RESUME));}
                 catch(Exception ignored){}
@@ -439,7 +454,9 @@ public final class MainActivity extends Activity {
         dock.setBackground(bg(RAISED,22));
         dock.setPadding(dp(6),dp(5),dp(6),dp(5));
 
-        Button mic=button("◉",false,()->HomeVoice.listen(this));
+        Button mic=button("◉",false,()->{
+            pauseWake();HomeVoice.listen(this);
+        });
         mic.setTextSize(20);
         mic.setContentDescription("Falar com o Home");
         mic.setBackgroundColor(Color.TRANSPARENT);
@@ -520,6 +537,7 @@ public final class MainActivity extends Activity {
         }
         chatInput.setText("");
         statusMessage("HOME está pensando…");
+        pauseWake();
         refreshChat();
         askHome(q,status);
     }
@@ -590,12 +608,10 @@ public final class MainActivity extends Activity {
         HomeGroq.ask(this,question,new HomeGroq.Callback(){
             @Override public void onEmotion(String emotion){HomeEmotion.fromGroq(emotion);}
             @Override public void onAnswer(String answer){
-                resumeWake();
                 if(response!=null){response.setText("");response.setVisibility(View.GONE);}
                 refreshChat();
-                if(FaberOffline.isInstalled(MainActivity.this))
-                    HomeVoice.speak(MainActivity.this,answer);
-                else statusMessage("Resposta pronta em texto. Instale Faber em Voz para ouvir.");
+                if(FaberOffline.isInstalled(MainActivity.this))speakAnswer(answer);
+                else {resumeWake();statusMessage("Resposta pronta em texto. Instale Faber em Voz para ouvir.");}
             }
             @Override public void onError(String message){
                 resumeWake();
@@ -785,6 +801,7 @@ public final class MainActivity extends Activity {
             resumeWake();return;
         }
         if(request==HomeVoice.REQUEST_SPEECH && resultCode==RESULT_OK && data!=null){
+            pauseWake();
             java.util.ArrayList<String> results=data.getStringArrayListExtra(
                 android.speech.RecognizerIntent.EXTRA_RESULTS);
             if(results==null||results.isEmpty()){resumeWake();return;}
@@ -798,12 +815,10 @@ public final class MainActivity extends Activity {
             HomeGroq.ask(this,question,new HomeGroq.Callback(){
                 @Override public void onEmotion(String emotion){HomeEmotion.fromGroq(emotion);}
                 @Override public void onAnswer(String answer){
-                    resumeWake();
                     refreshChat();
                     statusMessage("HOME: "+answer);
-                    if(FaberOffline.isInstalled(MainActivity.this))
-                        HomeVoice.speak(MainActivity.this,answer);
-                    else statusMessage("HOME: "+answer+"\nInstale a voz Faber para ouvir.");
+                    if(FaberOffline.isInstalled(MainActivity.this))speakAnswer(answer);
+                    else {resumeWake();statusMessage("HOME: "+answer+"\nInstale a voz Faber para ouvir.");}
                 }
                 @Override public void onError(String reason){
                     resumeWake();
