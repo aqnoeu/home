@@ -86,7 +86,17 @@ public final class MainActivity extends Activity {
             refreshNotch();
         });
         addPositionControl("Horizontal • esquerda / direita", "offset_x", -180, 180, 100);
-        addPositionControl("Vertical • subir / descer", "offset_y", -60, 40, 0);
+        addPositionControl("Vertical • subir / descer", "offset_y", -60, 120, 0);
+        addPositionControl("Aba de toque • altura", "handle_y", 0, 48, 4);
+        Switch touch = new Switch(this);
+        touch.setText("Mostrar aba de toque abaixo da barra");
+        touch.setTextColor(Color.WHITE);
+        touch.setChecked(prefs.getBoolean("touch_tab",true));
+        root.addView(touch);
+        touch.setOnCheckedChangeListener((button,enabled) -> {
+            prefs.edit().putBoolean("touch_tab",enabled).apply();
+            refreshNotch();
+        });
         addButton("Restaurar posição para Xiaomi 13 Pro",()->{
             prefs.edit().putInt("offset_x",100).putInt("offset_y",0)
                 .putBoolean("edge_mode",true).apply();
@@ -94,6 +104,13 @@ public final class MainActivity extends Activity {
             new AlertDialog.Builder(this).setMessage("Posição restaurada. Reabra a tela para atualizar os controles.")
                 .setPositiveButton("OK",null).show();
         });
+        root.addView(text("Personalidade do Home",17));
+        TextView personalityNote = text("O Home já reage a interações simples, sem usar microfone nem enviar dados. A conversa por IA dependerá de um servidor seguro.",12);
+        personalityNote.setTextColor(0xffaaadb0);
+        root.addView(personalityNote);
+        addButton("✨ Me surpreenda", () -> localReaction("surprise"));
+        addButton("♡ Como você está?", () -> localReaction("mood"));
+        addButton("🎉 Comemorar!", () -> localReaction("celebrate"));
         root.addView(text("Notch",17));
         addButton("Ativar Notch",()->{
             if (!Settings.canDrawOverlays(this)) {
@@ -113,6 +130,28 @@ public final class MainActivity extends Activity {
         status=text("O Notch requer autorização para aparecer sobre outros aplicativos. Sua posição pode variar conforme o Android e a câmera frontal.",12);
         status.setTextColor(0xffb8bac0); root.addView(status);
         root.addView(text("Desenvolvido com @aqnoeu • v"+BuildConfig.VERSION_NAME,12));
+    }
+    private void localReaction(String command) {
+        String response;
+        int mood;
+        java.util.Random random = new java.util.Random();
+        if ("celebrate".equals(command)) {
+            mood=1;
+            String[] messages={"Oba! Hoje estou cheio de energia! ✨", "Vitória! Piscadinha de comemoração! 🎉"};
+            response=messages[random.nextInt(messages.length)];
+        } else if ("mood".equals(command)) {
+            int hour=java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY);
+            mood=hour>=22 || hour<7 ? 2 : 0;
+            response=mood==2 ? "Estou ficando sonolento... mas ainda estou aqui. 🌙" : "Estou atento e curioso! E você?";
+        } else {
+            mood=random.nextInt(3);
+            String[] messages={"Psst... gostei de ter companhia! 👀", "Você encontrou minha expressão secreta! ✨", "Hoje eu só quero ficar olhando as estrelas. 🌟"};
+            response=messages[random.nextInt(messages.length)];
+        }
+        getSharedPreferences("home",MODE_PRIVATE).edit().putInt("mood",mood).apply();
+        refreshNotch();
+        new AlertDialog.Builder(this).setTitle("Home").setMessage(response)
+            .setPositiveButton("Legal!",null).show();
     }
     private void refreshNotch() {
         if (Settings.canDrawOverlays(this)) {
