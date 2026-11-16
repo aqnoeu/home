@@ -66,7 +66,7 @@ public final class MainActivity extends Activity {
         t.setText(value);t.setTextSize(sp);t.setTextColor(color);t.setIncludeFontPadding(false);
         t.setTypeface(android.graphics.Typeface.create("sans-serif",
             heavy?android.graphics.Typeface.BOLD:android.graphics.Typeface.NORMAL));
-        t.setLineSpacing(dp(4),1.04f);
+        t.setLineSpacing(dp(2),1.02f);
         t.setBreakStrategy(android.text.Layout.BREAK_STRATEGY_HIGH_QUALITY);
         t.setHyphenationFrequency(android.text.Layout.HYPHENATION_FREQUENCY_NONE);
         return t;
@@ -371,7 +371,7 @@ public final class MainActivity extends Activity {
         tabs.setOrientation(LinearLayout.HORIZONTAL);
         tabs.setGravity(Gravity.CENTER_VERTICAL);
         tabs.setBackground(bg(SURFACE,16));
-        tabs.setPadding(dp(4),dp(4),dp(4),dp(4));
+        tabs.setPadding(dp(3),dp(2),dp(3),dp(2));
         String[] names={"Conversar","Histórico","Ajustes"};
         String[] routes={"assistant","history","settings"};
         for(int i=0;i<names.length;i++){
@@ -379,8 +379,9 @@ public final class MainActivity extends Activity {
             Button b=button(names[i],active.equals(route),()->showPage(route));
             b.setTextSize(12);
             b.setSingleLine(true);
+            b.setPadding(dp(2),0,dp(2),0);
             b.setBackground(bg(active.equals(route)?BLUE:SURFACE,12));
-            LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(48),1);
+            LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(44),1);
             p.leftMargin=dp(2);p.rightMargin=dp(2);
             tabs.addView(b,p);
         }
@@ -590,15 +591,15 @@ public final class MainActivity extends Activity {
         LinearLayout shell=column();
         shell.setBackgroundColor(BG);
         shell.setFocusableInTouchMode(true);
-        final int horizontal=dp(14);
-        shell.setPadding(horizontal,dp(12),horizontal,dp(12));
+        final int horizontal=dp(16);
+        shell.setPadding(horizontal,dp(8),horizontal,dp(8));
         shell.setOnApplyWindowInsetsListener((view,insets)->{
             if(Build.VERSION.SDK_INT>=30){
                 android.graphics.Insets bars=insets.getInsets(
                     WindowInsets.Type.systemBars()|WindowInsets.Type.displayCutout());
                 android.graphics.Insets keyboard=insets.getInsets(WindowInsets.Type.ime());
-                shell.setPadding(horizontal,bars.top+dp(10),horizontal,
-                    Math.max(bars.bottom,keyboard.bottom)+dp(8));
+                shell.setPadding(horizontal,bars.top+dp(6),horizontal,
+                    Math.max(bars.bottom,keyboard.bottom)+dp(6));
             }
             return insets;
         });
@@ -613,48 +614,45 @@ public final class MainActivity extends Activity {
         logo.setBackground(null);
         logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
         logo.setContentDescription("Olhos oficiais do HOME");
-        top.addView(logo,new LinearLayout.LayoutParams(dp(46),dp(44)));
+        top.addView(logo,new LinearLayout.LayoutParams(dp(34),dp(40)));
         LinearLayout titleBox=column();
-        TextView label=heading("HOME",19);
-        add(titleBox,label,0,3);
-        TextView state=note(HomeGroq.connected(this)?"● Groq conectada":"● Groq desconectada");
-        state.setTextColor(HomeGroq.connected(this)?GREEN:MUTED);
+        TextView label=heading("HOME",18);
+        add(titleBox,label,0,2);
+        TextView state=text(HomeGroq.connected(this)?"● Conectado":"● Sem conexão",11,
+            HomeGroq.connected(this)?GREEN:MUTED,false);
+        state.setSingleLine(true);
+        state.setEllipsize(android.text.TextUtils.TruncateAt.END);
         add(titleBox,state,0,0);
         LinearLayout.LayoutParams titleParams=new LinearLayout.LayoutParams(0,-2,1);
-        titleParams.leftMargin=dp(12);
+        titleParams.leftMargin=dp(8);
         top.addView(titleBox,titleParams);
         Button newChat=button("+",false,()->{
             HomeChatStore.get(this).newChat();
             refreshChat();
         });
         newChat.setContentDescription("Nova conversa");
-        newChat.setTextSize(23);
+        newChat.setTextSize(20);
         Button refresh=button("↻",false,()->{
             status.setVisibility(View.VISIBLE);
             UpdateHelper.check(this,status);
         });
-        refresh.setTextSize(23);
+        refresh.setTextSize(19);
         refresh.setContentDescription("Verificar atualizações");
-        top.addView(refresh,new LinearLayout.LayoutParams(dp(44),dp(48)));
+        top.addView(refresh,new LinearLayout.LayoutParams(dp(40),dp(44)));
         Button settings=button("⚙",false,()->showSettings("Geral"));
-        settings.setTextSize(21);
+        settings.setTextSize(19);
         settings.setContentDescription("Configurações");
-        top.addView(settings,new LinearLayout.LayoutParams(dp(44),dp(48)));
-        top.addView(newChat,new LinearLayout.LayoutParams(dp(44),dp(48)));
+        top.addView(settings,new LinearLayout.LayoutParams(dp(40),dp(44)));
+        top.addView(newChat,new LinearLayout.LayoutParams(dp(40),dp(44)));
         shell.addView(top,new LinearLayout.LayoutParams(-1,-2));
 
-        LinearLayout infoRow=new LinearLayout(this);
-        infoRow.setOrientation(LinearLayout.HORIZONTAL);
-        infoRow.setGravity(Gravity.CENTER_VERTICAL);
+        // Current conversation is a discreet caption; history already has a nav destination.
         chatTitle=note("Conversa atual");
+        chatTitle.setTextSize(11);
         chatTitle.setSingleLine(true);
         chatTitle.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        infoRow.addView(chatTitle,new LinearLayout.LayoutParams(0,dp(44),1));
         chatTitle.setGravity(Gravity.CENTER_VERTICAL);
-        Button history=button("Histórico ›",false,()->showPage("history"));
-        history.setTextSize(12);
-        infoRow.addView(history,new LinearLayout.LayoutParams(dp(126),dp(44)));
-        shell.addView(infoRow,new LinearLayout.LayoutParams(-1,-2));
+        shell.addView(chatTitle,new LinearLayout.LayoutParams(-1,dp(28)));
 
         View rule=new View(this);
         rule.setBackgroundColor(LINE);
@@ -667,7 +665,7 @@ public final class MainActivity extends Activity {
         chatScroll.setClipToPadding(false);
         chatScroll.setVerticalScrollBarEnabled(true);
         chatMessages=column();
-        chatMessages.setPadding(dp(2),dp(10),dp(2),dp(12));
+        chatMessages.setPadding(dp(2),dp(7),dp(2),dp(8));
         chatScroll.addView(chatMessages,new ScrollView.LayoutParams(-1,-2));
         shell.addView(chatScroll,new LinearLayout.LayoutParams(-1,0,1f));
 
@@ -682,8 +680,8 @@ public final class MainActivity extends Activity {
         LinearLayout dock=new LinearLayout(this);
         dock.setOrientation(LinearLayout.HORIZONTAL);
         dock.setGravity(Gravity.BOTTOM|Gravity.CENTER_VERTICAL);
-        dock.setBackground(bg(RAISED,22));
-        dock.setPadding(dp(6),dp(5),dp(6),dp(5));
+        dock.setBackground(bg(RAISED,18));
+        dock.setPadding(dp(4),dp(3),dp(4),dp(3));
 
         Button mic=button("◉",false,()->{
             pauseWake();HomeVoice.listen(this);
@@ -691,47 +689,45 @@ public final class MainActivity extends Activity {
         mic.setTextSize(20);
         mic.setContentDescription("Falar com o Home");
         mic.setBackgroundColor(Color.TRANSPARENT);
-        dock.addView(mic,new LinearLayout.LayoutParams(dp(44),dp(48)));
+        dock.addView(mic,new LinearLayout.LayoutParams(dp(40),dp(44)));
 
         chatInput=new EditText(this);
         chatInput.setHint("Mensagem para o HOME…");
         chatInput.setHintTextColor(MUTED);
         chatInput.setTextColor(WHITE);
-        chatInput.setTextSize(15);
+        chatInput.setTextSize(14);
         chatInput.setIncludeFontPadding(false);
         chatInput.setSingleLine(false);
         chatInput.setMinLines(1);chatInput.setMaxLines(5);
         chatInput.setGravity(Gravity.CENTER_VERTICAL|Gravity.START);
         chatInput.setInputType(InputType.TYPE_CLASS_TEXT|
             InputType.TYPE_TEXT_FLAG_CAP_SENTENCES|InputType.TYPE_TEXT_FLAG_MULTI_LINE);
-        chatInput.setPadding(dp(6),dp(9),dp(6),dp(9));
+        chatInput.setPadding(dp(5),dp(7),dp(5),dp(7));
         chatInput.setBackgroundColor(Color.TRANSPARENT);
         chatInput.setFilters(new android.text.InputFilter[]{
             new android.text.InputFilter.LengthFilter(750)});
         dock.addView(chatInput,new LinearLayout.LayoutParams(0,-2,1f));
 
         Button send=button("➤",true,()->sendChatMessage());
-        send.setTextSize(20);
+        send.setTextSize(18);
         send.setContentDescription("Enviar mensagem");
-        LinearLayout.LayoutParams sendParams=new LinearLayout.LayoutParams(dp(46),dp(46));
+        LinearLayout.LayoutParams sendParams=new LinearLayout.LayoutParams(dp(42),dp(42));
         sendParams.leftMargin=dp(3);
         dock.addView(send,sendParams);
         LinearLayout.LayoutParams dockParams=new LinearLayout.LayoutParams(-1,-2);
-        dockParams.topMargin=dp(6);
+        dockParams.topMargin=dp(4);
         shell.addView(dock,dockParams);
 
         inlineHost=column();
         shell.addView(inlineHost,new LinearLayout.LayoutParams(-1,-2));
         LinearLayout footer=bottomNavigation("assistant");
-        LinearLayout.LayoutParams footerParams=new LinearLayout.LayoutParams(-1,dp(56));
-        footerParams.topMargin=dp(6);
+        LinearLayout.LayoutParams footerParams=new LinearLayout.LayoutParams(-1,dp(50));
+        footerParams.topMargin=dp(4);
         shell.addView(footer,footerParams);
         refreshChat();
         shell.requestFocus();
 
-        // Connection management is hidden behind a long press on the connection indicator.
-        state.setOnClickListener(v->showConnectionSettings(state));
-        state.setText(state.getText()+" · toque para configurar");
+        // Groq credentials are managed in Settings > Voz / IA, not in the chat header.
     }
 
     private void showConnectionSettings(TextView state){
@@ -782,15 +778,16 @@ public final class MainActivity extends Activity {
         LinearLayout line=new LinearLayout(this);
         line.setOrientation(LinearLayout.HORIZONTAL);
         line.setGravity(user?Gravity.RIGHT:Gravity.LEFT);
-        TextView body=text(message,15,WHITE,false);
-        body.setMaxWidth(Math.round(getResources().getDisplayMetrics().widthPixels*0.80f));
-        body.setBackground(bg(user?BLUE:RAISED,16));
-        body.setPadding(dp(15),dp(12),dp(15),dp(12));
+        TextView body=text(message,14,WHITE,false);
+        body.setMaxWidth(dp(Math.min(310,
+            Math.round(getResources().getConfiguration().screenWidthDp*0.82f))));
+        body.setBackground(bg(user?BLUE:RAISED,14));
+        body.setPadding(dp(12),dp(9),dp(12),dp(9));
         LinearLayout.LayoutParams bodySize=new LinearLayout.LayoutParams(-2,-2);
         bodySize.leftMargin=user?dp(27):0;
         bodySize.rightMargin=user?0:dp(27);
         line.addView(body,bodySize);
-        add(chatMessages,line,0,12);
+        add(chatMessages,line,0,8);
     }
     private void refreshChat(){
         if(chatMessages==null||!"assistant".equals(currentPage))return;
@@ -800,7 +797,7 @@ public final class MainActivity extends Activity {
         for(JSONObject c:store.conversations()){
             if(id.equals(c.optString("id"))){title=c.optString("title","Conversa");break;}
         }
-        if(chatTitle!=null)chatTitle.setText("Atual: "+title);
+        if(chatTitle!=null)chatTitle.setText(title);
         chatMessages.removeAllViews();
         JSONArray messages=store.messages();
         for(int i=0;i<messages.length();i++){
