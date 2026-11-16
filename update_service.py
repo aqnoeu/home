@@ -53,7 +53,7 @@ def release_info():
         if item.get('draft') or item.get('prerelease'):
             continue
         tag = item.get('tag_name', '')
-        if not re.fullmatch(r'v\\d+\\.\\d+\\.\\d+', tag):
+        if not re.fullmatch(r'v\d+\.\d+\.\d+', tag):
             continue
         assets = {asset.get('name'): asset.get('browser_download_url', '')
                   for asset in item.get('assets', [])}
