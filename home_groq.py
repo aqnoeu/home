@@ -89,11 +89,11 @@ def explain_groq_http_error(exc):
         return "Groq HTTP 401: credencial recusada. Troque a chave salva no HOME."
     if exc.code == 403:
         if code == "model_permission_blocked_org":
-            return ("Groq HTTP 403: o modelo openai/gpt-oss-20b foi bloqueado "
-                    "pela organização. Verifique Settings → Organization → Limits.")
+            return ("Groq HTTP 403: modelo bloqueado pela organização. "
+                    "Verifique Organization → Limits na Groq.")
         if code == "model_permission_blocked_project":
-            return ("Groq HTTP 403: o modelo openai/gpt-oss-20b foi bloqueado "
-                    "pelo projeto. Verifique Settings → Project → Limits.")
+            return ("Groq HTTP 403: modelo bloqueado pelo projeto. "
+                    "Verifique Project → Limits na Groq.")
         if code:
             # The code is a classifier, not an arbitrary server message.
             safe_code="".join(ch for ch in str(code) if ch.isascii() and
@@ -215,10 +215,9 @@ def ask_groq(message, history=None, api_key=None, structured=False):
         except urllib.error.URLError:
             raise RuntimeError("Não foi possível conectar à Groq. Verifique a internet.") from None
     raise RuntimeError(
-        "A Groq recusou todos os modelos testados (" +
-        ", ".join((MODEL,) + FALLBACK_MODELS) +
-        "). Confira permissões do projeto/organização. " +
-        (rejected[-1] if rejected else "")
+        "Nenhum modelo autorizado para conversa. " +
+        (rejected[-1] if rejected else "Groq recusou todas as tentativas.") +
+        " Verifique Organization/Project → Limits."
     )
 
 
