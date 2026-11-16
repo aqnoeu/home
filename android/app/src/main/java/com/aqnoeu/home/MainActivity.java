@@ -240,8 +240,6 @@ public final class MainActivity extends Activity {
         LinearLayout brand=new LinearLayout(this);
         brand.setOrientation(LinearLayout.HORIZONTAL);
         brand.setGravity(Gravity.CENTER_VERTICAL);
-        // Use the same rounded, animated eyes as the notch and expression card.
-        // The header has its own EyesView instance; it does not change the others.
         // Static official app icon; animated eyes belong only to the notch and expression card.
         ImageView brandIcon=new ImageView(this);
         brandIcon.setImageResource(R.drawable.home_icon_approved);
