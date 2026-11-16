@@ -31,7 +31,7 @@ def typed_response(text, now=None):
     action = interpret(message)
     if action is not None:
         return (action[1], action[0])
-    return ("Por enquanto, entendo saudações, hora, data e comandos para programas, volume e música.", None)
+    return ("Posso informar hora e data e, com autorização, abrir programas, Gerenciador de Tarefas, Painel de Controle e controlar a mídia.", None)
 
 
 class AssistantPage(QWidget):
@@ -285,7 +285,7 @@ class AssistantPage(QWidget):
             return
         # The built-in local commands and small utilities are still safe/offline.
         # All open-ended questions go to Groq; the model cannot execute actions.
-        if response.startswith("Por enquanto, entendo"):
+        if response.startswith("Posso informar hora e data"):
             self.ask_ai(message)
             return
         self.record("home",response)

@@ -60,6 +60,10 @@ def interpret(sentence):
         return ("calc", "Abrindo a Calculadora.")
     if request_to_open and any(word in s for word in ("explorador", "arquivos")):
         return ("explorer", "Abrindo o Explorador de Arquivos.")
+    if request_to_open and any(word in s for word in ("gerenciador de tarefas", "task manager")):
+        return ("taskmgr", "Abrindo o Gerenciador de Tarefas.")
+    if request_to_open and any(word in s for word in ("painel de controle", "control panel")):
+        return ("control_panel", "Abrindo o Painel de Controle.")
     if any(word in s for word in ("aumentar volume", "aumente o volume", "volume mais", "mais volume")):
         return ("volume_up", "Aumentando o volume.")
     if any(word in s for word in ("diminuir volume", "diminua o volume", "abaixar volume", "menos volume")):

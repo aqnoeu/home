@@ -519,7 +519,84 @@ public final class MainActivity extends Activity {
         });
         action(about,"Downloads oficiais",false,
             ()->startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(DOWNLOAD))));
+        action(about,"Mostrar QR Code de download",false,()->showDownloadQr(about));
+        LinearLayout device=card("Recursos do celular","Atalhos seguros para configurações do Android.");
+        action(device,"Wi-Fi",false,()->openDeviceSettings(Settings.ACTION_WIFI_SETTINGS));
+        action(device,"Bluetooth",false,()->openDeviceSettings(Settings.ACTION_BLUETOOTH_SETTINGS));
+        action(device,"Bateria",false,()->statusMessage(readBatteryStatus()));
         action(about,"Recolher HOME",false,this::finish);
+    }
+
+    /** QR restaura o atalho da versão anterior, sem uma página adicional. */
+    private void showDownloadQr(LinearLayout host){
+        // A QR square is drawn inside the screen and can be dismissed.
+        for(int i=host.getChildCount()-1;i>=0;i--)
+            if("home-download-qr".equals(host.getChildAt(i).getTag()))
+                host.removeViewAt(i);
+        try{
+            BitMatrix matrix=new MultiFormatWriter().encode(DOWNLOAD,BarcodeFormat.QR_CODE,260,260);
+            Bitmap bitmap=Bitmap.createBitmap(260,260,Bitmap.Config.ARGB_8888);
+            for(int y=0;y<260;y++)for(int x=0;x<260;x++)
+                bitmap.setPixel(x,y,matrix.get(x,y)?Color.BLACK:WHITE);
+            LinearLayout panel=column();
+            panel.setTag("home-download-qr");
+            panel.setPadding(dp(8),dp(8),dp(8),dp(8));
+            panel.setBackground(bg(WHITE,13));
+            ImageView qr=new ImageView(this);
+            qr.setImageBitmap(bitmap);
+            qr.setContentDescription("QR Code dos downloads oficiais do HOME");
+            qr.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            panel.addView(qr,new LinearLayout.LayoutParams(-1,dp(260)));
+            add(panel,text("Escaneie para abrir os downloads do HOME.",12,BG,false),8,8);
+            action(panel,"Fechar QR Code",false,()->host.removeView(panel));
+            add(host,panel,8,9);
+        }catch(Exception ex){statusMessage("Não foi possível gerar QR Code: "+ex.getMessage());}
+    }
+
+    /** Offline device actions never require Groq or network connectivity. */
+    private void openDeviceSettings(String action){
+        try{startActivity(new Intent(action));}
+        catch(Exception ex){statusMessage("Configuração não disponível neste aparelho.");}
+    }
+    private String readBatteryStatus(){
+        Intent state=registerReceiver(null,new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+        if(state==null)return "Não consegui consultar a bateria.";
+        int level=state.getIntExtra(BatteryManager.EXTRA_LEVEL,-1);
+        int scale=state.getIntExtra(BatteryManager.EXTRA_SCALE,-1);
+        if(level<0||scale<=0)return "Não consegui consultar a bateria.";
+        int percent=Math.round(100f*level/scale);
+        int plug=state.getIntExtra(BatteryManager.EXTRA_PLUGGED,0);
+        return "Bateria em "+percent+"%"+(plug!=0?" · carregando.":".");
+    }
+    private boolean handleLocalCommand(String query){
+        String q=query==null?"":query.trim().toLowerCase(java.util.Locale.ROOT);
+        String normalized=java.text.Normalizer.normalize(q,java.text.Normalizer.Form.NFD)
+            .replaceAll("\\p{M}+","");
+        String answer=null;
+        String setting=null;
+        if(normalized.matches(".*\\b(que horas|qual a hora|qual e a hora|horario atual)\\b.*")){
+            answer="Agora são "+new java.text.SimpleDateFormat("HH:mm",
+                new java.util.Locale("pt","BR")).format(new Date())+".";
+        }else if(normalized.matches(".*\\b(que dia e hoje|qual a data|data de hoje|dia de hoje)\\b.*")){
+            answer="Hoje é "+new java.text.SimpleDateFormat("dd/MM/yyyy",
+                new java.util.Locale("pt","BR")).format(new Date())+".";
+        }else if(normalized.matches(".*\\b(bateria|nivel da bateria|carga do celular)\\b.*")){
+            answer=readBatteryStatus();
+        }else if(normalized.matches("^(abra|abrir|abre|mostrar|mostre)\\s+(as\\s+)?(configuracoes\\s+(do|de)\\s+)?(wi-?fi|wifi).*")){
+            answer="Abrindo as configurações de Wi-Fi.";
+            setting=Settings.ACTION_WIFI_SETTINGS;
+        }else if(normalized.matches("^(abra|abrir|abre|mostrar|mostre)\\s+(as\\s+)?(configuracoes\\s+(do|de)\\s+)?bluetooth.*")){
+            answer="Abrindo as configurações de Bluetooth.";
+            setting=Settings.ACTION_BLUETOOTH_SETTINGS;
+        }else return false;
+        try{
+            HomeChatStore store=HomeChatStore.get(this);
+            store.add("user",query);
+            store.add("assistant",answer);
+            refreshChat();
+            if(setting!=null)openDeviceSettings(setting);
+            return true;
+        }catch(Exception ex){statusMessage("Não consegui salvar a resposta local.");return true;}
     }
 
     private void settingsVoice(){
@@ -773,6 +850,7 @@ public final class MainActivity extends Activity {
         if(chatInput==null)return;
         String q=chatInput.getText().toString().trim();
         if(q.isEmpty())return;
+        if(handleLocalCommand(q)){chatInput.setText("");return;}
         if(!HomeGroq.connected(this)){
             statusMessage("Conecte a Groq tocando no indicador do cabeçalho.");
             return;
@@ -956,22 +1034,7 @@ public final class MainActivity extends Activity {
         action(box,"Verificar atualizações",true,()->UpdateHelper.check(this,update));
         action(box,"Abrir downloads oficiais",false,
             ()->startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(DOWNLOAD))));
-        action(box,"Mostrar QR Code",false,()->{
-            // QR is rendered inline; no dialog covers the screen.
-            try{
-                BitMatrix matrix=new MultiFormatWriter().encode(DOWNLOAD,BarcodeFormat.QR_CODE,260,260);
-                Bitmap bitmap=Bitmap.createBitmap(260,260,Bitmap.Config.ARGB_8888);
-                for(int y=0;y<260;y++)for(int x=0;x<260;x++)
-                    bitmap.setPixel(x,y,matrix.get(x,y)?Color.BLACK:WHITE);
-                ImageView image=new ImageView(this);
-                image.setContentDescription("QR Code para a página oficial de downloads");
-                image.setImageBitmap(bitmap);
-                image.setBackground(bg(WHITE,14));
-                image.setPadding(dp(12),dp(12),dp(12),dp(12));
-                LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,dp(270));
-                p.topMargin=dp(14);box.addView(image,p);
-            }catch(Exception e){update.setText("Não foi possível criar o QR Code: "+e.getMessage());}
-        });
+        action(box,"Mostrar QR Code",false,()->showDownloadQr(box));
     }
     private void exitPage(){
         LinearLayout box=card("Até logo","O HOME pode recolher sem desativar o Notch.");
@@ -1065,6 +1128,7 @@ public final class MainActivity extends Activity {
             if(results==null||results.isEmpty()){resumeWake();return;}
             String question=results.get(0);
             if(!"assistant".equals(currentPage))showPage("assistant");
+            if(handleLocalCommand(question)){resumeWake();return;}
             statusMessage("Você: "+question+"  ·  HOME está pensando…");
             if(!HomeGroq.connected(this)){
                 statusMessage("Conecte a Groq no Assistente para receber respostas por voz.");

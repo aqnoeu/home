@@ -21,6 +21,8 @@ COMMANDS = {
     "notepad": ("Bloco de Notas", ["notepad.exe"]),
     "calc": ("Calculadora", ["calc.exe"]),
     "explorer": ("Explorador de Arquivos", ["explorer.exe"]),
+    "taskmgr": ("Gerenciador de Tarefas", ["taskmgr.exe"]),
+    "control_panel": ("Painel de Controle", ["control.exe"]),
 }
 MEDIA_KEYS = {"volume_up": 0xAF, "volume_down": 0xAE, "mute": 0xAD,
               "play_pause": 0xB3, "next": 0xB0, "previous": 0xB1}
