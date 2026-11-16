@@ -1,7 +1,7 @@
 """Regressão: olhos não devem pulsar após resposta falada."""
 import os
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication, QWidget
@@ -49,8 +49,14 @@ class EyeSpeechTests(unittest.TestCase):
         self.manager.restart_wake = True
         self.manager.start = MagicMock()
         self.manager.set_state("speaking")
-        self.manager.speech_finished(speaker)
+        callbacks=[]
+        with patch("home_voice.QTimer.singleShot", side_effect=lambda ms, cb: callbacks.append((ms, cb))):
+            self.manager.speech_finished(speaker)
         self.assertEqual(self.eyes.voice_state, "")
+        self.manager.start.assert_not_called()
+        self.assertEqual(len(callbacks), 1)
+        self.assertGreaterEqual(callbacks[0][0], 500)
+        callbacks[0][1]()
         self.manager.start.assert_called_once_with("wake")
 
 
