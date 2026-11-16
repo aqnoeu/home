@@ -35,3 +35,19 @@ A ação **Home Android — APK de teste** no GitHub Actions também compila e a
 
 ## Privacidade
 O Home só abre a interface quando tocado; não utiliza microfone, não tem conexão com a versão Windows e não lê outros aplicativos. A consulta de atualizações se conecta ao GitHub apenas após clique em **Verificar atualizações**.
+
+## Atualização dentro do aplicativo (v0.1.2+)
+A aba **Verificar atualizações** procura a última Release Android oficial com tag `android-vX.Y.Z` e arquivo `Home-Android.apk`. Havendo versão maior que a instalada, o Home solicita confirmação, baixa o APK no armazenamento privado, valida o SHA-256 fornecido pela API do GitHub, abre o instalador do Android e pede confirmação ao usuário. Não há instalação silenciosa.
+
+**Distribuição:** o workflow `.github/workflows/android-release.yml` publica o APK na própria GitHub Releases, de forma independente da versão Windows, **somente quando as quatro credenciais de assinatura estiverem configuradas** no repositório em *Settings → Secrets and variables → Actions*:
+
+- `HOME_ANDROID_KEYSTORE_BASE64`: conteúdo do arquivo keystore de produção codificado em base64, sem quebras de linha.
+- `HOME_ANDROID_KEYSTORE_PASSWORD`: senha do keystore.
+- `HOME_ANDROID_KEY_ALIAS`: alias da chave.
+- `HOME_ANDROID_KEY_PASSWORD`: senha da chave.
+
+Gere e guarde o keystore fora do repositório, com backup seguro. Use a **mesma chave em todas as versões Android futuras**, pois o Android rejeita a instalação por cima se o certificado mudar. Nunca faça commit do keystore ou das senhas, e nunca reutilize o keystore de debug do GitHub Actions em produção.
+
+**Migração do APK debug 0.1.0/0.1.1 para a primeira versão assinada:** será necessário desinstalar o debug e instalar o `Home-Android.apk` uma única vez, pois as assinaturas são distintas. Depois, novas versões oficiais podem ser instaladas pelo botão interno preservando as configurações.
+
+A compilação de debug continua no workflow `android-build.yml`, apenas para testes e sem promessas de atualização por cima da versão anterior.
