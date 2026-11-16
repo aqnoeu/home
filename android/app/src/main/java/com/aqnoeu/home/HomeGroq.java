@@ -30,7 +30,7 @@ public final class HomeGroq {
     private static final String MODEL = "openai/gpt-oss-20b";
     private static final String ALIAS = "home_groq_key_v1";
     private static final String PREF = "home_groq_private";
-    private static final String SYSTEM = "Você é HOME (Helpful, Organized, Mindful & Efficient), assistente simpático e discreto. Responda em português brasileiro de forma clara, objetiva e natural para ser falada em voz alta. Prefira até duas frases, com no máximo 380 caracteres. Sem emojis, markdown ou listas na voz. Se não souber, admita. Você não executa ações no celular por conta própria.";
+    private static final String SYSTEM = "Você é HOME. Fale naturalmente em português brasileiro, de forma breve, sem markdown ou emojis. Não invente fatos ou execute ações. Responda estritamente em JSON com duas chaves: resposta (texto curto) e emocao (neutro, raiva, sonolento, tedio).";
     private static final AtomicBoolean BUSY = new AtomicBoolean(false);
     private static final Object HISTORY_LOCK = new Object();
     private static final JSONArray HISTORY = new JSONArray();
@@ -39,6 +39,7 @@ public final class HomeGroq {
     public interface Callback {
         void onAnswer(String answer);
         void onError(String explanation);
+        default void onEmotion(String emotion) {}
     }
 
     private static SecretKey secret() throws Exception {
@@ -97,7 +98,7 @@ public final class HomeGroq {
         if(q.length()>750){callback.onError("Pergunta muito longa (limite de 750 caracteres).");return;}
         if(!BUSY.compareAndSet(false,true)){callback.onError("O Home ainda está respondendo à pergunta anterior.");return;}
         new Thread(()->{
-            String answer=null,error=null;
+            String answer=null,error=null,emotion="neutro";
             HttpURLConnection connection=null;
             try {
                 JSONArray messages=new JSONArray();
@@ -110,7 +111,9 @@ public final class HomeGroq {
                 JSONObject body=new JSONObject().put("model",MODEL)
                     .put("messages",messages).put("temperature",0.5)
                     .put("max_completion_tokens",450).put("reasoning_effort","low")
-                    .put("include_reasoning",false).put("stream",false);
+                    .put("include_reasoning",false)
+                    .put("response_format",new JSONObject().put("type","json_object"))
+                    .put("stream",false);
                 connection=(HttpURLConnection)new URL(API).openConnection();
                 connection.setRequestMethod("POST");
                 connection.setConnectTimeout(12000);connection.setReadTimeout(28000);
@@ -136,7 +139,12 @@ public final class HomeGroq {
                 String content=reply.getJSONArray("choices").getJSONObject(0)
                     .getJSONObject("message").optString("content","").trim();
                 if(content.isEmpty())throw new IllegalStateException("A Groq não retornou texto para falar.");
-                answer=content.length()>850?content.substring(0,850):content;
+                JSONObject structured = new JSONObject(content);
+                String spoken = structured.optString("resposta","").trim();
+                if(spoken.isEmpty())throw new IllegalStateException("A Groq não enviou resposta para falar.");
+                answer=spoken.length()>850?spoken.substring(0,850):spoken;
+                String tag=structured.optString("emocao","neutro");
+                emotion=("raiva".equals(tag)||"sonolento".equals(tag)||"tedio".equals(tag))?tag:"neutro";
                 synchronized(HISTORY_LOCK){
                     HISTORY.put(new JSONObject().put("role","user").put("content",q));
                     HISTORY.put(new JSONObject().put("role","assistant").put("content",answer));
@@ -144,10 +152,11 @@ public final class HomeGroq {
                 }
             }catch(Exception e){error=e.getMessage()==null?"Falha de conexão com Groq.":e.getMessage();}
             finally{if(connection!=null)connection.disconnect();BUSY.set(false);}
-            final String result=answer,problem=error;
+            final String result=answer,problem=error,mood=emotion;
             activity.runOnUiThread(()->{
                 if(activity.isFinishing())return;
-                if(problem!=null)callback.onError(problem);else callback.onAnswer(result);
+                if(problem!=null)callback.onError(problem);
+                else {callback.onEmotion(mood);callback.onAnswer(result);}
             });
         },"HomeGroq").start();
     }

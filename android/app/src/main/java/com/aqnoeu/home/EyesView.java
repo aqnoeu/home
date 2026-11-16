@@ -5,50 +5,112 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.RectF;
+import android.graphics.Path;
+import android.os.SystemClock;
 import android.view.View;
 import java.util.Random;
 
-/** Eyes geometry follows Home's PySide6 EyesWidget: two soft white rounded bars. */
+/** The approved HOME pair of rounded eyes, with subtle contextual states.
+ * In-app expression colors never alter the official app icon/logo.
+ * Motion reduces automatically when the OS animation scale is disabled.
+ */
 public final class EyesView extends View {
-    private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Random random = new Random();
-    private int mood = 0;
-    private float eyeGapDp = 9f;
-    private long blinkAt = android.os.SystemClock.uptimeMillis() + 3500;
-    private long blinkStart = -1;
-    private float gaze = 0, targetGaze = 0;
-    private long nextLook = 0;
-    public EyesView(Context context) { super(context); setLayerType(View.LAYER_TYPE_SOFTWARE, null); }
-    public void setEyeGap(float gap) { eyeGapDp = Math.max(0,Math.min(600,gap)); invalidate(); }
-    public void setMood(int mood) { this.mood = Math.max(0, Math.min(3, mood)); invalidate(); }
-    private float dp(float v) { return v * getResources().getDisplayMetrics().density; }
-    @Override protected void onDraw(Canvas canvas) {
+    private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Random random=new Random();
+    private float eyeGapDp=9f;
+    private long blinkAt=SystemClock.uptimeMillis()+3200,blinkStart=-1,nextLook=0,lastFrame=0;
+    private float gaze=0,targetGaze=0,mix=1f;
+    private float eyeHeight=1f,eyeWidth=1f,colorR=242,colorG=248,colorB=255;
+    private String previousState="neutro";
+    private int mood=0;
+    public EyesView(Context context){super(context);setLayerType(View.LAYER_TYPE_SOFTWARE,null);}
+    public void setEyeGap(float gap){eyeGapDp=Math.max(0,Math.min(600,gap));invalidate();}
+    public void setMood(int index){
+        mood=Math.max(0,Math.min(3,index));
+        HomeEmotion.manual(index==2?"sonolento":index==3?"raiva":"neutro");
+        invalidate();
+    }
+    private float dp(float value){return value*getResources().getDisplayMetrics().density;}
+    private float lerp(float a,float b,float weight){return a+(b-a)*weight;}
+    private boolean motionEnabled(){
+        try{return android.provider.Settings.Global.getFloat(
+            getContext().getContentResolver(),
+            android.provider.Settings.Global.ANIMATOR_DURATION_SCALE,1f)>0f;}
+        catch(Exception e){return true;}
+    }
+    @Override protected void onDraw(Canvas canvas){
         super.onDraw(canvas);
-        final long now = android.os.SystemClock.uptimeMillis();
-        if (now > nextLook) { targetGaze = (random.nextFloat() - .5f) * .7f; nextLook = now + 3500 + random.nextInt(3500); }
-        gaze += (targetGaze - gaze) * .06f;
-        if (now > blinkAt && blinkStart < 0) { blinkStart = now; blinkAt = now + 4500 + random.nextInt(3500); }
-        float blink = 1f;
-        if (blinkStart >= 0) {
-            float progress = (now-blinkStart)/380f;
-            if (progress >= 1) blinkStart = -1;
-            else blink = Math.max(.07f, 1f-(float)Math.sin(progress*Math.PI)*.95f);
+        long now=SystemClock.uptimeMillis();
+        float dt=lastFrame==0?.05f:Math.min(.15f,(now-lastFrame)/1000f);
+        lastFrame=now;
+        boolean animated=motionEnabled();
+        float smoothing=animated?1f-(float)Math.exp(-dt/0.23):1f;
+        String state=HomeEmotion.current(getContext());
+        int rgb=Color.rgb(242,248,255);
+        float targetH=1f,targetW=1f;
+        if("raiva".equals(state)){rgb=Color.rgb(255,106,0);targetH=.83f;}
+        else if("sonolento".equals(state)){rgb=Color.rgb(142,175,207);targetH=.38f;}
+        else if("tedio".equals(state)){rgb=Color.rgb(139,149,164);targetH=.78f;targetW=.78f;}
+        else if("carregando".equals(state)){rgb=Color.rgb(0,196,106);}
+        colorR=lerp(colorR,Color.red(rgb),smoothing);
+        colorG=lerp(colorG,Color.green(rgb),smoothing);
+        colorB=lerp(colorB,Color.blue(rgb),smoothing);
+        eyeHeight=lerp(eyeHeight,targetH,smoothing);
+        eyeWidth=lerp(eyeWidth,targetW,smoothing);
+        if(now>nextLook){
+            targetGaze="tedio".equals(state)?(random.nextBoolean()?.35f:-.35f):
+                (random.nextFloat()-.5f)*.65f;
+            nextLook=now+("tedio".equals(state)?6000:3500)+random.nextInt(2100);
         }
-        if (mood == 2) blink *= .54f;
-        float width = getWidth(), height = getHeight();
-        float ew = Math.min(dp(13), width * .12f), eh = Math.min(dp(21), height * .68f) * blink;
-        float gap = Math.min(dp(eyeGapDp), Math.max(0,width - 2 * ew - dp(8)));
-        float left = (width - 2 * ew - gap)/2f + gaze * dp(6);
-        paint.setColor(Color.rgb(242,248,255));
-        for(int i=0;i<2;i++) {
-            float x=left+i*(ew+gap), y=(height-eh)/2f;
-            canvas.drawRoundRect(new RectF(x,y,x+ew,y+eh), Math.min(dp(5),eh/2),Math.min(dp(5),eh/2),paint);
-            if(mood==1 && blink>.6f) {
-                paint.setColor(Color.rgb(5,7,11));
-                canvas.drawOval(new RectF(x-ew*.17f,y+eh*.49f,x+ew*1.17f,y+eh*1.3f),paint);
-                paint.setColor(Color.rgb(242,248,255));
+        gaze=lerp(gaze,targetGaze,animated?.055f:1f);
+        if(now>blinkAt&&blinkStart<0){blinkStart=now;blinkAt=now+4600+random.nextInt(3200);}
+        float blink=1f;
+        if(blinkStart>=0){
+            float progress=(now-blinkStart)/380f;
+            if(progress>=1)blinkStart=-1;
+            else if(animated)blink=Math.max(.07f,1f-(float)Math.sin(progress*Math.PI)*.95f);
+        }
+        float width=getWidth(),height=getHeight();
+        float ew=Math.min(dp(13),width*.12f)*eyeWidth;
+        float eh=Math.max(dp(3),Math.min(dp(21),height*.68f)*eyeHeight*blink);
+        float gap=Math.min(dp(eyeGapDp),Math.max(0,width-2*ew-dp(8)));
+        float left=(width-2*ew-gap)/2f+gaze*dp(6);
+        int eyeColor=Color.rgb(Math.min(255,(int)colorR),Math.min(255,(int)colorG),Math.min(255,(int)colorB));
+        float pulse="carregando".equals(state)&&animated
+            ?(.93f+.07f*(float)Math.sin(now/550.0)):1f;
+        paint.setColor(eyeColor);
+        paint.setAlpha((int)(255*pulse));
+        for(int i=0;i<2;i++){
+            float x=left+i*(ew+gap);
+            float shake="raiva".equals(state)&&animated?
+                (float)Math.sin(now/44.0)*dp(.65f):0f;
+            float y=(height-eh)/2f+shake;
+            canvas.drawRoundRect(new RectF(x,y,x+ew,y+eh),
+                Math.min(dp(5),eh/2),Math.min(dp(5),eh/2),paint);
+            if("raiva".equals(state)&&eh>=dp(7)){
+                Path lid=new Path();
+                lid.moveTo(x-1,y-2);
+                lid.lineTo(x+ew+1,y-2);
+                if(i==0){lid.lineTo(x+ew+1,y+eh*.35f);lid.lineTo(x-1,y+eh*.08f);}
+                else{lid.lineTo(x+ew+1,y+eh*.08f);lid.lineTo(x-1,y+eh*.35f);}
+                lid.close();
+                paint.setColor(Color.rgb(11,17,26));
+                canvas.drawPath(lid,paint);
+                paint.setColor(eyeColor);
+            }else if(mood==1&&"neutro".equals(state)&&eh>=dp(9)){
+                paint.setColor(Color.rgb(11,17,26));
+                canvas.drawOval(new RectF(x-ew*.15f,y+eh*.54f,x+ew*1.16f,y+eh*1.36f),paint);
+                paint.setColor(eyeColor);
             }
         }
-        postInvalidateDelayed(50);
+        if("sonolento".equals(state)&&height>=dp(68)){
+            paint.setColor(Color.rgb(142,175,207));
+            paint.setTextSize(dp(11));
+            float lift=animated?((now%3000L)/3000f)*dp(16):0;
+            canvas.drawText("z",left+2*ew+gap+dp(9),height*.38f-lift,paint);
+            paint.setTextSize(dp(8));
+            canvas.drawText("z",left+2*ew+gap+dp(17),height*.22f-lift,paint);
+        }
+        if(animated)postInvalidateDelayed(50);
     }
 }

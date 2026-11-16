@@ -18,6 +18,7 @@ from home_ui import HomePanel
 from home_navigation import Workspace
 from home_integrations import load_preferences, save_preferences, ChromeBridge, IntegrationsDialog, cleanup_retired_voice
 from home_voice import VoiceManager, VoiceDialog
+from home_emotions import ContextState, WindowsContext, normalize_emotion
 
 
 class EyesWidget(QWidget):
@@ -31,6 +32,10 @@ class EyesWidget(QWidget):
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.setFixedHeight(22)
         self.mood = 0
+        self.emotion = "neutro"
+        self.eye_color = QColor("#f2f8ff")
+        self.emotion_height = 1.0
+        self.emotion_width = 1.0
         self.eye_gap = 9
         self.gaze = 0.0
         self.target_gaze = 0.0
@@ -86,6 +91,21 @@ class EyesWidget(QWidget):
             self.next_blink = now + random.uniform(4.5, 8.0)
         if self.blink_begin >= 0 and now - self.blink_begin >= self.blink_duration:
             self.blink_begin = -1.0
+        targets = {
+            "neutro": (1., 1., QColor("#F2F8FF")),
+            "raiva": (.82, 1., QColor("#FF6A00")),
+            "sonolento": (.40, 1., QColor("#8EAFCF")),
+            "tedio": (.75, .77, QColor("#8B95A4")),
+            "carregando": (1., 1., QColor("#00C46A")),
+        }
+        hh, ww, color = targets.get(self.emotion, targets["neutro"])
+        factor = min(1., dt * 5.5)
+        self.emotion_height += (hh - self.emotion_height) * factor
+        self.emotion_width += (ww - self.emotion_width) * factor
+        r = self.eye_color.red() + (color.red() - self.eye_color.red()) * factor
+        g = self.eye_color.green() + (color.green() - self.eye_color.green()) * factor
+        b = self.eye_color.blue() + (color.blue() - self.eye_color.blue()) * factor
+        self.eye_color = QColor(round(r), round(g), round(b))
         self.update()
 
     def paintEvent(self, event):
@@ -95,14 +115,14 @@ class EyesWidget(QWidget):
         if w < 20 or h < 12:
             return
         eh = min(h * 0.70, 34.0)
-        ew = min(w * 0.21, eh * 0.82, 25.0)
+        ew = min(w * 0.21, eh * 0.82, 25.0) * self.emotion_width
         gap = max(0.0, min(float(self.eye_gap), w - 2 * ew - 8))
         left = w / 2 + self.gaze * min(10, w * .055) - (ew * 2 + gap) / 2
         blink = 1.0
         if self.blink_begin >= 0:
             progress = (time.monotonic() - self.blink_begin) / self.blink_duration
             blink = max(.07, 1.0 - math.sin(min(1., progress) * math.pi) * .95)
-        if self.mood == 2:
+        if self.mood == 2 and self.emotion == "neutro":
             blink *= .54
         if self.voice_state == 'listening':
             height_factor = 1.08
@@ -115,20 +135,25 @@ class EyesWidget(QWidget):
         else:
             height_factor = 1.0
         blink *= height_factor
-        height = max(2., eh * blink)
+        height = max(2., eh * blink * self.emotion_height)
         for index in range(2):
             x = left + index * (ew + gap)
+            if self.emotion == "raiva":
+                x += math.sin(time.monotonic() * 24) * .55
             y = (h - height) / 2 + self.gaze_y * min(4.,h*.12)
             path = QPainterPath()
             radius = min(ew * .36, height * .45, 9)
             path.addRoundedRect(x, y, ew, height, radius, radius)
-            p.fillPath(path, QColor('#f2f8ff'))
+            fill = QColor(self.eye_color)
+            if self.emotion == "carregando":
+                fill.setAlpha(225 + round(15 * (1 + math.sin(time.monotonic()*2.6))))
+            p.fillPath(path, fill)
             black = QColor('#05070b')
-            if self.mood == 1 and blink > .6:
+            if self.mood == 1 and self.emotion == "neutro" and blink > .6:
                 p.setPen(Qt.NoPen)
                 p.setBrush(black)
                 p.drawEllipse(int(x-ew*.17), int(y+height*.49), int(ew*1.34), int(height*.81))
-            elif self.mood == 3 and blink > .6:
+            elif (self.mood == 3 or self.emotion == "raiva") and blink > .6:
                 lid = QPainterPath()
                 lid.moveTo(x-2, y-2)
                 lid.lineTo(x+ew+2, y-2)
@@ -140,6 +165,9 @@ class EyesWidget(QWidget):
                     lid.lineTo(x-2, y+height*.43)
                 lid.closeSubpath()
                 p.fillPath(lid, black)
+        if self.emotion == "sonolento" and h > 55:
+            p.setPen(QColor("#8EAFCF"))
+            p.drawText(round(left + 2*ew + gap + 8), round(h*.34 - 7*math.sin(time.monotonic()*.9)), "z")
 
 
 class EditDialog(QDialog):
@@ -244,6 +272,11 @@ class Home(QWidget):
         self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setAttribute(Qt.WA_NoSystemBackground, True)
         self.setMouseTracking(True)
+        self.emotion_context = ContextState()
+        self._context_timer = QTimer(self)
+        self._context_timer.setInterval(4000)
+        self._context_timer.timeout.connect(self._refresh_emotion_context)
+        self._context_timer.start()
         self.eyes = EyesWidget(self)
         self.eyes.eye_gap = self.settings["eye_gap"]
         self.eyes.follow_mouse = self.integration_prefs['eyes_follow_mouse']
@@ -281,6 +314,19 @@ class Home(QWidget):
         if self.integration_prefs.get('voice_microphone') and self.integration_prefs.get('voice_wake'):
             self.voice.start('wake')
         QApplication.instance().aboutToQuit.connect(self.shutdown)
+
+    def set_ai_emotion(self, emotion):
+        self.emotion_context.note_conversation(normalize_emotion(emotion))
+        self.eyes.emotion = normalize_emotion(emotion)
+
+    def _refresh_emotion_context(self):
+        now = time.monotonic()
+        activity, foreground, charging = WindowsContext.sample(now)
+        self.emotion_context.last_activity = activity
+        if foreground != self.emotion_context.focused_window:
+            self.emotion_context.focused_window = foreground
+            self.emotion_context.focused_since = now
+        self.eyes.emotion = self.emotion_context.choose(now, charging=charging)
 
     def _remember_page(self,title,url,content):
         self.last_page = (title,url,content)
@@ -535,6 +581,7 @@ class Home(QWidget):
 
     def set_mood(self,index):
         self.eyes.mood = {0:0,1:1,2:3}.get(index,0)
+        self.eyes.emotion = {0:"neutro",1:"neutro",2:"raiva"}.get(index,"neutro")
         self.panel.set_mood(index)
         self.eyes.update()
 

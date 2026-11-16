@@ -388,6 +388,7 @@ class VoiceManager(QObject):
             # Only model-generated text is spoken. No AI instruction can execute OS actions.
             self.ai_worker = GroqWorker(phrase, parent=self.home)
             ai=self.ai_worker
+            ai.emotional_answer.connect(lambda _text, emotion:self.home.set_ai_emotion(emotion))
             ai.answered.connect(lambda response:self.on_ai_reply(ai,response))
             ai.failed.connect(lambda problem:self.on_ai_error(ai,problem))
             self.set_state("Groq está pensando…")

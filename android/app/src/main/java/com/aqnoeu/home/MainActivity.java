@@ -42,7 +42,7 @@ public final class MainActivity extends Activity {
     private String currentPage = "hub";
 
     private int dp(float n) {return Math.round(n*getResources().getDisplayMetrics().density);}
-    private boolean narrow(){return getResources().getConfiguration().screenWidthDp<370;}
+    private boolean narrow(){return getResources().getConfiguration().screenWidthDp<440;}
     private GradientDrawable bg(int color,int radius){
         GradientDrawable d=new GradientDrawable();
         d.setColor(color);d.setCornerRadius(dp(radius));d.setStroke(dp(1),LINE);
@@ -53,7 +53,9 @@ public final class MainActivity extends Activity {
         t.setText(value);t.setTextSize(sp);t.setTextColor(color);t.setIncludeFontPadding(false);
         t.setTypeface(android.graphics.Typeface.create("sans-serif",
             heavy?android.graphics.Typeface.BOLD:android.graphics.Typeface.NORMAL));
-        t.setLineSpacing(dp(3),1f);
+        t.setLineSpacing(dp(4),1.04f);
+        t.setBreakStrategy(android.text.Layout.BREAK_STRATEGY_HIGH_QUALITY);
+        t.setHyphenationFrequency(android.text.Layout.HYPHENATION_FREQUENCY_NONE);
         return t;
     }
     private TextView text(String value,int sp){return text(value,sp,WHITE,false);}
@@ -71,7 +73,7 @@ public final class MainActivity extends Activity {
         LinearLayout l=column();
         l.setBackground(bg(SURFACE,20));
         l.setPadding(dp(narrow()?16:18),dp(18),dp(narrow()?16:18),dp(18));
-        if(title!=null&&!title.isEmpty())add(l,heading(title,17),0,description==null?12:7);
+        if(title!=null&&!title.isEmpty())add(l,heading(title,18),0,description==null?14:9);
         if(description!=null&&!description.isEmpty())add(l,note(description),0,12);
         add(root,l,0,14);
         return l;
@@ -80,7 +82,11 @@ public final class MainActivity extends Activity {
         Button b=new Button(this);
         b.setText(value);b.setAllCaps(false);b.setTextSize(14);
         b.setTypeface(android.graphics.Typeface.create("sans-serif-medium",0));
-        b.setMinHeight(dp(48));b.setMinimumHeight(dp(48));
+        b.setMinHeight(dp(52));b.setMinimumHeight(dp(52));
+        b.setGravity(Gravity.CENTER);
+        b.setSingleLine(false);
+        b.setMaxLines(2);
+        b.setBreakStrategy(android.text.Layout.BREAK_STRATEGY_HIGH_QUALITY);
         b.setTextColor(WHITE);
         b.setBackground(bg(primary?BLUE:RAISED,13));
         b.setPadding(dp(12),0,dp(12),0);
@@ -88,13 +94,13 @@ public final class MainActivity extends Activity {
         return b;
     }
     private void action(LinearLayout target,String label,boolean primary,Runnable run){
-        add(target,button(label,primary,run),3,8);
+        add(target,button(label,primary,run),4,11);
     }
     private void actions(LinearLayout target,String left,Runnable a,String right,Runnable b){
         LinearLayout row=new LinearLayout(this);
         row.setOrientation(narrow()?LinearLayout.VERTICAL:LinearLayout.HORIZONTAL);
         Button first=button(left,true,a),second=button(right,false,b);
-        if(narrow()){add(row,first,0,8);add(row,second,0,0);}
+        if(narrow()){add(row,first,0,10);add(row,second,0,0);}
         else {
             LinearLayout.LayoutParams one=new LinearLayout.LayoutParams(0,dp(50),1);
             one.rightMargin=dp(6);
@@ -126,6 +132,7 @@ public final class MainActivity extends Activity {
     }
     private void initScreen(String page,String subtitle){
         currentPage=page;
+        HomeEmotion.pageChanged(page);
         getWindow().setStatusBarColor(BG);
         getWindow().setNavigationBarColor(BG);
         getWindow().getDecorView().setSystemUiVisibility(0);
@@ -138,12 +145,12 @@ public final class MainActivity extends Activity {
         root=column();
         // Android 15 edge-to-edge: use the measured system/cutout bars + breathing room.
         final int h=dp(narrow()?16:22);
-        root.setPadding(h,dp(52),h,dp(34));
+        root.setPadding(h,dp(62),h,dp(40));
         root.setOnApplyWindowInsetsListener((view,insets)->{
             if(Build.VERSION.SDK_INT>=30){
                 android.graphics.Insets bars=insets.getInsets(
                     WindowInsets.Type.systemBars()|WindowInsets.Type.displayCutout());
-                root.setPadding(h,Math.max(dp(48),bars.top+dp(26)),h,
+                root.setPadding(h,Math.max(dp(58),bars.top+dp(30)),h,
                     Math.max(dp(28),bars.bottom+dp(22)));
             }
             return insets;
@@ -159,14 +166,14 @@ public final class MainActivity extends Activity {
         icon.setImageResource(R.drawable.home_icon_approved);
         icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
         icon.setContentDescription("Símbolo oficial HOME: dois olhos brancos em fundo grafite");
-        LinearLayout.LayoutParams iconSize=new LinearLayout.LayoutParams(dp(47),dp(47));
-        iconSize.rightMargin=dp(12);
+        LinearLayout.LayoutParams iconSize=new LinearLayout.LayoutParams(dp(58),dp(58));
+        iconSize.rightMargin=dp(16);
         brand.addView(icon,iconSize);
         LinearLayout brandCopy=column();
-        add(brandCopy,heading("HOME",21),0,3);
+        add(brandCopy,heading("HOME",23),0,5);
         add(brandCopy,note("Um assistente para você."),0,0);
         brand.addView(brandCopy,new LinearLayout.LayoutParams(0,-2,1));
-        add(root,brand,0,18);
+        add(root,brand,0,24);
         View line=new View(this);line.setBackgroundColor(LINE);
         root.addView(line,new LinearLayout.LayoutParams(-1,dp(1)));
         if(!"hub".equals(page)){
@@ -205,15 +212,16 @@ public final class MainActivity extends Activity {
         span.setSpan(new ForegroundColorSpan(ORANGE),0,4,0);
         hello.setText(span);
         add(root,hello,0,6);
-        add(root,note("Seu assistente, no seu ritmo."),0,22);
+        add(root,note("Seu assistente, no seu ritmo."),0,27);
 
         LinearLayout face=card(null,null);
         EyesView eyes=new EyesView(this);
         android.content.SharedPreferences prefs=getSharedPreferences("home",MODE_PRIVATE);
         eyes.setMood(prefs.getInt("mood",0));eyes.setEyeGap(prefs.getInt("eye_gap",9));
         eyes.setBackground(bg(BG,18));
-        add(face,eyes,0,12);
-        eyes.setLayoutParams(new LinearLayout.LayoutParams(-1,dp(100)));
+        LinearLayout.LayoutParams eyesSize=new LinearLayout.LayoutParams(-1,dp(105));
+        eyesSize.bottomMargin=dp(16);
+        face.addView(eyes,eyesSize);
         add(face,heading("Expressão",15),0,13);
         HorizontalScrollView hscroll=new HorizontalScrollView(this);
         hscroll.setHorizontalScrollBarEnabled(false);
@@ -234,7 +242,7 @@ public final class MainActivity extends Activity {
         hscroll.addView(moods);
         face.addView(hscroll);
 
-        add(root,heading("O que deseja fazer?",18),12,14);
+        add(root,heading("O que deseja fazer?",19),14,18);
         LinearLayout quick=column();
         actions(quick,"Conversar com HOME",()->showPage("assistant"),
             "Voz e microfone",()->showPage("voice"));
@@ -251,7 +259,7 @@ public final class MainActivity extends Activity {
             page.equals("interactions")?"Interações":
             page.equals("updates")?"Atualizações":"Encerrar";
         initScreen(page,null);
-        add(root,heading(title,25),0,10);
+        add(root,heading(title,narrow()?23:25),0,18);
         switch(page){
             case "assistant": assistantPage();break;
             case "voice": voicePage();break;
@@ -315,6 +323,7 @@ public final class MainActivity extends Activity {
             return;
         }
         HomeGroq.ask(this,question,new HomeGroq.Callback(){
+            @Override public void onEmotion(String emotion){HomeEmotion.fromGroq(emotion);}
             @Override public void onAnswer(String answer){
                 if(response!=null)response.setText(answer);
                 if(FaberOffline.isInstalled(MainActivity.this))
@@ -413,7 +422,7 @@ public final class MainActivity extends Activity {
     }
     private void showEditor(){
         initScreen("editor",null);
-        add(root,heading("Editar Notch",25),0,8);
+        add(root,heading("Editar Notch",narrow()?23:25),0,12);
         add(root,note("Ajuste as medidas com os controles abaixo. As alterações são salvas automaticamente."),0,20);
         android.content.SharedPreferences prefs=getSharedPreferences("home",MODE_PRIVATE);
         LinearLayout options=card("Comportamento da barra","A sobreposição depende das permissões do Android.");
@@ -479,6 +488,10 @@ public final class MainActivity extends Activity {
             catch(RuntimeException e){statusMessage("Não foi possível atualizar: "+e.getMessage());}
         }
     }
+    @Override public boolean dispatchTouchEvent(android.view.MotionEvent event){
+        if(event.getActionMasked()==android.view.MotionEvent.ACTION_DOWN)HomeEmotion.touch();
+        return super.dispatchTouchEvent(event);
+    }
     @Override protected void onActivityResult(int request,int resultCode,Intent data){
         super.onActivityResult(request,resultCode,data);
         if(request==HomeVoice.REQUEST_SPEECH && resultCode==RESULT_OK && data!=null){
@@ -493,6 +506,7 @@ public final class MainActivity extends Activity {
                 return;
             }
             HomeGroq.ask(this,question,new HomeGroq.Callback(){
+                @Override public void onEmotion(String emotion){HomeEmotion.fromGroq(emotion);}
                 @Override public void onAnswer(String answer){
                     statusMessage("HOME: "+answer);
                     if(FaberOffline.isInstalled(MainActivity.this))

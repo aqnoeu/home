@@ -11,6 +11,7 @@ on:
       - 'home_integrations.py'
       - 'home_voice.py'
       - 'home_groq.py'
+      - 'home_emotions.py'
       - 'home_faber.py'
       - 'assets/**'
       - 'tests/**'
@@ -75,7 +76,7 @@ jobs:
           print("Configuração Groq preparada." if key else "Groq sem chave nativa; conexão inline disponível.")
           '@ | python
       - name: Verificar sintaxe
-        run: python -m py_compile home.py home_ui.py home_navigation.py home_assistant.py home_integrations.py home_voice.py home_faber.py home_groq.py updater.py update_service.py
+        run: python -m py_compile home.py home_ui.py home_navigation.py home_assistant.py home_integrations.py home_voice.py home_faber.py home_groq.py home_emotions.py updater.py update_service.py
       - name: Testar comandos de voz e wake word
         run: python -m unittest discover -s tests -v
       - name: Verificar áudio REAL sintetizado pela Faber (sem alto-falante)
