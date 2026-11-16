@@ -41,34 +41,34 @@ class AssistantPage(QWidget):
         self.pending = None
         self.groq_worker = None
         self.setStyleSheet("""
-            QWidget#assistantPage {background:transparent;color:#ececec}
-            QLineEdit {background:#292b30;color:#fff;border:1px solid #53555a;border-radius:10px;padding:11px}
-            QCheckBox {color:#ddd}
-            QPushButton {background:#303237;color:white;border:1px solid #4c5055;border-radius:9px;padding:10px}
-            QPushButton:hover {background:#44474b}
-            QLabel {color:#ddd;background:transparent}
+            QWidget#assistantPage {background:transparent;color:#FFFFFF}
+            QLineEdit {background:#1C2737;color:#fff;border:1px solid #324357;border-radius:10px;padding:11px}
+            QCheckBox {color:#DDE7F4}
+            QPushButton {background:#1C2737;color:white;border:1px solid #324357;border-radius:9px;padding:10px}
+            QPushButton:hover {background:#32435774b}
+            QLabel {color:#DDE7F4;background:transparent}
         """)
         self.setObjectName("assistantPage")
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(4,3,4,3)
-        layout.setSpacing(9)
-        intro=QLabel("Groq responde às perguntas • Faber fala offline • comandos locais com confirmação")
+        layout.setContentsMargins(10,12,10,12)
+        layout.setSpacing(12)
+        intro=QLabel("Converse com o HOME. A Groq responde; a Faber dá voz às mensagens.")
         intro.setWordWrap(True)
-        intro.setStyleSheet("color:#a5a7ab;font-size:11px")
+        intro.setStyleSheet("color:#A8B6C8;font-size:12px")
         layout.addWidget(intro)
-        self.groq_config=QPushButton("✓ Groq conectada • alterar chave" if get_key() else "Conectar Groq (uma única vez)")
+        self.groq_config=QPushButton("Groq conectada · Gerenciar" if get_key() else "Conectar Groq")
         self.groq_config.clicked.connect(self.configure_groq)
         layout.addWidget(self.groq_config)
         self.messages=QScrollArea()
         self.messages.setObjectName("messagesArea")
         self.messages.setWidgetResizable(True)
         self.messages.setFrameShape(QFrame.NoFrame)
-        self.messages.setMinimumHeight(160)
-        self.messages.setStyleSheet("QScrollArea{background:#202125;border:1px solid #37393c;border-radius:11px}")
+        self.messages.setMinimumHeight(135)
+        self.messages.setStyleSheet("QScrollArea{background:#141D2A;border:1px solid #324357;border-radius:11px}")
         self.message_host=QWidget()
         self.message_layout=QVBoxLayout(self.message_host)
         self.message_layout.setAlignment(Qt.AlignTop)
-        self.message_layout.setSpacing(8)
+        self.message_layout.setSpacing(10)
         self.messages.setWidget(self.message_host)
         layout.addWidget(self.messages,1)
 
@@ -87,11 +87,13 @@ class AssistantPage(QWidget):
         layout.addWidget(self.confirm_box)
 
         row=QHBoxLayout()
+        row.setSpacing(9)
         self.entry=QLineEdit()
         self.entry.setPlaceholderText("Digite um comando ou uma mensagem...")
         self.entry.setMaxLength(500)
         self.entry.returnPressed.connect(self.send)
         send=QPushButton("Enviar")
+        send.setObjectName("sendPrimary")
         send.clicked.connect(self.send)
         row.addWidget(self.entry,1)
         row.addWidget(send)
@@ -109,7 +111,7 @@ class AssistantPage(QWidget):
         layout.addLayout(options)
         self.status=QLabel("")
         self.status.setWordWrap(True)
-        self.status.setStyleSheet("color:#acadb0;font-size:11px")
+        self.status.setStyleSheet("color:#A8B6C8;font-size:11px")
         layout.addWidget(self.status)
 
         self.home.voice.state.connect(self.on_voice_state)
@@ -125,7 +127,7 @@ class AssistantPage(QWidget):
         box.setTextInteractionFlags(Qt.TextSelectableByMouse)
         user=role=="user"
         box.setStyleSheet(
-            "QLabel{background:" + ("#3c424b" if user else "#2e3033")
+            "QLabel{background:" + ("#3c424b" if user else "#1C2737")
             + ";border-radius:10px;padding:10px;color:#f1f1f1}"
         )
         line=QHBoxLayout()
