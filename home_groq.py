@@ -1,0 +1,109 @@
+"""Private Groq conversational client for HOME Windows.
+
+No proxy, server or key embedded in the application. Key is stored in the
+Windows Credential Manager through keyring (never in a JSON config or GitHub).
+The assistant's generated text is sent to the local Faber Piper speech engine.
+"""
+import json
+import urllib.error
+import urllib.request
+
+from PySide6.QtCore import QThread, Signal
+
+API = "https://api.groq.com/openai/v1/chat/completions"
+MODEL = "openai/gpt-oss-20b"
+SERVICE = "HOME-Groq"
+ACCOUNT = "personal-api-key"
+SYSTEM = (
+    "Você é HOME (Helpful, Organized, Mindful & Efficient), um assistente "
+    "simpático, objetivo e discreto. Responda naturalmente em português brasileiro "
+    "em até duas frases, preferencialmente com no máximo 380 caracteres. "
+    "O texto será lido em voz alta: não use markdown, emojis ou listas. "
+    "Não invente fatos. Você não executa ações do Windows."
+)
+
+
+def get_key():
+    try:
+        import keyring
+        return keyring.get_password(SERVICE, ACCOUNT)
+    except Exception:
+        return None
+
+
+def save_key(value):
+    value = (value or "").strip()
+    if not value.startswith("gsk_") or len(value) < 25:
+        raise ValueError("Chave Groq inválida. Copie a chave criada no painel Groq.")
+    import keyring
+    keyring.set_password(SERVICE, ACCOUNT, value)
+
+
+def clear_key():
+    import keyring
+    try:
+        keyring.delete_password(SERVICE, ACCOUNT)
+    except keyring.errors.PasswordDeleteError:
+        pass
+
+
+def ask_groq(message, history=None, api_key=None):
+    key = api_key or get_key()
+    if not key:
+        raise RuntimeError("Conecte a Groq no Assistente antes de conversar.")
+    question = (message or "").strip()
+    if not question or len(question) > 750:
+        raise ValueError("Pergunta vazia ou maior que 750 caracteres.")
+    messages = [{"role":"system", "content":SYSTEM}]
+    for turn in (history or [])[-8:]:
+        if turn.get("role") in ("user", "assistant") and isinstance(turn.get("content"), str):
+            messages.append({"role":turn["role"], "content":turn["content"][:850]})
+    messages.append({"role":"user","content":question})
+    request=urllib.request.Request(
+        API,
+        data=json.dumps({
+            "model":MODEL,
+            "messages":messages,
+            "temperature":0.5,
+            "max_completion_tokens":170,
+            "stream":False
+        },ensure_ascii=False).encode("utf-8"),
+        headers={"Authorization":"Bearer "+key, "Content-Type":"application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request,timeout=28) as response:
+            raw=response.read(128001)
+            if len(raw)>128000:
+                raise RuntimeError("Resposta da Groq excedeu o limite.")
+    except urllib.error.HTTPError as exc:
+        if exc.code in (401,403):
+            raise RuntimeError("Chave Groq recusada. Verifique em Conectar Groq.") from None
+        if exc.code==429:
+            raise RuntimeError("Limite da Groq atingido. Tente mais tarde.") from None
+        raise RuntimeError("Groq indisponível (HTTP %s)." % exc.code) from None
+    except urllib.error.URLError:
+        raise RuntimeError("Não foi possível conectar à Groq. Verifique a internet.") from None
+    try:
+        answer=json.loads(raw)["choices"][0]["message"]["content"].strip()
+    except (ValueError, TypeError, IndexError, KeyError, AttributeError):
+        raise RuntimeError("A Groq retornou uma resposta inválida.") from None
+    if not answer:
+        raise RuntimeError("A Groq não enviou texto para responder.")
+    return answer[:850]
+
+
+class GroqWorker(QThread):
+    answered=Signal(str)
+    failed=Signal(str)
+
+    def __init__(self, question, history=None, parent=None):
+        super().__init__(parent)
+        self.question=question
+        self.history=list(history or [])
+
+    def run(self):
+        try:
+            self.answered.emit(ask_groq(self.question,self.history))
+        except Exception as exc:
+            self.failed.emit(str(exc)[:200])

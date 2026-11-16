@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 
 from home_integrations import execute_windows_action, save_preferences
 from home_faber import FaberDownloadWorker, FaberSpeechWorker, installed as faber_installed, PREVIEW_TEXT
+from home_groq import GroqWorker, get_key
 
 MODEL_NAME = "vosk-model-small-pt-0.3"
 MODEL_URL = "https://alphacephei.com/vosk/models/" + MODEL_NAME + ".zip"
@@ -299,6 +300,7 @@ class VoiceManager(QObject):
         self.download_worker = None
         self.voice_list_workers = []
         self.faber_download_worker = None
+        self.ai_worker = None
 
     def set_state(self, state):
         self.state.emit(state)
@@ -331,6 +333,8 @@ class VoiceManager(QObject):
         if self.pending_push:
             self.pending_push = False
             self.start('push')
+            return
+        if self.ai_worker and self.ai_worker.isRunning():
             return
         if self.restart_wake and self.mode == "wake" and not self.speaker and self.prefs.get("voice_wake") and self.prefs.get("voice_microphone"):
             self.start("wake")
@@ -375,7 +379,19 @@ class VoiceManager(QObject):
         self.command.emit(phrase)
         action = interpret(phrase)
         if action is None:
-            self.speak("Esta pergunta precisa de uma IA conversacional, que ainda não está conectada. Posso executar comandos locais.")
+            if not get_key():
+                self.set_state("Conecte a Groq uma vez no Assistente para receber respostas por voz.")
+                return
+            if self.ai_worker and self.ai_worker.isRunning():
+                self.set_state("O Home ainda está pensando na pergunta anterior.")
+                return
+            # Only model-generated text is spoken. No AI instruction can execute OS actions.
+            self.ai_worker = GroqWorker(phrase, parent=self.home)
+            ai=self.ai_worker
+            ai.answered.connect(lambda response:self.on_ai_reply(ai,response))
+            ai.failed.connect(lambda problem:self.on_ai_error(ai,problem))
+            self.set_state("Groq está pensando…")
+            ai.start()
             return
         key, response = action
         if not self.prefs.get("windows_controls"):
@@ -387,6 +403,21 @@ class VoiceManager(QObject):
         # A espera por confirmação não deve manter os olhos em "pensando".
         self.set_state("Confirmação pendente.")
         self.confirmation_requested.emit(phrase, key)
+
+    def on_ai_reply(self, worker, response):
+        if self.ai_worker is not worker:
+            return
+        self.ai_worker = None
+        self.home.assistant_history.append(("user",worker.question))
+        self.home.assistant_history.append(("home",response))
+        self.home.assistant_history = self.home.assistant_history[-50:]
+        self.speak(response, force=True)
+
+    def on_ai_error(self, worker, problem):
+        if self.ai_worker is not worker:
+            return
+        self.ai_worker = None
+        self.set_state("Falha na Groq: "+problem[:150])
 
     def decide_pending(self, approved):
         pending = self.pending_action

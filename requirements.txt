@@ -5,3 +5,4 @@ pyttsx3>=2.98,<3
 sherpa-onnx==1.13.8
 numpy>=1.26,<3
 qrcode>=7.4,<9
+keyring>=25,<27
