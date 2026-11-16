@@ -38,7 +38,7 @@ public final class UpdateHelper {
                     JSONObject release = releases.getJSONObject(i);
                     if (release.optBoolean("draft") || release.optBoolean("prerelease")) continue;
                     String tag = release.optString("tag_name");
-                    if (!tag.matches("android-v\\d+\\.\\d+\\.\\d+")) continue;
+                    if (!tag.matches("v\\d+\\.\\d+\\.\\d+")) continue;
                     int candidate = versionCodeForTag(tag);
                     if (candidate <= newest) continue;
                     JSONArray assets = release.optJSONArray("assets");
@@ -142,7 +142,7 @@ public final class UpdateHelper {
     }
     private static int versionCodeForTag(String tag) {
         try {
-            String[] v = tag.substring("android-v".length()).split("\\.");
+            String[] v = tag.substring(1).split("\\.");
             return Integer.parseInt(v[0]) * 10000 + Integer.parseInt(v[1]) * 100 + Integer.parseInt(v[2]);
         } catch (Exception e) { return -1; }
     }
