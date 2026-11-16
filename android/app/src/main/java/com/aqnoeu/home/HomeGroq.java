@@ -97,16 +97,17 @@ public final class HomeGroq {
         if(q.isEmpty())return;
         if(q.length()>750){callback.onError("Pergunta muito longa (limite de 750 caracteres).");return;}
         if(!BUSY.compareAndSet(false,true)){callback.onError("O Home ainda está respondendo à pergunta anterior.");return;}
+        HomeChatStore store=HomeChatStore.get(activity);
+        final String session=store.ensureActive();
+        final JSONArray prior=store.context();
+        try{store.add("user",q);}catch(Exception e){BUSY.set(false);callback.onError("Não foi possível salvar a pergunta.");return;}
         new Thread(()->{
             String answer=null,error=null,emotion="neutro";
             HttpURLConnection connection=null;
             try {
                 JSONArray messages=new JSONArray();
                 messages.put(new JSONObject().put("role","system").put("content",SYSTEM));
-                synchronized(HISTORY_LOCK){
-                    int start=Math.max(0,HISTORY.length()-8);
-                    for(int i=start;i<HISTORY.length();i++)messages.put(HISTORY.getJSONObject(i));
-                }
+                for(int i=0;i<prior.length();i++)messages.put(prior.getJSONObject(i));
                 messages.put(new JSONObject().put("role","user").put("content",q));
                 JSONObject body=new JSONObject().put("model",MODEL)
                     .put("messages",messages).put("temperature",0.5)
@@ -145,11 +146,7 @@ public final class HomeGroq {
                 answer=spoken.length()>850?spoken.substring(0,850):spoken;
                 String tag=structured.optString("emocao","neutro");
                 emotion=("raiva".equals(tag)||"sonolento".equals(tag)||"tedio".equals(tag))?tag:"neutro";
-                synchronized(HISTORY_LOCK){
-                    HISTORY.put(new JSONObject().put("role","user").put("content",q));
-                    HISTORY.put(new JSONObject().put("role","assistant").put("content",answer));
-                    while(HISTORY.length()>10)HISTORY.remove(0);
-                }
+                store.addTo(session,"assistant",answer);
             }catch(Exception e){error=e.getMessage()==null?"Falha de conexão com Groq.":e.getMessage();}
             finally{if(connection!=null)connection.disconnect();BUSY.set(false);}
             final String result=answer,problem=error,mood=emotion;

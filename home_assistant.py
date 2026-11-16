@@ -4,7 +4,7 @@ from datetime import datetime
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, QLineEdit,
-    QScrollArea, QCheckBox, QFrame, QSizePolicy
+    QScrollArea, QCheckBox, QFrame, QSizePolicy, QComboBox
 )
 
 from home_voice import interpret
@@ -96,6 +96,22 @@ class AssistantPage(QWidget):
         credential_layout.addLayout(key_actions)
         self.groq_panel.setVisible(False)
         layout.addWidget(self.groq_panel)
+        # Chat history controls stay within HOME: no popups.
+        chats=QHBoxLayout()
+        self.chat_selector=QComboBox(self)
+        self.chat_selector.setObjectName("savedChats")
+        self.chat_selector.setStyleSheet("QComboBox{background:#1C2737;color:white;border:1px solid #324357;border-radius:9px;padding:9px}")
+        self.chat_selector.currentIndexChanged.connect(self.select_chat)
+        chats.addWidget(self.chat_selector,1)
+        new_chat_button=QPushButton("+ Nova")
+        new_chat_button.clicked.connect(self.new_chat)
+        chats.addWidget(new_chat_button)
+        self.delete_chat_btn=QPushButton("Excluir")
+        self.delete_chat_btn.clicked.connect(self.delete_chat)
+        chats.addWidget(self.delete_chat_btn)
+        layout.addLayout(chats)
+        self.pending_chat_delete=False
+        self.refresh_chat_selector()
         self.messages=QScrollArea()
         self.messages.setObjectName("messagesArea")
         self.messages.setWidgetResizable(True)
@@ -155,7 +171,7 @@ class AssistantPage(QWidget):
         for role, text in home.assistant_history[-50:]:
             self.add_bubble(role,text)
         if not home.assistant_history:
-            self.record("home","Olá! Digite 'teste de voz', 'que horas são?' ou 'abra a calculadora'.")
+            self.add_bubble("home","Olá! Você pode começar uma conversa ou abrir uma anterior.")
         self.entry.setFocus()
 
     def add_bubble(self, role, message):
@@ -175,9 +191,64 @@ class AssistantPage(QWidget):
         self.messages.verticalScrollBar().setValue(self.messages.verticalScrollBar().maximum())
 
     def record(self,role,message):
-        self.home.assistant_history.append((role,message))
-        self.home.assistant_history=self.home.assistant_history[-50:]
+        self.home.record_chat(role,message)
         self.add_bubble(role,message)
+        self.refresh_chat_selector()
+
+    def refresh_chat_selector(self):
+        selected=self.home.chat_store.active()
+        self.chat_selector.blockSignals(True)
+        self.chat_selector.clear()
+        for item in self.home.chat_store.all():
+            self.chat_selector.addItem(item["title"][:45],item["id"])
+        index=self.chat_selector.findData(selected)
+        if index>=0:self.chat_selector.setCurrentIndex(index)
+        self.chat_selector.blockSignals(False)
+
+    def load_chat_messages(self):
+        self.message_host=QWidget()
+        self.message_layout=QVBoxLayout(self.message_host)
+        self.message_layout.setAlignment(Qt.AlignTop)
+        self.message_layout.setSpacing(10)
+        self.messages.setWidget(self.message_host)
+        for role,message in self.home.assistant_history:
+            self.add_bubble(role,message)
+        if not self.home.assistant_history:
+            self.add_bubble("home","Escreva uma mensagem para começar esta conversa.")
+
+    def select_chat(self,index):
+        if index<0:return
+        target=self.chat_selector.itemData(index)
+        if not target or target==self.home.chat_store.active():return
+        self.home.select_chat(target)
+        self.pending_chat_delete=False
+        self.delete_chat_btn.setText("Excluir")
+        if hasattr(self,"messages"):
+            self.load_chat_messages()
+
+    def new_chat(self):
+        self.home.chat_store.new()
+        self.home.assistant_history=[]
+        self.pending_chat_delete=False
+        self.delete_chat_btn.setText("Excluir")
+        self.refresh_chat_selector()
+        self.load_chat_messages()
+        self.status.setText("Nova conversa criada. Histórico anterior preservado.")
+
+    def delete_chat(self):
+        if not self.pending_chat_delete:
+            self.pending_chat_delete=True
+            self.delete_chat_btn.setText("Confirmar exclusão")
+            self.status.setText("Clique novamente para excluir permanentemente esta conversa.")
+            return
+        self.home.chat_store.delete(self.home.chat_store.active())
+        self.home.chat_store.new()
+        self.home.assistant_history=[]
+        self.pending_chat_delete=False
+        self.delete_chat_btn.setText("Excluir")
+        self.refresh_chat_selector()
+        self.load_chat_messages()
+        self.status.setText("Conversa excluída deste computador.")
 
     def say(self,message):
         if self.talk.isChecked():
@@ -269,22 +340,27 @@ class AssistantPage(QWidget):
                  for role,text in self.home.assistant_history[:-1]
                  if role in ("user","home")][-8:]
         worker=GroqWorker(question,history,self.home)
+        worker.chat_id=self.home.chat_store.active()
         self.groq_worker=worker
         self.home.groq_worker=worker
         self.status.setText("Groq está pensando…")
         worker.emotional_answer.connect(lambda _text, emotion:self.home.set_ai_emotion(emotion))
-        worker.answered.connect(lambda answer:self.on_ai_reply(answer))
-        worker.failed.connect(lambda problem:self.on_ai_error(problem))
+        worker.answered.connect(lambda answer:self.on_ai_reply(worker,answer))
+        worker.failed.connect(lambda problem:self.on_ai_error(worker,problem))
         worker.start()
 
-    def on_ai_reply(self,answer):
-        self.record("home",answer)
-        self.status.setText("Groq respondeu. Faber reproduzindo…" if self.talk.isChecked() else "Resposta pronta.")
-        self.say(answer)
+    def on_ai_reply(self,worker,answer):
+        self.home.record_chat("home",answer,session=worker.chat_id)
+        if worker.chat_id == self.home.chat_store.active():
+            self.add_bubble("home",answer)
+            self.refresh_chat_selector()
+            self.status.setText("Groq respondeu.")
+            self.say(answer)
 
-    def on_ai_error(self,problem):
-        self.status.setText(problem)
-        self.record("home","Não consegui consultar a Groq: "+problem)
+    def on_ai_error(self,worker,problem):
+        if worker.chat_id == self.home.chat_store.active():
+            self.status.setText(problem)
+            self.add_bubble("home","Não consegui consultar a Groq: "+problem)
 
     def confirm(self,allowed):
         pending=self.pending
