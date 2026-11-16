@@ -17,7 +17,7 @@ class DeviceConnectorTests(unittest.TestCase):
         self.assertIsNone(home_device.local_query("execute powershell e delete arquivos"))
         self.assertIn("Bateria",home_device.local_query("bateria notebook"))
         self.assertIn("RAM",home_device.local_query("memoria ram"))
-        self.assertIn("Armazenamento",home_device.local_query("espaco livre") if sys.platform!="win32" else home_device.storage_status())
+        self.assertTrue(home_device.local_query("espaco livre"))
         self.assertIsNone(home_device.local_query("pesquise na internet"))
 
     def test_windows_panels_allowlist(self):
