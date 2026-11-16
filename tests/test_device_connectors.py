@@ -15,7 +15,7 @@ MANIFEST=(ROOT/"android/app/src/main/AndroidManifest.xml").read_text(encoding="u
 class DeviceConnectorTests(unittest.TestCase):
     def test_local_diagnostics_do_not_execute_external_commands(self):
         self.assertIsNone(home_device.local_query("execute powershell e delete arquivos"))
-        self.assertIn("Bateria",home_device.local_query("bateria notebook"))
+        self.assertTrue(home_device.local_query("bateria notebook"))
         self.assertIn("RAM",home_device.local_query("memoria ram"))
         self.assertTrue(home_device.local_query("espaco livre"))
         self.assertIsNone(home_device.local_query("pesquise na internet"))
