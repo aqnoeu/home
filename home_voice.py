@@ -386,7 +386,11 @@ class VoiceManager(QObject):
                 self.set_state("O Home ainda está pensando na pergunta anterior.")
                 return
             # Only model-generated text is spoken. No AI instruction can execute OS actions.
-            self.ai_worker = GroqWorker(phrase, parent=self.home)
+            chat_id=self.home.chat_store.active()
+            history=self.home.chat_store.context(chat_id)
+            self.home.record_chat("user",phrase,session=chat_id)
+            self.ai_worker = GroqWorker(phrase,history,parent=self.home)
+            self.ai_worker.chat_id=chat_id
             ai=self.ai_worker
             ai.emotional_answer.connect(lambda _text, emotion:self.home.set_ai_emotion(emotion))
             ai.answered.connect(lambda response:self.on_ai_reply(ai,response))
@@ -409,9 +413,7 @@ class VoiceManager(QObject):
         if self.ai_worker is not worker:
             return
         self.ai_worker = None
-        self.home.assistant_history.append(("user",worker.question))
-        self.home.assistant_history.append(("home",response))
-        self.home.assistant_history = self.home.assistant_history[-50:]
+        self.home.record_chat("home",response,session=worker.chat_id)
         self.speak(response, force=True)
 
     def on_ai_error(self, worker, problem):
