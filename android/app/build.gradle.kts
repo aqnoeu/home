@@ -7,8 +7,8 @@ android {
         applicationId = "com.aqnoeu.home"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.1.1"
+        versionCode = 102
+        versionName = "0.1.2"
     }
     signingConfigs {
         create("releaseKey") {
@@ -35,4 +35,5 @@ android {
 }
 dependencies {
     implementation("com.google.zxing:core:3.5.3")
+    implementation("androidx.core:core:1.15.0")
 }
