@@ -47,7 +47,6 @@ public final class MainActivity extends Activity {
     private ScrollView chatScroll;
     private android.widget.EditText chatInput;
     private final Handler wakeHandler=new Handler(Looper.getMainLooper());
-    private Runnable wakeResumeTask;
     private TextView chatTitle;
     private String currentPage = "hub";
     private static final int WAKE_PERMISSION_REQUEST = 721;
@@ -178,6 +177,8 @@ public final class MainActivity extends Activity {
     }
     private void pauseWake(){
         if(WakeWordService.enabled(this)){
+            wakeBusy=true;
+            wakeHandler.removeCallbacksAndMessages(null);
             try{startService(new Intent(this,WakeWordService.class).setAction(WakeWordService.PAUSE));}
             catch(Exception ignored){}
         }
@@ -385,7 +386,8 @@ public final class MainActivity extends Activity {
         Button newChat=button("+",false,()->{
             HomeChatStore.get(this).newChat();
             refreshChat();
-            if(chatPicker!=null)chatPicker.setVisibility(View.GONE);
+            if(chatPicker!=null && chatPicker.getParent()!=null)
+                ((View)chatPicker.getParent()).setVisibility(View.GONE);
         });
         newChat.setContentDescription("Nova conversa");
         newChat.setTextSize(23);
@@ -639,7 +641,7 @@ public final class MainActivity extends Activity {
             "Olá! Eu sou o HOME. Esta é minha voz no celular.",
             voiceState::setText));
         LinearLayout microphone=card("Microfone","Fale com o HOME e receba uma resposta formulada pela Groq.");
-        action(microphone,"◉ Perguntar por voz",true,()->HomeVoice.listen(this));
+        action(microphone,"◉ Perguntar por voz",true,()->{pauseWake();HomeVoice.listen(this);});
         action(microphone,"Abrir Assistente",false,()->showPage("assistant"));
         LinearLayout diagnostics=card("Diagnóstico","Informações de instalação, modelo e reprodução, sem janelas sobrepostas.");
         TextView report=note("Toque para exibir as informações técnicas da Faber.");
@@ -685,7 +687,7 @@ public final class MainActivity extends Activity {
             if(on)startWake();
             else{stopService(new Intent(this,WakeWordService.class));statusMessage("Ei, Home desligado.");}
         });
-        action(wake,"Testar o microfone agora",false,()->HomeVoice.listen(this));
+        action(wake,"Testar o microfone agora",false,()->{pauseWake();HomeVoice.listen(this);});
         TextView diag=note("Status: "+getSharedPreferences("home",MODE_PRIVATE).getString("wake_status","Ainda não iniciado."));
         add(wake,diag,6,8);
         action(wake,"Verificar estado da escuta",false,()->diag.setText("Status: "+getSharedPreferences("home",MODE_PRIVATE).getString("wake_status","Ainda não iniciado.")));
