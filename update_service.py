@@ -14,7 +14,7 @@ from PySide6.QtCore import QThread, Signal
 
 OWNER, REPO = 'aqnoeu', 'home'
 RELEASES = f'https://api.github.com/repos/{OWNER}/{REPO}/releases?per_page=100'
-VERSION = '0.7.1'
+VERSION = '0.8.0'
 ASSET = 'Home-Windows.zip'
 SUMS = 'SHA256SUMS.txt'
 # O executável Windows ganhou o runtime neural Kokoro/ONNX.
