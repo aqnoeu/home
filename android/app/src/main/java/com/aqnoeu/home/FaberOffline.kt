@@ -40,7 +40,10 @@ object FaberOffline {
     private fun complete(root: File) =
         File(root,"pt_BR-faber-medium.onnx").let { it.isFile && it.length() > 40_000_000 } &&
         File(root,"tokens.txt").let { it.isFile && it.length() > 100 } &&
-        File(root,"espeak-ng-data").isDirectory
+        File(root,"espeak-ng-data/phontab").isFile &&
+        File(root,"espeak-ng-data/phonindex").isFile &&
+        File(root,"espeak-ng-data/phondata").isFile &&
+        File(root,"espeak-ng-data/intonations").isFile
 
     @JvmStatic fun isInstalled(context: Context) = complete(folder(context))
 
@@ -187,7 +190,7 @@ object FaberOffline {
                 )
                 tts=OfflineTts(
                     config=OfflineTtsConfig(
-                        model=OfflineTtsModelConfig(vits=vits,numThreads=2)
+                        model=OfflineTtsModelConfig(vits=vits,numThreads=2, debug=true)
                     )
                 )
                 report(activity,callback,"Sintetizando a fala com Faber…")
