@@ -33,10 +33,11 @@ class GroqTests(unittest.TestCase):
         def mock_open(request,timeout):
             seen["headers"]=dict(request.header_items())
             seen["body"]=json.loads(request.data)
-            return _Reply(json.dumps({"choices":[{"message":{"content":"Tudo certo."}}]}).encode())
+            return _Reply(json.dumps({"choices":[{"message":{"content":json.dumps({"resposta":"Tudo certo.","emocao":"tedio"})}}]}).encode())
         with patch("home_groq.urllib.request.urlopen",side_effect=mock_open):
             answer=ask_groq("Oi",history=[{"role":"user","content":"Como está?"}],api_key="gsk_test")
         self.assertEqual(answer,"Tudo certo.")
+        self.assertEqual(seen["body"]["response_format"]["type"],"json_object")
         self.assertEqual(seen["body"]["model"],MODEL)
         self.assertNotIn("gsk_test",json.dumps(seen["body"]))
         self.assertEqual(seen["body"]["messages"][-1]["content"],"Oi")
