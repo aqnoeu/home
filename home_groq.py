@@ -65,7 +65,9 @@ def ask_groq(message, history=None, api_key=None):
             "model":MODEL,
             "messages":messages,
             "temperature":0.5,
-            "max_completion_tokens":170,
+            "max_completion_tokens":450,
+            "reasoning_effort":"low",
+            "include_reasoning":False,
             "stream":False
         },ensure_ascii=False).encode("utf-8"),
         headers={"Authorization":"Bearer "+key, "Content-Type":"application/json"},
