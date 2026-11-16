@@ -40,24 +40,19 @@ O token de acesso **não** deve ser incorporado no repositório nem no APK.
 
 ### Mesma voz de Windows e Android — Kokoro Alex
 
-O Windows já sintetiza localmente em `pm_alex`. Para o Android usar **a mesma voz**, o Worker expõe `POST /tts` e repassa a um serviço privado `backend/home-voice-server.py`, com o mesmo Kokoro ONNX e pacote de vozes do Windows.
+O Windows já sintetiza localmente em `pm_alex`. Para o Android usar **a mesma voz**, o Worker expõe `POST /tts` e repassa a um serviço privado `backend/home_voice_server.py`, com o mesmo Kokoro ONNX e pacote de vozes do Windows.
 
 Esse servidor **exige hospedagem HTTPS permanente, modelo Kokoro instalado e os secrets**
 `HOME_TTS_INTERNAL_TOKEN` (mesmo segredo em Worker e servidor, pelo menos 32 caracteres),
 `KOKORO_TTS_ORIGIN` (somente Worker: URL HTTPS do servidor) e
 `HOME_KOKORO_MODEL_DIR` (somente servidor: diretório dos dois arquivos do modelo).
 
-Exemplo de execução, **após configurar os secrets no host**, sem expor a porta diretamente na Internet:
+Exemplo de execução, **após configurar os segredos no host**, sem expor a porta diretamente na Internet:
 ```bash
 python -m pip install -r backend/requirements-voice.txt
-uvicorn backend.home-voice-server:app --host 127.0.0.1 --port 8765
-```
-O nome do arquivo contém hífen; para usar Python `-m uvicorn`, execute:
-```bash
 cd backend
 uvicorn home_voice_server:app --host 127.0.0.1 --port 8765
 ```
-Se a implementação ficar em `home-voice-server.py`, renomeie para `home_voice_server.py` ou carregue via `importlib`.
 Configure um proxy HTTPS com autenticação e não exponha a porta 8765 diretamente.
 
 Enquanto o servidor Kokoro não estiver hospedado e acessível, o Android informa
