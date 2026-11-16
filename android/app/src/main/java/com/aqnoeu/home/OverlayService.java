@@ -14,6 +14,8 @@ public final class OverlayService extends Service {
     public static final String STOP = "com.aqnoeu.home.STOP";
     private WindowManager manager;
     private View overlay;
+    private View touchHandle;
+    private WindowManager.LayoutParams handleParams;
     private WindowManager.LayoutParams layoutParams;
     private final int notificationId = 71;
     private int dp(float value) { return Math.round(value * getResources().getDisplayMetrics().density); }
@@ -51,8 +53,56 @@ public final class OverlayService extends Service {
                 WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
         }
         updatePosition(false);
-        try { manager.addView(overlay,layoutParams); }
-        catch (RuntimeException ex) { overlay = null; stopSelf(); }
+        try {
+            manager.addView(overlay,layoutParams);
+            createTouchHandle(show);
+        } catch (RuntimeException ex) {
+            if (overlay != null) try { manager.removeView(overlay); } catch (Exception ignored) {}
+            overlay = null; stopSelf();
+        }
+    }
+    /** A small visible touch tab sits BELOW the system bar, while eyes stay near the top. */
+    private void createTouchHandle(Intent show) {
+        TextViewOpenButton tab = new TextViewOpenButton(this);
+        tab.setText("⌃");
+        tab.setTextColor(Color.rgb(242,248,255));
+        tab.setTextSize(14);
+        tab.setGravity(Gravity.CENTER);
+        GradientDrawable background = new GradientDrawable();
+        background.setColor(Color.rgb(5,7,11));
+        background.setCornerRadii(new float[]{0,0,0,0,dp(12),dp(12),dp(12),dp(12)});
+        tab.setBackground(background);
+        tab.setOnClickListener(v -> startActivity(show));
+        touchHandle=tab;
+        handleParams = new WindowManager.LayoutParams(
+            dp(52), dp(22), WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+                | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            PixelFormat.TRANSLUCENT);
+        handleParams.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
+        repositionHandle();
+        manager.addView(touchHandle,handleParams);
+    }
+    private static final class TextViewOpenButton extends android.widget.TextView {
+        TextViewOpenButton(Context c) { super(c); }
+    }
+    private int statusBarHeight() {
+        int dimension = getResources().getIdentifier("status_bar_height","dimen","android");
+        return dimension > 0 ? getResources().getDimensionPixelSize(dimension) : dp(26);
+    }
+    private void repositionHandle() {
+        if (handleParams == null) return;
+        android.content.SharedPreferences prefs = getSharedPreferences("home",MODE_PRIVATE);
+        handleParams.x = dp(Math.max(-180,Math.min(180,prefs.getInt("offset_x",100))));
+        // A reliable interactive region below the top system bar.
+        handleParams.y = statusBarHeight() + dp(Math.max(0,Math.min(48,prefs.getInt("handle_y",4))));
+        boolean enabled = prefs.getBoolean("touch_tab",true);
+        if (touchHandle != null) {
+            touchHandle.setVisibility(enabled ? View.VISIBLE : View.GONE);
+            if (manager != null) try {manager.updateViewLayout(touchHandle,handleParams);}
+            catch(RuntimeException ignored) {}
+        }
     }
     // Android/HyperOS may still clamp overlays to below the status bar.
     private void updatePosition(boolean apply) {
@@ -75,9 +125,11 @@ public final class OverlayService extends Service {
         if (intent != null && STOP.equals(intent.getAction())) { stopSelf(); return START_NOT_STICKY; }
         if (overlay instanceof EyesView) ((EyesView)overlay).setMood(getSharedPreferences("home",MODE_PRIVATE).getInt("mood",0));
         updatePosition(true);
+        repositionHandle();
         return START_STICKY;
     }
     @Override public void onDestroy() {
+        if (touchHandle != null && manager != null) {try {manager.removeView(touchHandle);} catch(Exception ignored){} touchHandle = null; }
         if (overlay != null && manager != null) { try {manager.removeView(overlay);} catch(Exception ignored){} overlay = null; }
         super.onDestroy();
     }
