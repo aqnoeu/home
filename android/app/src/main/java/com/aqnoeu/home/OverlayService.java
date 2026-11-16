@@ -14,6 +14,7 @@ public final class OverlayService extends Service {
     public static final String STOP = "com.aqnoeu.home.STOP";
     private WindowManager manager;
     private View overlay;
+    private WindowManager.LayoutParams layoutParams;
     private final int notificationId = 71;
     private int dp(float value) { return Math.round(value * getResources().getDisplayMetrics().density); }
 
@@ -37,19 +38,43 @@ public final class OverlayService extends Service {
         eyes.setBackground(bg);
         eyes.setOnClickListener(v->startActivity(show));
         overlay = eyes;
-        WindowManager.LayoutParams params = new WindowManager.LayoutParams(
-            dp(150),dp(40),WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE|WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+        layoutParams = new WindowManager.LayoutParams(
+            dp(116), dp(34), WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+                | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+                | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT);
-        params.gravity = Gravity.TOP|Gravity.CENTER_HORIZONTAL;
-        // Overlay coordinates obey Android's status-bar/cutout restrictions.
-        params.y = 0;
-        try { manager.addView(overlay,params); }
+        layoutParams.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
+        if (Build.VERSION.SDK_INT >= 28) {
+            layoutParams.layoutInDisplayCutoutMode =
+                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+        }
+        updatePosition(false);
+        try { manager.addView(overlay,layoutParams); }
         catch (RuntimeException ex) { overlay = null; stopSelf(); }
+    }
+    // Android/HyperOS may still clamp overlays to below the status bar.
+    private void updatePosition(boolean apply) {
+        if (layoutParams == null) return;
+        android.content.SharedPreferences prefs = getSharedPreferences("home",MODE_PRIVATE);
+        int offsetX = prefs.getInt("offset_x",100);
+        int offsetY = prefs.getInt("offset_y",0);
+        boolean edge = prefs.getBoolean("edge_mode",true);
+        int statusBar = 0;
+        int dimension = getResources().getIdentifier("status_bar_height","dimen","android");
+        if (dimension > 0) statusBar = getResources().getDimensionPixelSize(dimension);
+        layoutParams.x = dp(Math.max(-180,Math.min(180,offsetX)));
+        layoutParams.y = (edge ? -statusBar : 0) + dp(Math.max(-60,Math.min(40,offsetY)));
+        if (apply && overlay != null && manager != null) {
+            try { manager.updateViewLayout(overlay,layoutParams); }
+            catch (RuntimeException ignored) { /* May be blocked by system UI. */ }
+        }
     }
     @Override public int onStartCommand(Intent intent,int flags,int startId) {
         if (intent != null && STOP.equals(intent.getAction())) { stopSelf(); return START_NOT_STICKY; }
         if (overlay instanceof EyesView) ((EyesView)overlay).setMood(getSharedPreferences("home",MODE_PRIVATE).getInt("mood",0));
+        updatePosition(true);
         return START_STICKY;
     }
     @Override public void onDestroy() {
