@@ -103,13 +103,16 @@ public final class EyesView extends View {
                 paint.setColor(eyeColor);
             }
         }
-        if("sonolento".equals(state)&&height>=dp(68)){
+        // Scale sleepy marks to the compact notch too.
+        if("sonolento".equals(state)&&height>=dp(20)){
             paint.setColor(Color.rgb(142,175,207));
-            paint.setTextSize(dp(11));
-            float lift=animated?((now%3000L)/3000f)*dp(16):0;
-            canvas.drawText("z",left+2*ew+gap+dp(9),height*.38f-lift,paint);
-            paint.setTextSize(dp(8));
-            canvas.drawText("z",left+2*ew+gap+dp(17),height*.22f-lift,paint);
+            float scale=Math.max(.54f,Math.min(1f,height/dp(70)));
+            float lift=animated?((now%3000L)/3000f)*dp(9)*scale:0;
+            float sx=Math.min(width-dp(16)*scale,left+2*ew+gap+dp(5)*scale);
+            paint.setTextSize(dp(11)*scale);
+            canvas.drawText("z",sx,height*.59f-lift,paint);
+            paint.setTextSize(dp(8)*scale);
+            canvas.drawText("z",sx+dp(8)*scale,height*.37f-lift*.7f,paint);
         }
         if(animated)postInvalidateDelayed(50);
     }
