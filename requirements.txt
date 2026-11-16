@@ -2,6 +2,6 @@ PySide6>=6.7,<7
 vosk>=0.3.45,<1
 sounddevice>=0.5,<1
 pyttsx3>=2.98,<3
-sherpa-onnx==2.0.1
+sherpa-onnx==1.13.8
 numpy>=1.26,<3
 qrcode>=7.4,<9
