@@ -8,6 +8,41 @@ from PySide6.QtWidgets import (
     QButtonGroup, QFrame, QSizePolicy, QGridLayout
 )
 from update_service import VERSION
+from collections import deque
+from PySide6.QtGui import QImage
+
+
+def load_transparent_home_logo(path):
+    """Remove apenas o fundo claro conectado às bordas, preservando os olhos."""
+    image = QImage(str(path))
+    if image.isNull():
+        return QPixmap()
+    image = image.convertToFormat(QImage.Format_ARGB32)
+    width, height = image.width(), image.height()
+    queue = deque()
+    visited = set()
+    for x in range(width):
+        queue.append((x, 0))
+        queue.append((x, height - 1))
+    for y in range(height):
+        queue.append((0, y))
+        queue.append((width - 1, y))
+    while queue:
+        x, y = queue.popleft()
+        if (x, y) in visited:
+            continue
+        visited.add((x, y))
+        color = image.pixelColor(x, y)
+        if min(color.red(), color.green(), color.blue()) < 220:
+            continue
+        color.setAlpha(0)
+        image.setPixelColor(x, y, color)
+        for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
+            if 0 <= nx < width and 0 <= ny < height and (nx, ny) not in visited:
+                queue.append((nx, ny))
+    return QPixmap.fromImage(image)
+
+
 
 
 class ActionCard(QPushButton):
@@ -76,7 +111,7 @@ class HomePanel(QFrame):
         self.smile = QLabel()
         self.smile.setStyleSheet("color:#FFFFFF;font-size:12px;font-weight:700;background:transparent")
         icon_path = Path(getattr(sys, "_MEIPASS", Path(__file__).parent)) / "assets" / "home_icon_approved.png"
-        image = QPixmap(str(icon_path)) if icon_path.is_file() else QPixmap()
+        image = load_transparent_home_logo(icon_path) if icon_path.is_file() else QPixmap()
         if not image.isNull():
             self.smile.setFixedSize(44,44)
             self.smile.setPixmap(image.scaled(
