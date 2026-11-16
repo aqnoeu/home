@@ -117,6 +117,7 @@ public final class MainActivity extends Activity {
         return e;
     }
     private void showStatus(String value){if(status!=null)status.setText(value);}
+    public void reportVoiceStatus(String message){statusMessage(message);}
     private void success(TextView view,String message){view.setText("✓ "+message);view.setTextColor(GREEN);}
     @Override public void onCreate(Bundle saved){
         super.onCreate(saved);
@@ -284,7 +285,8 @@ public final class MainActivity extends Activity {
 
         LinearLayout conversation=card("Sua conversa","Digite ou use o microfone. O HOME responde na mesma tela.");
         EditText question=edit("Escreva sua pergunta...",false);
-        question.setMaxLength(750);add(conversation,question,0,12);
+        question.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(750)});
+        add(conversation,question,0,12);
         TextView response=text("Sua resposta aparecerá aqui.",15,WHITE,false);
         LinearLayout answerPanel=column();
         answerPanel.setBackground(bg(RAISED,14));
