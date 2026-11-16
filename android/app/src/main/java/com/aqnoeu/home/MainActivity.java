@@ -605,7 +605,7 @@ public final class MainActivity extends Activity {
                         }
                     }
                 }
-                if(!titles.isEmpty())answer="Compromissos de hoje:\\n"+String.join("\\n",titles);
+                if(!titles.isEmpty())answer="Compromissos de hoje:\n"+String.join("\n",titles);
             }catch(Exception ex){answer="Não consegui ler os compromissos deste aparelho.";}
             final String result=answer;
             runOnUiThread(()->{if(!isFinishing())statusMessage(result);});
