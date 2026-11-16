@@ -31,6 +31,7 @@ class EyesWidget(QWidget):
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.setFixedHeight(22)
         self.mood = 0
+        self.eye_gap = 9
         self.gaze = 0.0
         self.target_gaze = 0.0
         self.gaze_y = 0.0
@@ -95,7 +96,7 @@ class EyesWidget(QWidget):
             return
         eh = min(h * 0.70, 34.0)
         ew = min(w * 0.21, eh * 0.82, 25.0)
-        gap = max(7.0, ew * 0.34)
+        gap = max(0.0, min(float(self.eye_gap), w - 2 * ew - 8))
         left = w / 2 + self.gaze * min(10, w * .055) - (ew * 2 + gap) / 2
         blink = 1.0
         if self.blink_begin >= 0:
@@ -212,7 +213,7 @@ class EditDialog(QDialog):
 
 class Home(QWidget):
     CONFIG = Path.home() / '.home_notch.json'
-    DEFAULTS = dict(offset=36,closed_w=180,closed_h=22,open_w=520,open_h=350)
+    DEFAULTS = dict(offset=36,closed_w=180,closed_h=22,open_w=520,open_h=350,eye_gap=9)
     SHOULDER = 15
 
     def __init__(self):
@@ -243,6 +244,7 @@ class Home(QWidget):
         self.setAttribute(Qt.WA_NoSystemBackground, True)
         self.setMouseTracking(True)
         self.eyes = EyesWidget(self)
+        self.eyes.eye_gap = self.settings["eye_gap"]
         self.eyes.follow_mouse = self.integration_prefs['eyes_follow_mouse']
         self.eyes.react_clicks = self.integration_prefs['eyes_react_clicks']
         self.voice = VoiceManager(self)
@@ -422,6 +424,9 @@ class Home(QWidget):
         return QRect(b.x()+x,b.y(),w,h)
 
     def apply_settings(self):
+        if hasattr(self, "eyes"):
+            self.eyes.eye_gap = max(0, min(600, self.settings.get("eye_gap",9)))
+            self.eyes.update()
         if hasattr(self,'animation'):
             self.animation.stop()
         if not self.expanded:
