@@ -46,12 +46,15 @@ public final class MainActivity extends Activity {
     private LinearLayout chatMessages, chatPicker;
     private TextView chatTitle;
     private String currentPage = "hub";
+    private static final int WAKE_PERMISSION_REQUEST = 721;
+    private boolean wakeBusy = false;
 
     private int dp(float n) {return Math.round(n*getResources().getDisplayMetrics().density);}
     private boolean narrow(){return getResources().getConfiguration().screenWidthDp<440;}
     private GradientDrawable bg(int color,int radius){
         GradientDrawable d=new GradientDrawable();
-        d.setColor(color);d.setCornerRadius(dp(radius));d.setStroke(dp(1),LINE);
+        d.setColor(color);d.setCornerRadius(dp(radius));
+        if(color!=BLUE)d.setStroke(dp(1),LINE);
         return d;
     }
     private TextView text(String value,int sp,int color,boolean heavy){
@@ -77,44 +80,43 @@ public final class MainActivity extends Activity {
     }
     private LinearLayout card(String title,String description){
         LinearLayout l=column();
-        l.setBackground(bg(SURFACE,20));
-        l.setPadding(dp(narrow()?16:18),dp(18),dp(narrow()?16:18),dp(18));
-        if(title!=null&&!title.isEmpty())add(l,heading(title,18),0,description==null?14:9);
+        l.setBackground(bg(SURFACE,16));
+        l.setPadding(dp(16),dp(16),dp(16),dp(16));
+        if(title!=null&&!title.isEmpty())add(l,heading(title,17),0,description==null?12:7);
         if(description!=null&&!description.isEmpty())add(l,note(description),0,12);
-        add(root,l,0,14);
+        add(root,l,0,12);
         return l;
     }
     private Button button(String value,boolean primary,Runnable click){
         Button b=new Button(this);
         b.setText(value);b.setAllCaps(false);b.setTextSize(14);
         b.setTypeface(android.graphics.Typeface.create("sans-serif-medium",0));
-        b.setMinHeight(dp(52));b.setMinimumHeight(dp(52));
+        b.setMinHeight(dp(48));b.setMinimumHeight(dp(48));
         b.setGravity(Gravity.CENTER);
         b.setSingleLine(false);
         b.setMaxLines(2);
         b.setBreakStrategy(android.text.Layout.BREAK_STRATEGY_HIGH_QUALITY);
         b.setTextColor(WHITE);
         b.setBackground(bg(primary?BLUE:RAISED,13));
-        b.setPadding(dp(12),0,dp(12),0);
+        b.setPadding(dp(10),dp(8),dp(10),dp(8));
         b.setOnClickListener(v->click.run());
         return b;
     }
     private void action(LinearLayout target,String label,boolean primary,Runnable run){
-        add(target,button(label,primary,run),4,11);
+        add(target,button(label,primary,run),4,8);
     }
     private void actions(LinearLayout target,String left,Runnable a,String right,Runnable b){
         LinearLayout row=new LinearLayout(this);
-        row.setOrientation(narrow()?LinearLayout.VERTICAL:LinearLayout.HORIZONTAL);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
         Button first=button(left,true,a),second=button(right,false,b);
-        if(narrow()){add(row,first,0,10);add(row,second,0,0);}
-        else {
-            LinearLayout.LayoutParams one=new LinearLayout.LayoutParams(0,dp(50),1);
-            one.rightMargin=dp(6);
-            row.addView(first,one);
-            LinearLayout.LayoutParams two=new LinearLayout.LayoutParams(0,dp(50),1);
-            two.leftMargin=dp(6);row.addView(second,two);
-        }
-        add(target,row,4,7);
+        first.setTextSize(narrow()?12:14);
+        second.setTextSize(narrow()?12:14);
+        LinearLayout.LayoutParams one=new LinearLayout.LayoutParams(0,dp(54),1);
+        one.rightMargin=dp(5);row.addView(first,one);
+        LinearLayout.LayoutParams two=new LinearLayout.LayoutParams(0,dp(54),1);
+        two.leftMargin=dp(5);row.addView(second,two);
+        add(target,row,2,8);
     }
     private EditText edit(String hint,boolean secret){
         EditText e=new EditText(this);
@@ -135,6 +137,56 @@ public final class MainActivity extends Activity {
         super.onCreate(saved);
         VoiceCleanup.cleanup(this);
         showHub();
+        handleWakeIntent(getIntent());
+    }
+    @Override protected void onNewIntent(Intent intent){
+        super.onNewIntent(intent);setIntent(intent);handleWakeIntent(intent);
+    }
+    private void handleWakeIntent(Intent intent){
+        if(intent==null || !intent.hasExtra(WakeWordService.EXTRA_QUERY))return;
+        String query=intent.getStringExtra(WakeWordService.EXTRA_QUERY);
+        intent.removeExtra(WakeWordService.EXTRA_QUERY);
+        if(query==null)return;
+        wakeBusy=true;
+        showPage("assistant");
+        if(query.trim().isEmpty()){
+            statusMessage("Estou ouvindo. Pode falar.");
+            HomeVoice.listen(this);
+        }else{
+            statusMessage("Você: "+query+" · HOME está pensando…");
+            askHome(query,null);
+        }
+    }
+    private void startWake(){
+        if(!WakeWordService.enabled(this))return;
+        if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){
+            requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},WAKE_PERMISSION_REQUEST);
+            return;
+        }
+        if(!getSharedPreferences("home",MODE_PRIVATE).getBoolean("notch_active",false)){
+            statusMessage("Ative o Notch para iniciar a escuta.");return;
+        }
+        try{
+            startForegroundService(new Intent(this,WakeWordService.class));
+            statusMessage("Ei, Home habilitado. Verifique a notificação do microfone.");
+        }catch(Exception e){statusMessage("Falha ao iniciar escuta: "+e.getMessage());}
+    }
+    private void resumeWake(){
+        if(!wakeBusy)return;
+        wakeBusy=false;
+        // Delay avoids recognition of the voice output (Faber).
+        new Handler(Looper.getMainLooper()).postDelayed(()->{
+            if(WakeWordService.enabled(this))
+                try{startService(new Intent(this,WakeWordService.class).setAction(WakeWordService.RESUME));}
+                catch(Exception ignored){}
+        },12000);
+    }
+    @Override public void onRequestPermissionsResult(int request,String[] perms,int[] results){
+        super.onRequestPermissionsResult(request,perms,results);
+        if(request==WAKE_PERMISSION_REQUEST){
+            if(results.length>0 && results[0]==PackageManager.PERMISSION_GRANTED)startWake();
+            else statusMessage("Permissão de microfone negada. Ei, Home não está ouvindo.");
+        }
     }
     private void initScreen(String page,String subtitle){
         currentPage=page;
@@ -150,14 +202,14 @@ public final class MainActivity extends Activity {
         scroll.setVerticalScrollBarEnabled(false);
         root=column();
         // Android 15 edge-to-edge: use the measured system/cutout bars + breathing room.
-        final int h=dp(narrow()?16:22);
-        root.setPadding(h,dp(62),h,dp(40));
+        final int h=dp(18);
+        root.setPadding(h,dp(28),h,dp(24));
         root.setOnApplyWindowInsetsListener((view,insets)->{
             if(Build.VERSION.SDK_INT>=30){
                 android.graphics.Insets bars=insets.getInsets(
                     WindowInsets.Type.systemBars()|WindowInsets.Type.displayCutout());
-                root.setPadding(h,Math.max(dp(58),bars.top+dp(30)),h,
-                    Math.max(dp(28),bars.bottom+dp(22)));
+                root.setPadding(h,bars.top+dp(18),h,
+                    bars.bottom+dp(18));
             }
             return insets;
         });
@@ -169,29 +221,29 @@ public final class MainActivity extends Activity {
         brand.setOrientation(LinearLayout.HORIZONTAL);
         brand.setGravity(Gravity.CENTER_VERTICAL);
         ImageView icon=new ImageView(this);
-        icon.setImageResource(R.drawable.home_icon_approved);
+        icon.setImageResource(R.drawable.home_logo_transparent);
         icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
         icon.setContentDescription("Símbolo oficial HOME: dois olhos brancos em fundo grafite");
-        LinearLayout.LayoutParams iconSize=new LinearLayout.LayoutParams(dp(58),dp(58));
-        iconSize.rightMargin=dp(16);
+        LinearLayout.LayoutParams iconSize=new LinearLayout.LayoutParams(dp(48),dp(48));
+        iconSize.rightMargin=dp(10);
         brand.addView(icon,iconSize);
         LinearLayout brandCopy=column();
-        add(brandCopy,heading("HOME",23),0,5);
+        add(brandCopy,heading("HOME",21),0,4);
         add(brandCopy,note("Um assistente para você."),0,0);
         brand.addView(brandCopy,new LinearLayout.LayoutParams(0,-2,1));
-        add(root,brand,0,24);
+        add(root,brand,0,16);
         View line=new View(this);line.setBackgroundColor(LINE);
         root.addView(line,new LinearLayout.LayoutParams(-1,dp(1)));
         if(!"hub".equals(page)){
             Button back=button("‹  Voltar",false,this::showHub);
             LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(dp(125),dp(44));
-            p.topMargin=dp(18);p.bottomMargin=dp(19);
+            p.topMargin=dp(12);p.bottomMargin=dp(14);
             root.addView(back,p);
-        }else add(root,note("NOTCH  /  ANDROID"),17,9);
+        }else add(root,note("ASSISTENTE PESSOAL"),12,7);
         if(subtitle!=null&&!subtitle.isEmpty())add(root,note(subtitle),0,18);
         inlineHost=column();root.addView(inlineHost,new LinearLayout.LayoutParams(-1,-2));
         status=note("");status.setVisibility(View.GONE);
-        add(root,status,0,0);
+        add(root,status,6,8);
     }
     private void statusMessage(String message){
         status.setVisibility(View.VISIBLE);showStatus(message);
@@ -218,17 +270,17 @@ public final class MainActivity extends Activity {
         span.setSpan(new ForegroundColorSpan(ORANGE),0,4,0);
         hello.setText(span);
         add(root,hello,0,6);
-        add(root,note("Seu assistente, no seu ritmo."),0,27);
+        add(root,note("Seu assistente, no seu ritmo."),0,16);
 
         LinearLayout face=card(null,null);
         EyesView eyes=new EyesView(this);
         android.content.SharedPreferences prefs=getSharedPreferences("home",MODE_PRIVATE);
         eyes.setMood(prefs.getInt("mood",0));eyes.setEyeGap(prefs.getInt("eye_gap",9));
         eyes.setBackground(bg(BG,18));
-        LinearLayout.LayoutParams eyesSize=new LinearLayout.LayoutParams(-1,dp(105));
-        eyesSize.bottomMargin=dp(16);
+        LinearLayout.LayoutParams eyesSize=new LinearLayout.LayoutParams(-1,dp(86));
+        eyesSize.bottomMargin=dp(8);
         face.addView(eyes,eyesSize);
-        add(face,heading("Expressão",15),0,13);
+        add(face,note("Expressão"),0,9);
         HorizontalScrollView hscroll=new HorizontalScrollView(this);
         hscroll.setHorizontalScrollBarEnabled(false);
         LinearLayout moods=new LinearLayout(this);moods.setOrientation(LinearLayout.HORIZONTAL);
@@ -248,16 +300,15 @@ public final class MainActivity extends Activity {
         hscroll.addView(moods);
         face.addView(hscroll);
 
-        add(root,heading("O que deseja fazer?",19),14,18);
+        add(root,heading("Acesso rápido",18),9,12);
         LinearLayout quick=column();
-        actions(quick,"Conversar com HOME",()->showPage("assistant"),
-            "Voz e microfone",()->showPage("voice"));
-        actions(quick,"Editar Notch",this::showEditor,"Interações",()->showPage("interactions"));
-        actions(quick,"Atualizações",()->showPage("updates"),"Encerrar",()->showPage("exit"));
+        actions(quick,"Conversar",()->showPage("assistant"),
+            "Microfone",()->showPage("voice"));
+        actions(quick,"Notch e Ei, Home",()->showPage("interactions"),"Ajustar aparência",this::showEditor);
+        actions(quick,"Atualizações",()->showPage("updates"),"Sair",()->showPage("exit"));
         add(root,quick,0,12);
 
-        LinearLayout footer=card("Tudo em um lugar","HOME · Helpful, Organized, Mindful & Efficient");
-        add(footer,note("v"+BuildConfig.VERSION_NAME+"  ·  Desenvolvido com @aqnoeu"),2,0);
+        add(root,note("HOME · v"+BuildConfig.VERSION_NAME+" · @aqnoeu"),17,0);
     }
     private void showPage(String page){
         String title=page.equals("assistant")?"Assistente":
@@ -265,7 +316,7 @@ public final class MainActivity extends Activity {
             page.equals("interactions")?"Interações":
             page.equals("updates")?"Atualizações":"Encerrar";
         initScreen(page,null);
-        add(root,heading(title,narrow()?23:25),0,18);
+        add(root,heading(title,narrow()?22:24),0,12);
         switch(page){
             case "assistant": assistantPage();break;
             case "voice": voicePage();break;
@@ -401,12 +452,15 @@ public final class MainActivity extends Activity {
     }
     private void askHome(String question,TextView response){
         if(!HomeGroq.connected(this)){
-            response.setText("Conecte a Groq na seção Assistente para fazer perguntas.");
+            if(response!=null)response.setText("Conecte a Groq na seção Assistente para fazer perguntas.");
+            else statusMessage("Conecte a Groq na seção Assistente.");
+            resumeWake();
             return;
         }
         HomeGroq.ask(this,question,new HomeGroq.Callback(){
             @Override public void onEmotion(String emotion){HomeEmotion.fromGroq(emotion);}
             @Override public void onAnswer(String answer){
+                resumeWake();
                 if(response!=null){response.setText("");response.setVisibility(View.GONE);}
                 refreshChat();
                 if(FaberOffline.isInstalled(MainActivity.this))
@@ -414,6 +468,7 @@ public final class MainActivity extends Activity {
                 else statusMessage("Resposta pronta em texto. Instale Faber em Voz para ouvir.");
             }
             @Override public void onError(String message){
+                resumeWake();
                 refreshChat();
                 if(response!=null){response.setVisibility(View.VISIBLE);response.setText(message);}
                 statusMessage(message);
@@ -465,12 +520,27 @@ public final class MainActivity extends Activity {
             try{
                 startForegroundService(new Intent(this,OverlayService.class));
                 statusMessage("✓ Notch ativado.");
+                if(WakeWordService.enabled(this))new Handler(Looper.getMainLooper()).postDelayed(this::startWake,700);
             }catch(Exception e){statusMessage("Não foi possível ativar: "+e.getMessage());}
         });
         action(box,"Desativar Notch",false,()->{
+            stopService(new Intent(this,WakeWordService.class));
             stopService(new Intent(this,OverlayService.class));statusMessage("Notch desativado.");
         });
         action(box,"Ajustar posição e tamanho",false,this::showEditor);
+        LinearLayout wake=card("Ei, Home","Ativação por voz somente com o Notch ligado. O Android pode usar reconhecimento online. Enquanto ativo, o microfone aparece na notificação.");
+        Switch toggle=new Switch(this);
+        toggle.setText("Ouvir ‘Ei, Home’");
+        toggle.setTextColor(WHITE);toggle.setTextSize(15);
+        toggle.setChecked(WakeWordService.enabled(this));
+        add(wake,toggle,0,10);
+        toggle.setOnCheckedChangeListener((view,on)->{
+            getSharedPreferences("home",MODE_PRIVATE).edit().putBoolean("wake_enabled",on).apply();
+            if(on)startWake();
+            else{stopService(new Intent(this,WakeWordService.class));statusMessage("Ei, Home desligado.");}
+        });
+        action(wake,"Testar o microfone agora",false,()->HomeVoice.listen(this));
+        add(wake,note("Se ‘Ei, Home’ não responder, teste primeiro o microfone. O reconhecimento contínuo pelo Android pode ser interrompido pelo sistema."),3,0);
     }
     private void updatesPage(){
         LinearLayout box=card("Atualizações oficiais","O aplicativo verifica os lançamentos assinados do HOME.");
@@ -578,20 +648,24 @@ public final class MainActivity extends Activity {
     }
     @Override protected void onActivityResult(int request,int resultCode,Intent data){
         super.onActivityResult(request,resultCode,data);
+        if(request==HomeVoice.REQUEST_SPEECH && (resultCode!=RESULT_OK || data==null)){
+            resumeWake();return;
+        }
         if(request==HomeVoice.REQUEST_SPEECH && resultCode==RESULT_OK && data!=null){
             java.util.ArrayList<String> results=data.getStringArrayListExtra(
                 android.speech.RecognizerIntent.EXTRA_RESULTS);
-            if(results==null||results.isEmpty())return;
+            if(results==null||results.isEmpty()){resumeWake();return;}
             String question=results.get(0);
             if(!"assistant".equals(currentPage))showPage("assistant");
             statusMessage("Você: "+question+"  ·  HOME está pensando…");
             if(!HomeGroq.connected(this)){
                 statusMessage("Conecte a Groq no Assistente para receber respostas por voz.");
-                return;
+                resumeWake();return;
             }
             HomeGroq.ask(this,question,new HomeGroq.Callback(){
                 @Override public void onEmotion(String emotion){HomeEmotion.fromGroq(emotion);}
                 @Override public void onAnswer(String answer){
+                    resumeWake();
                     refreshChat();
                     statusMessage("HOME: "+answer);
                     if(FaberOffline.isInstalled(MainActivity.this))
@@ -599,6 +673,7 @@ public final class MainActivity extends Activity {
                     else statusMessage("HOME: "+answer+"\nInstale a voz Faber para ouvir.");
                 }
                 @Override public void onError(String reason){
+                    resumeWake();
                     refreshChat();
                     statusMessage(reason);
                 }
