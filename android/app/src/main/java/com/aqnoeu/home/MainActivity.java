@@ -742,7 +742,7 @@ public final class MainActivity extends Activity {
             try{
                 HomeGroq.connect(this,secret.getText().toString());
                 secret.setText("");
-                state.setText("● Groq conectada · toque para configurar");
+                state.setText("● Groq conectada");
                 state.setTextColor(GREEN);
                 clearInline();
                 statusMessage("Conexão Groq salva.");
@@ -751,7 +751,7 @@ public final class MainActivity extends Activity {
         action(panel,"Desconectar",false,()->requestInlineConfirm(
             "Desconectar Groq","Suas conversas salvas serão preservadas.",()->{
                 HomeGroq.disconnect(this);
-                state.setText("● Groq desconectada · toque para configurar");
+                state.setText("● Groq desconectada");
                 state.setTextColor(MUTED);
             }));
         action(panel,"Fechar",false,this::clearInline);
