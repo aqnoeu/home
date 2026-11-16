@@ -7,8 +7,8 @@ android {
         applicationId = "com.aqnoeu.home"
         minSdk = 26
         targetSdk = 35
-        versionCode = 106
-        versionName = "0.1.6"
+        versionCode = 107
+        versionName = "0.1.7"
     }
     signingConfigs {
         create("releaseKey") {
@@ -36,6 +36,7 @@ android {
 dependencies {
     implementation(files("libs/sherpa-onnx.aar"))
     implementation("org.jetbrains.kotlin:kotlin-stdlib:2.0.21")
+    implementation("org.apache.commons:commons-compress:1.27.1")
     implementation("com.google.zxing:core:3.5.3")
     implementation("androidx.core:core:1.15.0")
 }

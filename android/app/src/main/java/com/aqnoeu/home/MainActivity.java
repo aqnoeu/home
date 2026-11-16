@@ -44,6 +44,7 @@ public final class MainActivity extends Activity {
     private void showStatus(String value) { status.setText(value); }
     @Override public void onCreate(Bundle bundle) {
         super.onCreate(bundle);
+        VoiceCleanup.cleanup(this);
         showHub();
     }
     private void showHub() {
@@ -126,37 +127,35 @@ public final class MainActivity extends Activity {
                 status.setText("Home reage a interações locais. Sem servidor, chaves ou configuração de nuvem.");
                 break;
             case "voice":
-                root.addView(text("Alex • Kokoro pm_alex • Gratuita e offline",16));
-                TextView alexStatus=text(AlexOffline.isInstalled(this)
-                    ? "✓ Modelo local instalado. Áudio produzido no próprio celular."
-                    : "Alex não instalada. Baixe o modelo gratuitamente (~329 MB) uma vez.",13);
-                root.addView(alexStatus);
-                addButton("⬇ Instalar voz Alex (~329 MB, Wi-Fi)",()->{
-                    if(AlexOffline.isInstalled(this)){
-                        alexStatus.setText("✓ Alex já instalada neste aparelho.");return;
+                root.addView(text("Faber • Piper pt_BR-faber-medium",16));
+                TextView faberStatus=text(FaberOffline.isInstalled(this)
+                    ? "✓ Modelo instalado. A voz funciona offline."
+                    : "A voz Faber precisa ser instalada uma única vez (~67 MB).",13);
+                root.addView(faberStatus);
+                addButton("↓ Instalar Faber • grátis (~67 MB)",()->{
+                    if(FaberOffline.isInstalled(this)){
+                        faberStatus.setText("✓ Faber já instalada neste aparelho.");return;
                     }
-                    new AlertDialog.Builder(this).setTitle("Instalar voz Alex")
-                        .setMessage("Download gratuito de aproximadamente 329 MB, com cerca de 850 MB livres necessários durante a instalação. Depois a fala funciona offline. Deseja baixar?")
-                        .setPositiveButton("Instalar",(dialog,which)->AlexOffline.installAsync(this,alexStatus::setText))
+                    new AlertDialog.Builder(this).setTitle("Instalar Faber")
+                        .setMessage("Baixar o modelo gratuito de aproximadamente 67 MB? A fala funcionará offline depois. Reserve pelo menos 250 MB temporários.")
+                        .setPositiveButton("Instalar",(d,w)->FaberOffline.installAsync(this,faberStatus::setText))
                         .setNegativeButton("Cancelar",null).show();
                 });
-                addButton("▶ Testar Alex offline",()->AlexOffline.speak(this,
-                    "Olá! Eu sou o Home, com a voz Alex, em português brasileiro.",
-                    alexStatus::setText));
+                addButton("▶ Testar voz Faber offline",()->FaberOffline.speak(this,
+                    "Olá! Eu sou o Home e esta é a voz Faber, funcionando diretamente no celular.",
+                    faberStatus::setText));
                 addButton("◉ Falar agora",()->HomeVoice.listen(this));
-                addButton("Diagnóstico da voz Alex",()->{
-                    String report=AlexOffline.report(this);
-                    new AlertDialog.Builder(this)
-                        .setTitle("Diagnóstico da voz Alex")
+                addButton("Diagnóstico da voz Faber",()->{
+                    String report=FaberOffline.diagnostic(this);
+                    new AlertDialog.Builder(this).setTitle("Diagnóstico • Faber")
                         .setMessage(report)
-                        .setPositiveButton("Copiar diagnóstico",(dialog,which)->{
+                        .setPositiveButton("Copiar",(dialog,which)->{
                             ClipboardManager clipboard=(ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
-                            clipboard.setPrimaryClip(ClipData.newPlainText("Home Alex diagnóstico",report));
+                            clipboard.setPrimaryClip(ClipData.newPlainText("Diagnóstico Faber",report));
                             Toast.makeText(this,"Diagnóstico copiado",Toast.LENGTH_SHORT).show();
-                        })
-                        .setNegativeButton("Fechar",null).show();
+                        }).setNegativeButton("Fechar",null).show();
                 });
-                status.setText("A síntese de voz é inteiramente local. Nenhuma voz do Google será usada como substituta. O reconhecimento da fala ainda usa o serviço configurado no Android.");
+                status.setText("Mesma voz Faber no Home Windows e Android. A fala é offline e não usa Google TTS, servidor ou chave. O reconhecimento de voz ainda usa o serviço instalado no Android.");
                 break;
             case "interactions":
                 addButton("Ativar Notch",()->{

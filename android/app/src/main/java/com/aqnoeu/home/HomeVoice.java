@@ -2,14 +2,13 @@ package com.aqnoeu.home;
 
 import android.app.Activity;
 import android.content.Intent;
-import android.speech.RecognizerIntent;
 import android.widget.Toast;
+import android.speech.RecognizerIntent;
 import java.util.Locale;
 
-/** Audio output is local Kokoro pm_alex only; never silently uses the Google/Android voice. */
+/** Voice input only. Voice output uses local Faber Piper. */
 public final class HomeVoice {
     public static final int REQUEST_SPEECH = 412;
-    public static final String VOICE_ID = "pm_alex";
     private HomeVoice() {}
 
     public static void listen(Activity activity) {
@@ -22,7 +21,7 @@ public final class HomeVoice {
     }
 
     public static void speak(Activity activity,String message) {
-        AlexOffline.speak(activity,message,status ->
+        FaberOffline.speak(activity,message,status ->
             Toast.makeText(activity,status,Toast.LENGTH_SHORT).show());
     }
 
