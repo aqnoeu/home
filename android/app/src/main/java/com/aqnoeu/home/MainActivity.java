@@ -85,6 +85,7 @@ public final class MainActivity extends Activity {
         addButton("✨ Me surpreenda", () -> localReaction("surprise"));
         addButton("♡ Como você está?", () -> localReaction("mood"));
         addButton("🎉 Comemorar!", () -> localReaction("celebrate"));
+        addButton("◉ Voz e microfone • Falar agora", () -> HomeVoice.listen(this));
         addButton("💬 Conversar com Home (IA)", () -> HomeAi.chat(this));
         addButton("Configurar servidor de IA", () -> HomeAi.configure(this));
         root.addView(text("Notch",17));
@@ -153,6 +154,19 @@ public final class MainActivity extends Activity {
         });
         status=text("As alterações são salvas automaticamente. Largura máxima tenta ocupar quase todo o topo; o Android pode limitar a sobreposição e a área clicável.",12);
         root.addView(status);
+    }
+    @Override protected void onActivityResult(int requestCode,int resultCode,Intent data) {
+        super.onActivityResult(requestCode,resultCode,data);
+        if(requestCode==HomeVoice.REQUEST_SPEECH && resultCode==RESULT_OK && data!=null) {
+            java.util.ArrayList<String> result=data.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS);
+            if(result!=null && !result.isEmpty()) {
+                String message=HomeVoice.localResponse(result.get(0));
+                HomeVoice.speak(this,message);
+                if(!isFinishing())new AlertDialog.Builder(this).setTitle("Home ouviu você")
+                    .setMessage(result.get(0)+"\n\nHome: "+message)
+                    .setPositiveButton("Certo!",null).show();
+            }
+        }
     }
     private void localReaction(String command) {
         String response;
