@@ -150,13 +150,13 @@ class EditDialog(QDialog):
         self.setWindowFlags(Qt.Window | Qt.WindowStaysOnTopHint)
         self.setMinimumWidth(330)
         self.setStyleSheet("""
-            QDialog {background:#191a1c;color:white}
-            QLabel,QGroupBox {color:#e9eef6}
+            QDialog {background:#0B111A;color:white}
+            QLabel,QGroupBox {color:#FFFFFF}
             QGroupBox {border:1px solid #374251;border-radius:8px;margin-top:9px;padding:10px}
             QGroupBox::title {subcontrol-origin:margin;left:10px;padding:0 5px}
-            QSpinBox {background:#263448;color:white;border:1px solid #4b5c72;border-radius:5px;padding:5px}
-            QPushButton {color:white;background:#33465d;padding:9px;border-radius:7px}
-            QPushButton:hover {background:#456384}
+            QSpinBox {background:#1C2737;color:white;border:1px solid #324357;border-radius:5px;padding:5px}
+            QPushButton {color:white;background:#1C2737;padding:9px;border-radius:7px}
+            QPushButton:hover {background:#26384F}
         """)
         layout = QVBoxLayout(self)
         layout.addWidget(QLabel('Arraste as alcas da direita e de baixo.\nAlterne entre os tamanhos recolhido e expandido.'))
