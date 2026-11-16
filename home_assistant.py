@@ -1,14 +1,15 @@
-"""Assistente digitável do Home, sem dependência de microfone ou IA remota."""
+"""Assistente digitável do Home: Groq para respostas, Faber offline para fala."""
 from datetime import datetime
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, QLineEdit,
-    QScrollArea, QCheckBox, QFrame, QSizePolicy
+    QScrollArea, QCheckBox, QFrame, QSizePolicy, QInputDialog, QMessageBox
 )
 
 from home_voice import interpret
 from home_integrations import execute_windows_action
+from home_groq import GroqWorker, get_key, save_key, clear_key
 
 
 def typed_response(text, now=None):
@@ -38,6 +39,7 @@ class AssistantPage(QWidget):
         super().__init__(parent)
         self.home = home
         self.pending = None
+        self.groq_worker = None
         self.setStyleSheet("""
             QWidget#assistantPage {background:transparent;color:#ececec}
             QLineEdit {background:#292b30;color:#fff;border:1px solid #53555a;border-radius:10px;padding:11px}
@@ -50,10 +52,13 @@ class AssistantPage(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4,3,4,3)
         layout.setSpacing(9)
-        intro=QLabel("Comandos digitados • processamento local • sem microfone • sem IA conectada")
+        intro=QLabel("Groq responde às perguntas • Faber fala offline • comandos locais com confirmação")
         intro.setWordWrap(True)
         intro.setStyleSheet("color:#a5a7ab;font-size:11px")
         layout.addWidget(intro)
+        self.groq_config=QPushButton("✓ Groq conectada • alterar chave" if get_key() else "Conectar Groq (uma única vez)")
+        self.groq_config.clicked.connect(self.configure_groq)
+        layout.addWidget(self.groq_config)
         self.messages=QScrollArea()
         self.messages.setObjectName("messagesArea")
         self.messages.setWidgetResizable(True)
@@ -160,8 +165,54 @@ class AssistantPage(QWidget):
             self.confirm_box.show()
             self.record("home","Confirme a execução do comando no painel abaixo.")
             return
+        # The built-in local commands and small utilities are still safe/offline.
+        # All open-ended questions go to Groq; the model cannot execute actions.
+        if response.startswith("Por enquanto, entendo"):
+            self.ask_ai(message)
+            return
         self.record("home",response)
         self.say(response)
+
+    def configure_groq(self):
+        key, accepted=QInputDialog.getText(
+            self,"Conectar Groq","Cole sua chave Groq (guardada no Gerenciador de Credenciais do Windows):",
+            QLineEdit.EchoMode.Password)
+        if not accepted or not key.strip():
+            return
+        try:
+            save_key(key)
+            self.groq_config.setText("✓ Groq conectada • alterar chave")
+            self.status.setText("Groq conectada. As respostas por voz usam a Faber local.")
+        except Exception as exc:
+            QMessageBox.warning(self,"Groq",str(exc)[:200])
+
+    def ask_ai(self, question):
+        if not get_key():
+            self.status.setText("Conecte a Groq uma vez acima para responder perguntas abertas.")
+            self.record("home","Abra Conectar Groq para ativar respostas inteligentes.")
+            return
+        if self.groq_worker is not None and self.groq_worker.isRunning():
+            self.status.setText("O Home ainda está pensando na pergunta anterior.")
+            return
+        history=[{"role":"assistant" if role=="home" else "user","content":text}
+                 for role,text in self.home.assistant_history[:-1]
+                 if role in ("user","home")][-8:]
+        worker=GroqWorker(question,history,self.home)
+        self.groq_worker=worker
+        self.home.groq_worker=worker
+        self.status.setText("Groq está pensando…")
+        worker.answered.connect(lambda answer:self.on_ai_reply(answer))
+        worker.failed.connect(lambda problem:self.on_ai_error(problem))
+        worker.start()
+
+    def on_ai_reply(self,answer):
+        self.record("home",answer)
+        self.status.setText("Groq respondeu. Faber reproduzindo…" if self.talk.isChecked() else "Resposta pronta.")
+        self.say(answer)
+
+    def on_ai_error(self,problem):
+        self.status.setText(problem)
+        self.record("home","Não consegui consultar a Groq: "+problem)
 
     def confirm(self,allowed):
         pending=self.pending
