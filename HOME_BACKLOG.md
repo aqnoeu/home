@@ -22,3 +22,11 @@ Atualizado em 16/11/2026. Este arquivo registra propostas, não funcionalidades 
 - Hora, data e nível de bateria respondidos localmente no Android, sem Groq.
 - Atalhos explícitos para configurações de Wi-Fi e Bluetooth do Android.
 - Windows: abrir Gerenciador de Tarefas e Painel de Controle pelo catálogo permitido, respeitando a confirmação existente.
+
+## Conectores locais implementados nesta atualização
+- Android: diagnóstico sob demanda de bateria, rede (sem SSID ou localização), estado Bluetooth com permissão, saída e volume de áudio, RAM e espaço de armazenamento.
+- Android: atalhos de agenda, inclusão de evento e alarmes no aplicativo do sistema; não lê agenda pessoal automaticamente.
+- Android: consulta do texto copiado apenas depois de clique, sem envio à IA.
+- Android: visualização opcional de notificações via serviço autorizado e resposta por RemoteInput somente com confirmação do usuário; nada salvo ou enviado à IA.
+- Windows: recursos de diagnóstico e atalhos locais, sem automação silenciosa.
+- Fora do escopo: pareamento celular-PC e integração HOME Writer.

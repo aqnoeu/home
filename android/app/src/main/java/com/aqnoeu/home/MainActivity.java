@@ -522,13 +522,91 @@ public final class MainActivity extends Activity {
         action(about,"Downloads oficiais",false,
             ()->startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(DOWNLOAD))));
         action(about,"Mostrar QR Code de download",false,()->showDownloadQr(about));
-        LinearLayout device=card("Recursos do celular","Atalhos seguros para configurações do Android.");
-        action(device,"Wi-Fi",false,()->openDeviceSettings(Settings.ACTION_WIFI_SETTINGS));
-        action(device,"Bluetooth",false,()->openDeviceSettings(Settings.ACTION_BLUETOOTH_SETTINGS));
-        action(device,"Bateria",false,()->statusMessage(readBatteryStatus()));
+        LinearLayout device=card("Estado do dispositivo","Consultas sob demanda. Nada é enviado à IA.");
+        action(device,"Diagnóstico local do celular",true,
+            ()->statusMessage(DeviceHub.overview(this)));
+        actions(device,"Bateria",()->statusMessage(DeviceHub.battery(this)),
+            "Rede",()->statusMessage(DeviceHub.network(this)));
+        actions(device,"Bluetooth",this::showBluetoothStatus,
+            "Áudio",()->statusMessage(DeviceHub.audio(this)));
+        actions(device,"Memória RAM",()->statusMessage(DeviceHub.memory(this)),
+            "Armazenamento",()->statusMessage(DeviceHub.storage()));
+        actions(device,"Volume −",()->adjustMediaVolume(false),
+            "Volume +",()->adjustMediaVolume(true));
+        actions(device,"Configurar Wi-Fi",()->openDeviceSettings(Settings.ACTION_WIFI_SETTINGS),
+            "Configurar Bluetooth",()->openDeviceSettings(Settings.ACTION_BLUETOOTH_SETTINGS));
+        action(device,"Ver texto copiado (somente agora)",false,
+            ()->statusMessage("Texto copiado: "+DeviceHub.clipboard(this)));
+        LinearLayout daily=card("Agenda, alarmes e notificações",
+            "Ações visíveis e notificações apenas após sua autorização.");
+        actions(daily,"Abrir agenda",()->openDeviceIntent(DeviceHub.calendarIntent()),
+            "Novo evento",()->openDeviceIntent(DeviceHub.newEventIntent()));
+        actions(daily,"Alarmes",()->openDeviceIntent(DeviceHub.alarmsIntent()),
+            "Som do sistema",()->openDeviceIntent(DeviceHub.soundSettings()));
+        action(daily,"Ver notificações autorizadas",false,this::showNotifications);
         action(about,"Recolher HOME",false,this::finish);
     }
 
+    private void showBluetoothStatus(){
+        if(Build.VERSION.SDK_INT>=31 &&
+            checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT)!=PackageManager.PERMISSION_GRANTED){
+            statusMessage("Para consultar Bluetooth, autorize Dispositivos próximos e toque novamente.");
+            requestPermissions(new String[]{Manifest.permission.BLUETOOTH_CONNECT},722);
+            return;
+        }
+        statusMessage(DeviceHub.bluetooth(this));
+    }
+    private void openDeviceIntent(Intent intent){
+        try{startActivity(intent);}
+        catch(Exception ex){statusMessage("Não há aplicativo compatível para esta ação.");}
+    }
+    private void adjustMediaVolume(boolean up){
+        try{
+            android.media.AudioManager manager=(android.media.AudioManager)getSystemService(AUDIO_SERVICE);
+            if(manager==null){statusMessage("Controle de áudio indisponível.");return;}
+            manager.adjustStreamVolume(android.media.AudioManager.STREAM_MUSIC,
+                up?android.media.AudioManager.ADJUST_RAISE:android.media.AudioManager.ADJUST_LOWER,
+                android.media.AudioManager.FLAG_SHOW_UI);
+            statusMessage(DeviceHub.audio(this));
+        }catch(SecurityException ex){statusMessage("O sistema não permitiu alterar o volume.");}
+    }
+    private void showNotifications(){
+        if(!HomeNotifications.connected()){
+            statusMessage("Acesso às notificações desativado. Conceda acesso ao HOME nas configurações do Android.");
+            requestInlineConfirm("Acesso às notificações",
+                "O HOME poderá ler notificações enquanto o acesso estiver ativo. Só exibiremos conteúdo quando abrir este painel, sem enviar à Groq nem salvar no histórico. Autorizar nas configurações?",
+                ()->openDeviceIntent(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)));
+            return;
+        }
+        java.util.List<HomeNotifications.Item> items=HomeNotifications.snapshot();
+        clearInline();
+        LinearLayout panel=column();
+        panel.setBackground(bg(SURFACE,14));
+        panel.setPadding(dp(12),dp(12),dp(12),dp(12));
+        add(panel,heading("Notificações neste aparelho",16),0,8);
+        add(panel,note("Consulta pontual; não armazenamos ou enviamos notificações à IA."),0,9);
+        if(items.isEmpty())add(panel,note("Nenhuma notificação de texto disponível."),0,5);
+        for(HomeNotifications.Item item:items){
+            add(panel,text(item.toString(),13),8,4);
+            if(item.reply!=null){
+                EditText reply=edit("Resposta para esta notificação",false);
+                reply.setSingleLine(false);
+                reply.setFilters(new android.text.InputFilter[]{
+                    new android.text.InputFilter.LengthFilter(500)});
+                add(panel,reply,2,5);
+                action(panel,"Responder nesta notificação",false,()->{
+                    String message=reply.getText().toString().trim();
+                    if(message.isEmpty()){statusMessage("Digite a resposta antes de enviar.");return;}
+                    requestInlineConfirm("Enviar resposta",item.source+" — "+item.title+
+                        "\nA mensagem será enviada pelo aplicativo da notificação. Confirmar?",
+                        ()->statusMessage(HomeNotifications.sendReply(item,message)?
+                            "Resposta enviada ao aplicativo.":"Não foi possível responder à notificação."));
+                });
+            }
+        }
+        action(panel,"Fechar lista",false,this::clearInline);
+        add(inlineHost,panel,2,10);
+    }
     /** QR restaura o atalho da versão anterior, sem uma página adicional. */
     private void showDownloadQr(LinearLayout host){
         // A QR square is drawn inside the screen and can be dismissed.
@@ -585,7 +663,17 @@ public final class MainActivity extends Activity {
             answer="Hoje é "+new java.text.SimpleDateFormat("dd/MM/yyyy",
                 new java.util.Locale("pt","BR")).format(new Date())+".";
         }else if(normalized.matches(".*\\b(bateria|nivel da bateria|carga do celular)\\b.*")){
-            answer=readBatteryStatus();
+            answer=DeviceHub.battery(this);
+        }else if(normalized.matches(".*\\b(rede|internet|conexao wi-?fi|sinal wi-?fi)\\b.*")){
+            answer=DeviceHub.network(this);
+        }else if(normalized.matches(".*\\b(memoria ram|ram disponivel|uso da memoria)\\b.*")){
+            answer=DeviceHub.memory(this);
+        }else if(normalized.matches(".*\\b(armazenamento|espaco livre|espaco no celular)\\b.*")){
+            answer=DeviceHub.storage();
+        }else if(normalized.matches(".*\\b(volume atual|volume da midia|nivel do volume)\\b.*")){
+            answer=DeviceHub.audio(this);
+        }else if(normalized.matches(".*\\b(bluetooth esta|estado do bluetooth|status do bluetooth)\\b.*")){
+            answer=DeviceHub.bluetooth(this);
         }else if(normalized.matches("^(abra|abrir|abre|mostrar|mostre)\\s+(as\\s+)?(configuracoes\\s+(do|de)\\s+)?(wi-?fi|wifi).*")){
             answer="Abrindo as configurações de Wi-Fi.";
             setting=Settings.ACTION_WIFI_SETTINGS;
