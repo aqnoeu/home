@@ -134,7 +134,10 @@ public final class HomeChatStore {
     public synchronized JSONArray messages(){
         JSONObject c=find(activeId());
         if(c==null)return new JSONArray();
-        return new JSONArray(c.optJSONArray("messages").toString());
+        JSONArray m=c.optJSONArray("messages");
+        if(m==null)return new JSONArray();
+        try{return new JSONArray(m.toString());}
+        catch(org.json.JSONException e){return new JSONArray();}
     }
     public synchronized List<JSONObject> conversations(){
         List<JSONObject> result=new ArrayList<>();
@@ -150,9 +153,10 @@ public final class HomeChatStore {
         for(int i=Math.max(0,messages.length()-8);i<messages.length();i++){
             JSONObject m=messages.optJSONObject(i);
             if(m!=null){
-                history.put(new JSONObject()
+                try{history.put(new JSONObject()
                     .put("role",m.optString("role"))
-                    .put("content",m.optString("text")));
+                    .put("content",m.optString("text")));}
+                catch(org.json.JSONException ignored){}
             }
         }
         return history;
