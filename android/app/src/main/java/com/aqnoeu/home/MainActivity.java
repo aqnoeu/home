@@ -123,16 +123,28 @@ public final class MainActivity extends Activity {
                 addButton("✨ Me surpreenda",()->localReaction("surprise"));
                 addButton("♡ Como você está?",()->localReaction("mood"));
                 addButton("🎉 Comemorar!",()->localReaction("celebrate"));
-                addButton("💬 Conversar com Home (IA)",()->HomeAi.chat(this));
-                addButton("Configurar servidor seguro da IA",()->HomeAi.configure(this));
-                status.setText("As expressões são locais. A IA conversacional requer um endpoint HTTPS autenticado.");
+                status.setText("Home reage a interações locais. Sem servidor, chaves ou configuração de nuvem.");
                 break;
             case "voice":
-                root.addView(text("Voz escolhida: Alex • Kokoro pm_alex",16));
-                addButton("▶ Testar voz Alex",()->HomeVoice.speak(this,"Olá! Eu sou o Home. Esta é a voz Alex, em português brasileiro."));
+                root.addView(text("Alex • Kokoro pm_alex • Gratuita e offline",16));
+                TextView alexStatus=text(AlexOffline.isInstalled(this)
+                    ? "✓ Modelo local instalado. Áudio produzido no próprio celular."
+                    : "Alex não instalada. Baixe o modelo gratuitamente (~329 MB) uma vez.",13);
+                root.addView(alexStatus);
+                addButton("⬇ Instalar voz Alex (~329 MB, Wi-Fi)",()->{
+                    if(AlexOffline.isInstalled(this)){
+                        alexStatus.setText("✓ Alex já instalada neste aparelho.");return;
+                    }
+                    new AlertDialog.Builder(this).setTitle("Instalar voz Alex")
+                        .setMessage("Download gratuito de aproximadamente 329 MB, com cerca de 850 MB livres necessários durante a instalação. Depois a fala funciona offline. Deseja baixar?")
+                        .setPositiveButton("Instalar",(dialog,which)->AlexOffline.installAsync(this,alexStatus::setText))
+                        .setNegativeButton("Cancelar",null).show();
+                });
+                addButton("▶ Testar Alex offline",()->AlexOffline.speak(this,
+                    "Olá! Eu sou o Home, com a voz Alex, em português brasileiro.",
+                    alexStatus::setText));
                 addButton("◉ Falar agora",()->HomeVoice.listen(this));
-                addButton("Configurar conexão da IA e da voz",()->HomeAi.configure(this));
-                status.setText("A mesma Alex do Windows usa um servidor Kokoro seguro. Se não estiver conectado, o Home informa e utiliza temporariamente a voz do Android.");
+                status.setText("A síntese de voz é inteiramente local. Nenhuma voz do Google será usada como substituta. O reconhecimento da fala ainda usa o serviço configurado no Android.");
                 break;
             case "interactions":
                 addButton("Ativar Notch",()->{
@@ -216,7 +228,6 @@ public final class MainActivity extends Activity {
         if(requestCode==HomeVoice.REQUEST_SPEECH && resultCode==RESULT_OK && data!=null) {
             java.util.ArrayList<String> result=data.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS);
             if(result!=null && !result.isEmpty()) {
-                if(HomeAi.voiceReply(this,result.get(0)))return;
                 String message=HomeVoice.localResponse(result.get(0));
                 HomeVoice.speak(this,message);
                 if(!isFinishing())new AlertDialog.Builder(this).setTitle("Home ouviu você")

@@ -1,4 +1,4 @@
-plugins { id("com.android.application") }
+plugins { id("com.android.application"); id("org.jetbrains.kotlin.android") }
 
 android {
     namespace = "com.aqnoeu.home"
@@ -7,8 +7,8 @@ android {
         applicationId = "com.aqnoeu.home"
         minSdk = 26
         targetSdk = 35
-        versionCode = 104
-        versionName = "0.1.4"
+        versionCode = 105
+        versionName = "0.1.5"
     }
     signingConfigs {
         create("releaseKey") {
@@ -34,6 +34,8 @@ android {
     }
 }
 dependencies {
+    implementation(files("libs/sherpa-onnx.aar"))
+    implementation("org.jetbrains.kotlin:kotlin-stdlib:2.0.21")
     implementation("com.google.zxing:core:3.5.3")
     implementation("androidx.core:core:1.15.0")
 }

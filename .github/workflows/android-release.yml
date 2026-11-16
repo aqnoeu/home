@@ -28,6 +28,8 @@ jobs:
       - uses: android-actions/setup-android@v4
         with:
           packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+      - name: Preparar motor Kokoro Android (AAR oficial com SHA-256)
+        run: bash android/prepare-sherpa.sh
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
