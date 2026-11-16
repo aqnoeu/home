@@ -9,6 +9,13 @@ android {
         targetSdk = 35
         versionCode = 112
         versionName = "0.1.12"
+        // Optional owner-provided credential injected by a private GitHub Actions Secret.
+        // WARNING: an embedded client key can be extracted from a public APK.
+        val groqKey = providers.environmentVariable("HOME_GROQ_API_KEY").orNull ?: ""
+        require(groqKey.isEmpty() || groqKey.matches(Regex("gsk_[A-Za-z0-9_-]{20,200}"))) {
+            "HOME_GROQ_API_KEY must be a valid Groq API key without whitespace"
+        }
+        buildConfigField("String", "HOME_GROQ_API_KEY", "\\\"${groqKey}\\\"")
     }
     signingConfigs {
         create("releaseKey") {
