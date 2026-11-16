@@ -243,6 +243,7 @@ class AssistantPage(QWidget):
         self.groq_worker=worker
         self.home.groq_worker=worker
         self.status.setText("Groq está pensando…")
+        worker.emotional_answer.connect(lambda _text, emotion:self.home.set_ai_emotion(emotion))
         worker.answered.connect(lambda answer:self.on_ai_reply(answer))
         worker.failed.connect(lambda problem:self.on_ai_error(problem))
         worker.start()
