@@ -1,15 +1,10 @@
 package com.aqnoeu.home;
 
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.os.Build;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
-import android.text.InputType;
-import android.widget.EditText;
-import android.widget.Toast;
 import android.util.Base64;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -83,27 +78,12 @@ public final class HomeGroq {
         context.getSharedPreferences(PREF,Context.MODE_PRIVATE).edit().clear().apply();
         synchronized(HISTORY_LOCK){while(HISTORY.length()>0)HISTORY.remove(HISTORY.length()-1);}
     }
-    public static void configure(Activity activity,Runnable onConfigured){
-        EditText input=new EditText(activity);
-        input.setHint("gsk_...");
-        input.setSingleLine(true);
-        input.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_PASSWORD);
-        int p=(int)(24*activity.getResources().getDisplayMetrics().density);
-        android.widget.LinearLayout wrapper=new android.widget.LinearLayout(activity);
-        wrapper.setOrientation(android.widget.LinearLayout.VERTICAL);
-        wrapper.setPadding(p,12,p,4);
-        wrapper.addView(input);
-        new AlertDialog.Builder(activity).setTitle("Conectar inteligência Groq")
-            .setMessage("Informe sua chave Groq uma única vez neste celular. Ela será protegida pelo Android. Não é necessária configuração de servidor.")
-            .setView(wrapper)
-            .setPositiveButton("Conectar",(dialog,which)->{
-                String value=input.getText().toString().trim();
-                if(!value.startsWith("gsk_")||value.length()<25){
-                    Toast.makeText(activity,"Chave Groq inválida. Abra Conectar e tente novamente.",Toast.LENGTH_LONG).show();return;
-                }
-                try{save(activity,value);onConfigured.run();}
-                catch(Exception e){Toast.makeText(activity,"Não foi possível proteger a chave neste celular.",Toast.LENGTH_LONG).show();}
-            }).setNegativeButton("Cancelar",null).show();
+    /** Save a key supplied through HOME's inline, non-modal settings card. */
+    public static void connect(Context context,String value) throws Exception {
+        String normalized=value==null?"":value.trim();
+        if(!normalized.startsWith("gsk_")||normalized.length()<25)
+            throw new IllegalArgumentException("A chave Groq deve começar com gsk_.");
+        save(context,normalized);
     }
     public static void ask(Activity activity,String question,Callback callback) {
         String apiKey=key(activity);
