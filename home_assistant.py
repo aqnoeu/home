@@ -56,7 +56,7 @@ class AssistantPage(QWidget):
         intro.setWordWrap(True)
         intro.setStyleSheet("color:#A8B6C8;font-size:12px")
         layout.addWidget(intro)
-        self.groq_config=QPushButton("Groq conectada · Gerenciar" if get_key() else "Conectar Groq")
+        self.groq_config=QPushButton("Groq configurada · Gerenciar" if get_key() else "Conectar Groq")
         self.groq_config.clicked.connect(self.configure_groq)
         layout.addWidget(self.groq_config)
         # Inline credential panel: never open a modal behind HOME's always-on-top notch.
@@ -225,9 +225,9 @@ class AssistantPage(QWidget):
     def save_groq_inline(self):
         try:
             save_key(self.groq_input.text())
-            self.groq_config.setText("Groq conectada · Gerenciar")
-            self.groq_hint.setText("Chave salva no Windows.")
-            self.status.setText("Groq conectada. A Faber poderá falar as respostas.")
+            self.groq_config.setText("Groq configurada · Gerenciar")
+            self.groq_hint.setText("Chave salva e recuperada no Windows. Use Testar Groq para validar a autenticação.")
+            self.status.setText("Chave guardada e verificada localmente. A autenticação com Groq ainda não foi testada.")
             self.hide_groq_inline()
         except Exception as exc:
             self.groq_hint.setText("Não foi possível salvar: "+str(exc)[:160])
@@ -252,7 +252,7 @@ class AssistantPage(QWidget):
         self.home.groq_worker=worker
         self.groq_hint.setText("Verificando conexão e permissão do modelo…")
         worker.answered.connect(lambda text:self.groq_hint.setText(
-            "✓ Groq funcionando neste PC: "+text[:90]))
+            "✓ Autenticação aprovada. Groq funcionando neste PC: "+text[:90]))
         worker.failed.connect(lambda problem:self.groq_hint.setText(
             "Teste falhou: "+problem[:180]))
         worker.start()
