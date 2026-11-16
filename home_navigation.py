@@ -95,7 +95,8 @@ class Workspace(QWidget):
         icon.setFixedSize(42,42)
         icon.setAlignment(Qt.AlignCenter)
         asset = Path(getattr(sys, "_MEIPASS", Path(__file__).parent)) / "assets" / "home_icon_approved.png"
-        original = QPixmap(str(asset)) if asset.is_file() else QPixmap()
+        from home_ui import load_transparent_home_logo
+        original = load_transparent_home_logo(asset) if asset.is_file() else QPixmap()
         if not original.isNull():
             icon.setPixmap(original.scaled(42,42,Qt.KeepAspectRatio,Qt.SmoothTransformation))
             icon.setToolTip("Símbolo original HOME")
