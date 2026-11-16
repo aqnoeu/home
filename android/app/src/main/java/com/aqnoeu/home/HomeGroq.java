@@ -125,7 +125,8 @@ public final class HomeGroq {
                 messages.put(new JSONObject().put("role","user").put("content",q));
                 JSONObject body=new JSONObject().put("model",MODEL)
                     .put("messages",messages).put("temperature",0.5)
-                    .put("max_completion_tokens",170).put("stream",false);
+                    .put("max_completion_tokens",450).put("reasoning_effort","low")
+                    .put("include_reasoning",false).put("stream",false);
                 connection=(HttpURLConnection)new URL(API).openConnection();
                 connection.setRequestMethod("POST");
                 connection.setConnectTimeout(12000);connection.setReadTimeout(28000);
