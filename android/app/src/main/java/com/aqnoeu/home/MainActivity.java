@@ -2,360 +2,505 @@ package com.aqnoeu.home;
 
 import android.Manifest;
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.content.*;
+import android.content.pm.PackageManager;
 import android.graphics.*;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.*;
 import android.provider.Settings;
+import android.text.InputType;
+import android.text.SpannableString;
+import android.text.style.ForegroundColorSpan;
 import android.view.*;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.*;
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.MultiFormatWriter;
 import com.google.zxing.common.BitMatrix;
 
+/**
+ * HOME mobile, Brand Guidelines 1.2.
+ * No Home-generated modal dialogs: decisions, diagnostics, forms, QR and states
+ * are displayed within the current page. Android system permission/installer UI
+ * and the device's speech recognition UI are controlled by Android itself.
+ */
 public final class MainActivity extends Activity {
-    private LinearLayout root;
-    private TextView status;
     private static final String DOWNLOAD = "https://github.com/aqnoeu/home/releases";
-    private final int background = Color.rgb(23,24,26);
-    private final int card = Color.rgb(38,40,42);
-    private int dp(float value) { return Math.round(value * getResources().getDisplayMetrics().density); }
-    private GradientDrawable shape(int color,int radius) {
-        GradientDrawable d = new GradientDrawable();
-        d.setColor(color); d.setCornerRadius(dp(radius)); d.setStroke(dp(1),Color.rgb(66,68,70));
+    private static final int BG = Color.rgb(11,17,26);           // #0B111A
+    private static final int SURFACE = Color.rgb(20,29,42);
+    private static final int RAISED = Color.rgb(29,40,56);
+    private static final int LINE = Color.rgb(49,62,80);
+    private static final int WHITE = Color.WHITE;
+    private static final int MUTED = Color.rgb(176,188,204);
+    private static final int BLUE = Color.rgb(47,107,255);       // #2F6BFF actions
+    private static final int ORANGE = Color.rgb(255,106,0);      // #FF6A00 editorial
+    private static final int GREEN = Color.rgb(0,196,106);      // #00C46A success
+    private LinearLayout root, inlineHost;
+    private ScrollView scroll;
+    private TextView status;
+    private String currentPage = "hub";
+
+    private int dp(float n) {return Math.round(n*getResources().getDisplayMetrics().density);}
+    private boolean narrow(){return getResources().getConfiguration().screenWidthDp<370;}
+    private GradientDrawable bg(int color,int radius){
+        GradientDrawable d=new GradientDrawable();
+        d.setColor(color);d.setCornerRadius(dp(radius));d.setStroke(dp(1),LINE);
         return d;
     }
-    private TextView text(String value,int size) {
-        TextView t = new TextView(this);
-        t.setText(value); t.setTextColor(Color.rgb(235,237,240)); t.setTextSize(size);
-        t.setPadding(dp(4),dp(8),dp(4),dp(8));
+    private TextView text(String value,int sp,int color,boolean heavy){
+        TextView t=new TextView(this);
+        t.setText(value);t.setTextSize(sp);t.setTextColor(color);t.setIncludeFontPadding(false);
+        t.setTypeface(android.graphics.Typeface.create("sans-serif",
+            heavy?android.graphics.Typeface.BOLD:android.graphics.Typeface.NORMAL));
+        t.setLineSpacing(dp(3),1f);
         return t;
     }
-    private void addButton(String title, Runnable action) {
-        Button b = new Button(this);
-        b.setText(title); b.setTextColor(Color.WHITE); b.setAllCaps(false);
-        b.setBackground(shape(card,12));
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1,dp(54));
-        p.bottomMargin=dp(8); root.addView(b,p);
-        b.setOnClickListener(v -> action.run());
+    private TextView text(String value,int sp){return text(value,sp,WHITE,false);}
+    private TextView heading(String value,int sp){return text(value,sp,WHITE,true);}
+    private TextView note(String value){return text(value,13,MUTED,false);}
+    private LinearLayout.LayoutParams space(int top,int bottom){
+        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);
+        p.topMargin=dp(top);p.bottomMargin=dp(bottom);return p;
     }
-    private void showStatus(String value) { status.setText(value); }
-    @Override public void onCreate(Bundle bundle) {
-        super.onCreate(bundle);
+    private void add(LinearLayout host,View view,int top,int bottom){host.addView(view,space(top,bottom));}
+    private LinearLayout column(){
+        LinearLayout l=new LinearLayout(this);l.setOrientation(LinearLayout.VERTICAL);return l;
+    }
+    private LinearLayout card(String title,String description){
+        LinearLayout l=column();
+        l.setBackground(bg(SURFACE,20));
+        l.setPadding(dp(narrow()?16:18),dp(18),dp(narrow()?16:18),dp(18));
+        if(title!=null&&!title.isEmpty())add(l,heading(title,17),0,description==null?12:7);
+        if(description!=null&&!description.isEmpty())add(l,note(description),0,12);
+        add(root,l,0,14);
+        return l;
+    }
+    private Button button(String value,boolean primary,Runnable click){
+        Button b=new Button(this);
+        b.setText(value);b.setAllCaps(false);b.setTextSize(14);
+        b.setTypeface(android.graphics.Typeface.create("sans-serif-medium",0));
+        b.setMinHeight(dp(48));b.setMinimumHeight(dp(48));
+        b.setTextColor(WHITE);
+        b.setBackground(bg(primary?BLUE:RAISED,13));
+        b.setPadding(dp(12),0,dp(12),0);
+        b.setOnClickListener(v->click.run());
+        return b;
+    }
+    private void action(LinearLayout target,String label,boolean primary,Runnable run){
+        add(target,button(label,primary,run),3,8);
+    }
+    private void actions(LinearLayout target,String left,Runnable a,String right,Runnable b){
+        LinearLayout row=new LinearLayout(this);
+        row.setOrientation(narrow()?LinearLayout.VERTICAL:LinearLayout.HORIZONTAL);
+        Button first=button(left,true,a),second=button(right,false,b);
+        if(narrow()){add(row,first,0,8);add(row,second,0,0);}
+        else {
+            LinearLayout.LayoutParams one=new LinearLayout.LayoutParams(0,dp(50),1);
+            one.rightMargin=dp(6);
+            row.addView(first,one);
+            LinearLayout.LayoutParams two=new LinearLayout.LayoutParams(0,dp(50),1);
+            two.leftMargin=dp(6);row.addView(second,two);
+        }
+        add(target,row,4,7);
+    }
+    private EditText edit(String hint,boolean secret){
+        EditText e=new EditText(this);
+        e.setTextColor(WHITE);e.setHintTextColor(MUTED);e.setHint(hint);
+        e.setTextSize(15);e.setSingleLine(secret);
+        e.setInputType(secret?InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_PASSWORD:
+            InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_FLAG_CAP_SENTENCES|InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        e.setBackground(bg(RAISED,13));
+        e.setPadding(dp(15),dp(12),dp(15),dp(12));
+        e.setMinimumHeight(dp(52));
+        if(!secret){e.setMinLines(2);e.setMaxLines(4);}
+        return e;
+    }
+    private void showStatus(String value){if(status!=null)status.setText(value);}
+    private void success(TextView view,String message){view.setText("✓ "+message);view.setTextColor(GREEN);}
+    @Override public void onCreate(Bundle saved){
+        super.onCreate(saved);
         VoiceCleanup.cleanup(this);
         showHub();
     }
-    private void showHub() {
-        getWindow().setStatusBarColor(background);
-        getWindow().setNavigationBarColor(background);
-        ScrollView scroll = new ScrollView(this);
-        scroll.setFillViewport(true); scroll.setBackgroundColor(background);
-        root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(22),dp(24),dp(22),dp(24)); scroll.addView(root);
+    private void initScreen(String page,String subtitle){
+        currentPage=page;
+        getWindow().setStatusBarColor(BG);
+        getWindow().setNavigationBarColor(BG);
+        getWindow().getDecorView().setSystemUiVisibility(0);
+        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+        if(Build.VERSION.SDK_INT>=29)getWindow().setNavigationBarContrastEnforced(false);
+        scroll=new ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.setBackgroundColor(BG);
+        scroll.setVerticalScrollBarEnabled(false);
+        root=column();
+        // Android 15 edge-to-edge: use the measured system/cutout bars + breathing room.
+        final int h=dp(narrow()?16:22);
+        root.setPadding(h,dp(52),h,dp(34));
+        root.setOnApplyWindowInsetsListener((view,insets)->{
+            if(Build.VERSION.SDK_INT>=30){
+                android.graphics.Insets bars=insets.getInsets(
+                    WindowInsets.Type.systemBars()|WindowInsets.Type.displayCutout());
+                root.setPadding(h,Math.max(dp(48),bars.top+dp(26)),h,
+                    Math.max(dp(28),bars.bottom+dp(22)));
+            }
+            return insets;
+        });
+        scroll.addView(root,new ScrollView.LayoutParams(-1,-2));
         setContentView(scroll);
-        TextView heading=text("Home",28); root.addView(heading);
-        TextView sub=text("Notch animado • Android",13); sub.setTextColor(0xffa4a6aa); root.addView(sub);
-        EyesView eyes = new EyesView(this);
-        eyes.setMood(getSharedPreferences("home",MODE_PRIVATE).getInt("mood",0));
-        eyes.setEyeGap(getSharedPreferences("home",MODE_PRIVATE).getInt("eye_gap",9));
-        eyes.setBackground(shape(Color.rgb(5,7,11),20));
-        root.addView(eyes,new LinearLayout.LayoutParams(-1,dp(85)));
-        root.addView(text("Expressão",17));
-        String[] moods = {"Normal","Amigável","Sonolento","Bravo"};
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        root.addView(row);
-        for(int i=0;i<moods.length;i++) {
+        root.requestApplyInsets();
+
+        LinearLayout brand=new LinearLayout(this);
+        brand.setOrientation(LinearLayout.HORIZONTAL);
+        brand.setGravity(Gravity.CENTER_VERTICAL);
+        ImageView icon=new ImageView(this);
+        icon.setImageResource(R.drawable.home_icon_approved);
+        icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        icon.setContentDescription("Símbolo oficial HOME: dois olhos brancos em fundo grafite");
+        LinearLayout.LayoutParams iconSize=new LinearLayout.LayoutParams(dp(47),dp(47));
+        iconSize.rightMargin=dp(12);
+        brand.addView(icon,iconSize);
+        LinearLayout brandCopy=column();
+        add(brandCopy,heading("HOME",21),0,3);
+        add(brandCopy,note("Um assistente para você."),0,0);
+        brand.addView(brandCopy,new LinearLayout.LayoutParams(0,-2,1));
+        add(root,brand,0,18);
+        View line=new View(this);line.setBackgroundColor(LINE);
+        root.addView(line,new LinearLayout.LayoutParams(-1,dp(1)));
+        if(!"hub".equals(page)){
+            Button back=button("‹  Voltar",false,this::showHub);
+            LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(dp(125),dp(44));
+            p.topMargin=dp(18);p.bottomMargin=dp(19);
+            root.addView(back,p);
+        }else add(root,note("NOTCH  /  ANDROID"),17,9);
+        if(subtitle!=null&&!subtitle.isEmpty())add(root,note(subtitle),0,18);
+        inlineHost=column();root.addView(inlineHost,new LinearLayout.LayoutParams(-1,-2));
+        status=note("");status.setVisibility(View.GONE);
+        add(root,status,0,0);
+    }
+    private void statusMessage(String message){
+        status.setVisibility(View.VISIBLE);showStatus(message);
+    }
+    private void clearInline(){inlineHost.removeAllViews();}
+    /** Visible, in-page confirmation shared by updater, model install, reset and delete. */
+    public void requestInlineConfirm(String title,String message,Runnable accept){
+        clearInline();
+        LinearLayout panel=column();
+        panel.setPadding(dp(16),dp(16),dp(16),dp(16));
+        panel.setBackground(bg(RAISED,16));
+        add(panel,heading(title,16),0,7);
+        add(panel,note(message),0,14);
+        actions(panel,"Confirmar",()->{
+            clearInline();accept.run();
+        },"Cancelar",this::clearInline);
+        add(inlineHost,panel,0,17);
+        scroll.smoothScrollTo(0,0);
+    }
+    private void showHub(){
+        initScreen("hub",null);
+        TextView hello=heading("Olá, como posso ajudar?",narrow()?22:25);
+        SpannableString span=new SpannableString(hello.getText());
+        span.setSpan(new ForegroundColorSpan(ORANGE),0,4,0);
+        hello.setText(span);
+        add(root,hello,0,6);
+        add(root,note("Seu assistente, no seu ritmo."),0,22);
+
+        LinearLayout face=card(null,null);
+        EyesView eyes=new EyesView(this);
+        android.content.SharedPreferences prefs=getSharedPreferences("home",MODE_PRIVATE);
+        eyes.setMood(prefs.getInt("mood",0));eyes.setEyeGap(prefs.getInt("eye_gap",9));
+        eyes.setBackground(bg(BG,18));
+        add(face,eyes,0,12);
+        eyes.setLayoutParams(new LinearLayout.LayoutParams(-1,dp(100)));
+        add(face,heading("Expressão",15),0,13);
+        HorizontalScrollView hscroll=new HorizontalScrollView(this);
+        hscroll.setHorizontalScrollBarEnabled(false);
+        LinearLayout moods=new LinearLayout(this);moods.setOrientation(LinearLayout.HORIZONTAL);
+        String[] labels={"Normal","Feliz","Sonolento","Bravo"};
+        for(int i=0;i<labels.length;i++){
             final int index=i;
-            Button btn=new Button(this); btn.setText(moods[i]); btn.setTextSize(10); btn.setAllCaps(false);
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0,dp(50),1); lp.setMargins(dp(2),0,dp(2),0);
-            row.addView(btn,lp);
-            btn.setOnClickListener(v -> {
-                getPreferences(MODE_PRIVATE).edit().putInt("mood",index).apply();
-                getSharedPreferences("home",MODE_PRIVATE).edit().putInt("mood",index).apply();
+            Button mood=button(labels[i],false,()->{
+                prefs.edit().putInt("mood",index).apply();
                 eyes.setMood(index);
-                if(Settings.canDrawOverlays(this)) startService(new Intent(this,OverlayService.class));
+                if(Settings.canDrawOverlays(this))refreshNotch();
+                showStatus("Expressão: "+labels[index]);
+                status.setVisibility(View.VISIBLE);
+            });
+            LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(dp(94),dp(46));
+            p.rightMargin=dp(8);moods.addView(mood,p);
+        }
+        hscroll.addView(moods);
+        face.addView(hscroll);
+
+        add(root,heading("O que deseja fazer?",18),12,14);
+        LinearLayout quick=column();
+        actions(quick,"Conversar com HOME",()->showPage("assistant"),
+            "Voz e microfone",()->showPage("voice"));
+        actions(quick,"Editar Notch",this::showEditor,"Interações",()->showPage("interactions"));
+        actions(quick,"Atualizações",()->showPage("updates"),"Encerrar",()->showPage("exit"));
+        add(root,quick,0,12);
+
+        LinearLayout footer=card("Tudo em um lugar","HOME · Helpful, Organized, Mindful & Efficient");
+        add(footer,note("v"+BuildConfig.VERSION_NAME+"  ·  Desenvolvido com @aqnoeu"),2,0);
+    }
+    private void showPage(String page){
+        String title=page.equals("assistant")?"Assistente":
+            page.equals("voice")?"Voz e microfone":
+            page.equals("interactions")?"Interações":
+            page.equals("updates")?"Atualizações":"Encerrar";
+        initScreen(page,null);
+        add(root,heading(title,25),0,10);
+        switch(page){
+            case "assistant": assistantPage();break;
+            case "voice": voicePage();break;
+            case "interactions": interactionPage();break;
+            case "updates": updatesPage();break;
+            default: exitPage();
+        }
+    }
+    private void assistantPage(){
+        LinearLayout welcome=card("Converse com HOME","A Groq pensa. A Faber fala no próprio dispositivo.");
+        TextView state=note(HomeGroq.connected(this)?"✓ Groq conectada":"Conecte a Groq para começar.");
+        if(HomeGroq.connected(this))state.setTextColor(GREEN);
+        add(welcome,state,0,8);
+        LinearLayout credential=column();
+        EditText secret=edit("Chave pessoal Groq · gsk_...",true);
+        add(credential,secret,2,8);
+        TextView keyInfo=note("Sua chave fica protegida pelo Android. Só precisa cadastrar uma vez.");
+        add(credential,keyInfo,0,8);
+        action(credential,"Salvar conexão",true,()->{
+            try{
+                HomeGroq.connect(this,secret.getText().toString());
+                secret.setText("");success(state,"Groq conectada");
+                credential.setVisibility(View.GONE);
+                statusMessage("Conexão Groq salva com segurança.");
+            }catch(Exception e){keyInfo.setText("Não foi possível conectar: "+e.getMessage());}
+        });
+        credential.setVisibility(View.GONE);
+        welcome.addView(credential);
+        action(welcome,"Conectar / alterar chave",false,
+            ()->credential.setVisibility(credential.getVisibility()==View.VISIBLE?View.GONE:View.VISIBLE));
+
+        LinearLayout conversation=card("Sua conversa","Digite ou use o microfone. O HOME responde na mesma tela.");
+        EditText question=edit("Escreva sua pergunta...",false);
+        question.setMaxLength(750);add(conversation,question,0,12);
+        TextView response=text("Sua resposta aparecerá aqui.",15,WHITE,false);
+        LinearLayout answerPanel=column();
+        answerPanel.setBackground(bg(RAISED,14));
+        answerPanel.setPadding(dp(14),dp(14),dp(14),dp(14));
+        add(answerPanel,response,0,0);
+        add(conversation,answerPanel,4,14);
+        actions(conversation,"Enviar ↗",()->{
+            String q=question.getText().toString().trim();
+            if(q.isEmpty()){response.setText("Digite uma pergunta.");return;}
+            question.setText("");
+            response.setText("HOME está pensando…");
+            ((InputMethodManager)getSystemService(INPUT_METHOD_SERVICE))
+                .hideSoftInputFromWindow(question.getWindowToken(),0);
+            askHome(q,response);
+        },"Falar agora",()->HomeVoice.listen(this));
+        action(conversation,"Apagar conexão Groq",false,()->requestInlineConfirm(
+            "Desconectar Groq","Isso apaga a chave salva no aparelho e o histórico desta sessão.",()->{
+                HomeGroq.disconnect(this);state.setText("Groq desconectada");
+                state.setTextColor(MUTED);response.setText("Conexão apagada.");
+            }));
+        add(root,note("A fala é sintetizada pela Faber offline. As perguntas são enviadas à Groq somente quando conectada."),0,12);
+    }
+    private void askHome(String question,TextView response){
+        if(!HomeGroq.connected(this)){
+            response.setText("Conecte a Groq na seção Assistente para fazer perguntas.");
+            return;
+        }
+        HomeGroq.ask(this,question,new HomeGroq.Callback(){
+            @Override public void onAnswer(String answer){
+                if(response!=null)response.setText(answer);
+                if(FaberOffline.isInstalled(MainActivity.this))
+                    HomeVoice.speak(MainActivity.this,answer);
+                else statusMessage("Resposta pronta em texto. Instale Faber em Voz para ouvir.");
+            }
+            @Override public void onError(String message){
+                if(response!=null)response.setText(message);
+                statusMessage(message);
+            }
+        });
+    }
+    private void voicePage(){
+        LinearLayout voice=card("Faber · português brasileiro",
+            "Uma voz, no PC e no celular. Síntese local e gratuita.");
+        TextView voiceState=note(FaberOffline.isInstalled(this)?
+            "✓ Voz instalada neste aparelho":"Voz não instalada · download inicial de aproximadamente 67 MB");
+        if(FaberOffline.isInstalled(this))voiceState.setTextColor(GREEN);
+        add(voice,voiceState,0,11);
+        action(voice,FaberOffline.isInstalled(this)?"✓ Faber instalada":"Instalar voz Faber",false,()->{
+            if(FaberOffline.isInstalled(this)){success(voiceState,"Voz já instalada");return;}
+            requestInlineConfirm("Instalar Faber","Download gratuito de aproximadamente 67 MB, com 250 MB temporários disponíveis. Depois, a voz funciona offline.",()->{
+                voiceState.setText("Preparando instalação…");
+                FaberOffline.installAsync(this,voiceState::setText);
+            });
+        });
+        action(voice,"▶ Testar Faber",true,()->FaberOffline.speak(this,
+            "Olá! Eu sou o HOME. Esta é minha voz no celular.",
+            voiceState::setText));
+        LinearLayout microphone=card("Microfone","Fale com o HOME e receba uma resposta formulada pela Groq.");
+        action(microphone,"◉ Perguntar por voz",true,()->HomeVoice.listen(this));
+        action(microphone,"Abrir Assistente",false,()->showPage("assistant"));
+        LinearLayout diagnostics=card("Diagnóstico","Informações de instalação, modelo e reprodução, sem janelas sobrepostas.");
+        TextView report=note("Toque para exibir as informações técnicas da Faber.");
+        add(diagnostics,report,0,12);
+        actions(diagnostics,"Ver diagnóstico",()->report.setText(FaberOffline.diagnostic(this)),
+            "Copiar dados",()->{
+                String value=FaberOffline.diagnostic(this);
+                ((ClipboardManager)getSystemService(CLIPBOARD_SERVICE))
+                    .setPrimaryClip(ClipData.newPlainText("Diagnóstico Faber",value));
+                report.setText("Diagnóstico copiado.");
+            });
+    }
+    private void interactionPage(){
+        LinearLayout box=card("Notch do HOME","Controle a sobreposição com ações claras e estados visíveis.");
+        action(box,"Ativar Notch",true,()->{
+            if(!Settings.canDrawOverlays(this)){
+                statusMessage("Autorize a sobreposição nas configurações do Android e volte aqui.");
+                startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:"+getPackageName())));return;
+            }
+            if(Build.VERSION.SDK_INT>=33 &&
+                checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)
+                requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},1);
+            try{
+                startForegroundService(new Intent(this,OverlayService.class));
+                statusMessage("✓ Notch ativado.");
+            }catch(Exception e){statusMessage("Não foi possível ativar: "+e.getMessage());}
+        });
+        action(box,"Desativar Notch",false,()->{
+            stopService(new Intent(this,OverlayService.class));statusMessage("Notch desativado.");
+        });
+        action(box,"Ajustar posição e tamanho",false,this::showEditor);
+    }
+    private void updatesPage(){
+        LinearLayout box=card("Atualizações oficiais","O aplicativo verifica os lançamentos assinados do HOME.");
+        TextView update=note("Versão instalada: "+BuildConfig.VERSION_NAME);
+        add(box,update,0,10);
+        action(box,"Verificar atualizações",true,()->UpdateHelper.check(this,update));
+        action(box,"Abrir downloads oficiais",false,
+            ()->startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(DOWNLOAD))));
+        action(box,"Mostrar QR Code",false,()->{
+            // QR is rendered inline; no dialog covers the screen.
+            try{
+                BitMatrix matrix=new MultiFormatWriter().encode(DOWNLOAD,BarcodeFormat.QR_CODE,260,260);
+                Bitmap bitmap=Bitmap.createBitmap(260,260,Bitmap.Config.ARGB_8888);
+                for(int y=0;y<260;y++)for(int x=0;x<260;x++)
+                    bitmap.setPixel(x,y,matrix.get(x,y)?Color.BLACK:WHITE);
+                ImageView image=new ImageView(this);
+                image.setContentDescription("QR Code para a página oficial de downloads");
+                image.setImageBitmap(bitmap);
+                image.setBackground(bg(WHITE,14));
+                image.setPadding(dp(12),dp(12),dp(12),dp(12));
+                LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,dp(270));
+                p.topMargin=dp(14);box.addView(image,p);
+            }catch(Exception e){update.setText("Não foi possível criar o QR Code: "+e.getMessage());}
+        });
+    }
+    private void exitPage(){
+        LinearLayout box=card("Até logo","O HOME pode recolher sem desativar o Notch.");
+        action(box,"Recolher HOME",true,this::finish);
+        action(box,"Desativar Notch e sair",false,()->requestInlineConfirm(
+            "Encerrar HOME","Deseja desligar o Notch e fechar o aplicativo?",()->{
+                stopService(new Intent(this,OverlayService.class));finish();
+            }));
+    }
+    private void showEditor(){
+        initScreen("editor",null);
+        add(root,heading("Editar Notch",25),0,8);
+        add(root,note("Ajuste as medidas com os controles abaixo. As alterações são salvas automaticamente."),0,20);
+        android.content.SharedPreferences prefs=getSharedPreferences("home",MODE_PRIVATE);
+        LinearLayout options=card("Comportamento da barra","A sobreposição depende das permissões do Android.");
+        Switch edge=new Switch(this);
+        edge.setText("Integrar à barra superior transparente");
+        edge.setTextColor(WHITE);
+        edge.setTextSize(14);
+        edge.setChecked(prefs.getBoolean("edge_mode",true));
+        add(options,edge,0,16);
+        edge.setOnCheckedChangeListener((v,on)->{
+            prefs.edit().putBoolean("edge_mode",on).apply();refreshNotch();
+        });
+        Switch handle=new Switch(this);
+        handle.setText("Mostrar aba de toque");
+        handle.setTextColor(WHITE);
+        handle.setTextSize(14);
+        handle.setChecked(prefs.getBoolean("touch_tab",true));
+        add(options,handle,0,4);
+        handle.setOnCheckedChangeListener((v,on)->{
+            prefs.edit().putBoolean("touch_tab",on).apply();refreshNotch();
+        });
+        int width=getResources().getConfiguration().screenWidthDp;
+        LinearLayout dimensions=card("Tamanho e posição","Valores em dp; ajuste e veja o resultado no Notch.");
+        addPosition(dimensions,"Posição horizontal","offset_x",-180,180,100);
+        addPosition(dimensions,"Largura","notch_width",90,Math.max(116,width-8),116);
+        addPosition(dimensions,"Altura","notch_height",24,100,34);
+        addPosition(dimensions,"Distância entre os olhos","eye_gap",0,Math.max(260,width-50),9);
+        addPosition(dimensions,"Posição vertical","offset_y",-60,120,0);
+        addPosition(dimensions,"Altura da aba de toque","handle_y",0,48,4);
+        LinearLayout restore=card("Restaurar","Retorne aos valores de referência sem apagar outras preferências.");
+        action(restore,"Restaurar posição inicial",false,()->requestInlineConfirm(
+            "Restaurar medidas","Os controles de posição e tamanho voltarão aos valores iniciais.",()->{
+                prefs.edit().putInt("offset_x",100).putInt("offset_y",0)
+                    .putInt("notch_width",116).putInt("notch_height",34)
+                    .putInt("eye_gap",9).putBoolean("edge_mode",true).apply();
+                refreshNotch();showEditor();statusMessage("✓ Medidas restauradas.");
+            }));
+    }
+    private void addPosition(LinearLayout host,String label,String key,int min,int max,int initial){
+        android.content.SharedPreferences prefs=getSharedPreferences("home",MODE_PRIVATE);
+        TextView caption=text(label+"  ·  "+prefs.getInt(key,initial)+" dp",14);
+        add(host,caption,11,7);
+        SeekBar slider=new SeekBar(this);
+        slider.setMax(max-min);
+        slider.setProgress(Math.max(0,Math.min(max-min,prefs.getInt(key,initial)-min)));
+        slider.setProgressTintList(android.content.res.ColorStateList.valueOf(BLUE));
+        slider.setThumbTintList(android.content.res.ColorStateList.valueOf(BLUE));
+        add(host,slider,0,4);
+        slider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
+            public void onProgressChanged(SeekBar bar,int progress,boolean user){
+                if(!user)return;
+                int value=min+progress;
+                caption.setText(label+"  ·  "+value+" dp");
+                prefs.edit().putInt(key,value).apply();refreshNotch();
+            }
+            public void onStartTrackingTouch(SeekBar bar){}
+            public void onStopTrackingTouch(SeekBar bar){}
+        });
+    }
+    private void refreshNotch(){
+        if(Settings.canDrawOverlays(this)){
+            try{startService(new Intent(this,OverlayService.class));}
+            catch(RuntimeException e){statusMessage("Não foi possível atualizar: "+e.getMessage());}
+        }
+    }
+    @Override protected void onActivityResult(int request,int resultCode,Intent data){
+        super.onActivityResult(request,resultCode,data);
+        if(request==HomeVoice.REQUEST_SPEECH && resultCode==RESULT_OK && data!=null){
+            java.util.ArrayList<String> results=data.getStringArrayListExtra(
+                android.speech.RecognizerIntent.EXTRA_RESULTS);
+            if(results==null||results.isEmpty())return;
+            String question=results.get(0);
+            if(!"assistant".equals(currentPage)&&!"voice".equals(currentPage))showPage("assistant");
+            statusMessage("Você: "+question+"  ·  HOME está pensando…");
+            if(!HomeGroq.connected(this)){
+                statusMessage("Conecte a Groq no Assistente para receber respostas por voz.");
+                return;
+            }
+            HomeGroq.ask(this,question,new HomeGroq.Callback(){
+                @Override public void onAnswer(String answer){
+                    statusMessage("HOME: "+answer);
+                    if(FaberOffline.isInstalled(MainActivity.this))
+                        HomeVoice.speak(MainActivity.this,answer);
+                    else statusMessage("HOME: "+answer+"\nInstale a voz Faber para ouvir.");
+                }
+                @Override public void onError(String reason){
+                    statusMessage(reason);
+                }
             });
         }
-        root.addView(text("Hub • escolha uma função",16));
-        addHubRow(new String[]{"↻ Atualizações","⤢ Edição"},
-            new Runnable[]{()->showPage("updates"),this::showEditor});
-        addHubRow(new String[]{"✎ Assistente","◉ Voz"},
-            new Runnable[]{()->showPage("assistant"),()->showPage("voice")});
-        addHubRow(new String[]{"⌘ Interações","⏻ Encerrar"},
-            new Runnable[]{()->showPage("interactions"),()->showPage("exit")});
-        status=text("Home Android • Notch ativo mediante permissão. Configurações salvas neste aparelho.",12);
-        status.setTextColor(0xffb8bac0); root.addView(status);
-        root.addView(text("Desenvolvido com @aqnoeu • v"+BuildConfig.VERSION_NAME,12));
-    }
-    private void addHubRow(String[] titles,Runnable[] actions) {
-        LinearLayout row=new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,dp(76));
-        rp.bottomMargin=dp(8);root.addView(row,rp);
-        for(int i=0;i<titles.length;i++){
-            final Runnable action=actions[i];
-            Button tile=new Button(this);
-            tile.setText(titles[i]);tile.setTextColor(Color.WHITE);tile.setAllCaps(false);
-            tile.setBackground(shape(card,13));
-            LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,-1,1);
-            p.setMargins(dp(3),0,dp(3),0);row.addView(tile,p);
-            tile.setOnClickListener(v->action.run());
-        }
-    }
-    private void showPage(String page) {
-        ScrollView scroll=new ScrollView(this);
-        scroll.setBackgroundColor(background);
-        root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(22),dp(24),dp(22),dp(24));
-        scroll.addView(root);setContentView(scroll);
-        addButton("← Voltar ao Hub",this::showHub);
-        String title=page.equals("updates")?"Atualizações":
-            page.equals("voice")?"Voz e microfone":
-            page.equals("assistant")?"Assistente":
-            page.equals("interactions")?"Interações":"Encerrar";
-        root.addView(text(title,23));
-        status=text("",12);root.addView(status);
-        switch(page){
-            case "assistant":
-                root.addView(text("Home • converse com inteligência Groq",15));
-                TextView connection=text(HomeGroq.connected(this)
-                    ? "✓ Inteligência conectada neste aparelho"
-                    : "Conecte a Groq uma vez para responder perguntas.",13);
-                root.addView(connection);
-                addButton("Conectar / trocar chave Groq",()->HomeGroq.configure(this,
-                    ()->connection.setText("✓ Inteligência conectada neste aparelho")));
-                EditText question=new EditText(this);
-                question.setHint("Pergunte ao Home...");
-                question.setTextColor(Color.WHITE);
-                question.setHintTextColor(0xffa4a6aa);
-                question.setSingleLine(false);
-                question.setMaxLines(3);
-                root.addView(question,new LinearLayout.LayoutParams(-1,dp(74)));
-                TextView reply=text("As respostas aparecerão aqui e serão faladas pela Faber, se instalada.",14);
-                root.addView(reply);
-                addButton("Enviar pergunta",()->{
-                    String query=question.getText().toString().trim();
-                    if(query.isEmpty())return;
-                    question.setText("");
-                    reply.setText("Home está pensando…");
-                    HomeGroq.ask(this,query,new HomeGroq.Callback(){
-                        @Override public void onAnswer(String answer){
-                            reply.setText(answer);
-                            if(FaberOffline.isInstalled(MainActivity.this))
-                                HomeVoice.speak(MainActivity.this,answer);
-                        }
-                        @Override public void onError(String error){reply.setText(error);}
-                    });
-                });
-                addButton("◉ Perguntar por voz",()->HomeVoice.listen(this));
-                addButton("Desconectar Groq",()->{
-                    new AlertDialog.Builder(this).setTitle("Desconectar Groq")
-                        .setMessage("Apagar a chave armazenada e o histórico desta sessão?")
-                        .setPositiveButton("Desconectar",(d,w)->{
-                            HomeGroq.disconnect(this);
-                            connection.setText("Groq desconectada.");
-                            reply.setText("A chave foi retirada deste celular.");
-                        }).setNegativeButton("Cancelar",null).show();
-                });
-                status.setText("A Groq responde às perguntas pela internet; Faber fala offline. A chave fica protegida pelo Android. Comandos do sistema não são executados pela IA.");
-                break;
-            case "voice":
-                root.addView(text("Faber • Piper pt_BR-faber-medium",16));
-                TextView faberStatus=text(FaberOffline.isInstalled(this)
-                    ? "✓ Modelo instalado. A voz funciona offline."
-                    : "A voz Faber precisa ser instalada uma única vez (~67 MB).",13);
-                root.addView(faberStatus);
-                addButton("↓ Instalar Faber • grátis (~67 MB)",()->{
-                    if(FaberOffline.isInstalled(this)){
-                        faberStatus.setText("✓ Faber já instalada neste aparelho.");return;
-                    }
-                    new AlertDialog.Builder(this).setTitle("Instalar Faber")
-                        .setMessage("Baixar o modelo gratuito de aproximadamente 67 MB? A fala funcionará offline depois. Reserve pelo menos 250 MB temporários.")
-                        .setPositiveButton("Instalar",(d,w)->FaberOffline.installAsync(this,faberStatus::setText))
-                        .setNegativeButton("Cancelar",null).show();
-                });
-                addButton("▶ Testar voz Faber offline",()->FaberOffline.speak(this,
-                    "Olá! Eu sou o Home e esta é a voz Faber, funcionando diretamente no celular.",
-                    faberStatus::setText));
-                addButton("◉ Perguntar ao Home por voz",()->HomeVoice.listen(this));
-                addButton("Configurar inteligência Groq",()->showPage("assistant"));
-                addButton("Diagnóstico da voz Faber",()->{
-                    String report=FaberOffline.diagnostic(this);
-                    new AlertDialog.Builder(this).setTitle("Diagnóstico • Faber")
-                        .setMessage(report)
-                        .setPositiveButton("Copiar",(dialog,which)->{
-                            ClipboardManager clipboard=(ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
-                            clipboard.setPrimaryClip(ClipData.newPlainText("Diagnóstico Faber",report));
-                            Toast.makeText(this,"Diagnóstico copiado",Toast.LENGTH_SHORT).show();
-                        }).setNegativeButton("Fechar",null).show();
-                });
-                status.setText("Groq produz respostas pela internet quando conectada; Faber as fala offline, sem usar Google TTS. O reconhecimento de entrada depende do serviço do Android.");
-                break;
-            case "interactions":
-                addButton("Ativar Notch",()->{
-                    if(!Settings.canDrawOverlays(this)){
-                        startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,Uri.parse("package:"+getPackageName())));
-                        showStatus("Autorize a sobreposição e toque novamente.");
-                        return;
-                    }
-                    if(Build.VERSION.SDK_INT>=33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=android.content.pm.PackageManager.PERMISSION_GRANTED)
-                        requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},1);
-                    try{startForegroundService(new Intent(this,OverlayService.class));showStatus("Notch ativado.");}
-                    catch(Exception e){showStatus("Falha: "+e.getMessage());}
-                });
-                addButton("Desativar Notch",()->{
-                    stopService(new Intent(this,OverlayService.class));showStatus("Notch desativado.");
-                });
-                break;
-            case "updates":
-                addButton("Verificar atualizações",()->UpdateHelper.check(this,status));
-                addButton("Compartilhar Home (QR Code)",this::showQR);
-                addButton("Abrir downloads oficiais",()->startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(DOWNLOAD))));
-                status.setText("Atualizações oficiais assinadas são instaladas com confirmação do Android.");
-                break;
-            default:
-                addButton("Recolher: voltar à tela inicial",this::finish);
-                addButton("Desativar Notch e fechar",()->{
-                    stopService(new Intent(this,OverlayService.class));finish();
-                });
-        }
-    }
-
-    private void showEditor() {
-        ScrollView scroller=new ScrollView(this);
-        scroller.setBackgroundColor(background);
-        root=new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(22),dp(24),dp(22),dp(24));
-        scroller.addView(root);
-        setContentView(scroller);
-        addButton("← Voltar ao Hub",()->showHub());
-        root.addView(text("Modo edição • Notch Android",17));
-        android.content.SharedPreferences prefs = getSharedPreferences("home",MODE_PRIVATE);
-        Switch edgeSwitch = new Switch(this);
-        edgeSwitch.setText("Tentar posicionar atrás da barra transparente");
-        edgeSwitch.setTextColor(Color.WHITE);
-        edgeSwitch.setChecked(prefs.getBoolean("edge_mode",true));
-        root.addView(edgeSwitch);
-        edgeSwitch.setOnCheckedChangeListener((v,checked)->{
-            prefs.edit().putBoolean("edge_mode",checked).apply();
-            refreshNotch();
-        });
-        addPositionControl("Horizontal • esquerda / direita", "offset_x", -180, 180, 100);
-        int displayWidth = Math.round(getResources().getDisplayMetrics().widthPixels / getResources().getDisplayMetrics().density);
-        addPositionControl("Largura do Notch", "notch_width", 90, Math.max(116,displayWidth-8),116);
-        addPositionControl("Altura do Notch", "notch_height",24,100,34);
-        addPositionControl("Distância entre os olhos", "eye_gap",0,Math.max(260,displayWidth-50),9);
-        addPositionControl("Vertical • subir / descer", "offset_y", -60, 120, 0);
-        addPositionControl("Aba de toque • altura", "handle_y", 0, 48, 4);
-        Switch touch = new Switch(this);
-        touch.setText("Mostrar aba de toque abaixo da barra");
-        touch.setTextColor(Color.WHITE);
-        touch.setChecked(prefs.getBoolean("touch_tab",true));
-        root.addView(touch);
-        touch.setOnCheckedChangeListener((button,enabled) -> {
-            prefs.edit().putBoolean("touch_tab",enabled).apply();
-            refreshNotch();
-        });
-        addButton("Restaurar posição para Xiaomi 13 Pro",()->{
-            prefs.edit().putInt("offset_x",100).putInt("offset_y",0)
-                .putInt("notch_width",116).putInt("notch_height",34).putInt("eye_gap",9)
-                .putBoolean("edge_mode",true).apply();
-            refreshNotch();
-            new AlertDialog.Builder(this).setMessage("Posição restaurada. Reabra a tela para atualizar os controles.")
-                .setPositiveButton("OK",null).show();
-        });
-        status=text("As alterações são salvas automaticamente. Largura máxima tenta ocupar quase todo o topo; o Android pode limitar a sobreposição e a área clicável.",12);
-        root.addView(status);
-    }
-    @Override protected void onActivityResult(int requestCode,int resultCode,Intent data) {
-        super.onActivityResult(requestCode,resultCode,data);
-        if(requestCode==HomeVoice.REQUEST_SPEECH && resultCode==RESULT_OK && data!=null) {
-            java.util.ArrayList<String> result=data.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS);
-            if(result!=null && !result.isEmpty()) {
-                String heard=result.get(0);
-                if(!HomeGroq.connected(this)) {
-                    if(status!=null)status.setText("Conecte a Groq em Assistente para receber respostas inteligentes por voz.");
-                    Toast.makeText(this,"Conecte a Groq em Assistente.",Toast.LENGTH_LONG).show();
-                    return;
-                }
-                if(status!=null)status.setText("Home está pensando…");
-                HomeGroq.ask(this,heard,new HomeGroq.Callback(){
-                    @Override public void onAnswer(String answer){
-                        if(status!=null)status.setText(answer);
-                        if(FaberOffline.isInstalled(MainActivity.this))
-                            HomeVoice.speak(MainActivity.this,answer);
-                        else Toast.makeText(MainActivity.this,"Instale Faber em Voz para ouvir a resposta.",Toast.LENGTH_LONG).show();
-                    }
-                    @Override public void onError(String error){
-                        if(status!=null)status.setText(error);
-                        Toast.makeText(MainActivity.this,error,Toast.LENGTH_LONG).show();
-                    }
-                });
-            }
-        }
-    }
-    private void localReaction(String command) {
-        String response;
-        int mood;
-        java.util.Random random = new java.util.Random();
-        if ("celebrate".equals(command)) {
-            mood=1;
-            String[] messages={"Oba! Hoje estou cheio de energia! ✨", "Vitória! Piscadinha de comemoração! 🎉"};
-            response=messages[random.nextInt(messages.length)];
-        } else if ("mood".equals(command)) {
-            int hour=java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY);
-            mood=hour>=22 || hour<7 ? 2 : 0;
-            response=mood==2 ? "Estou ficando sonolento... mas ainda estou aqui. 🌙" : "Estou atento e curioso! E você?";
-        } else {
-            mood=random.nextInt(3);
-            String[] messages={"Psst... gostei de ter companhia! 👀", "Você encontrou minha expressão secreta! ✨", "Hoje eu só quero ficar olhando as estrelas. 🌟"};
-            response=messages[random.nextInt(messages.length)];
-        }
-        getSharedPreferences("home",MODE_PRIVATE).edit().putInt("mood",mood).apply();
-        refreshNotch();
-        new AlertDialog.Builder(this).setTitle("Home").setMessage(response)
-            .setPositiveButton("Legal!",null).show();
-    }
-    private void refreshNotch() {
-        if (Settings.canDrawOverlays(this)) {
-            try { startService(new Intent(this,OverlayService.class)); }
-            catch (RuntimeException e) { showStatus("Não foi possível aplicar a posição: "+e.getMessage()); }
-        }
-    }
-    private void addPositionControl(String title,String key,int minimum,int maximum,int defaultValue) {
-        android.content.SharedPreferences prefs = getSharedPreferences("home",MODE_PRIVATE);
-        TextView label = text(title+": "+prefs.getInt(key,defaultValue)+" dp",13);
-        root.addView(label);
-        SeekBar slider = new SeekBar(this);
-        slider.setMax(maximum-minimum);
-        slider.setProgress(Math.max(0,Math.min(maximum-minimum,prefs.getInt(key,defaultValue)-minimum)));
-        root.addView(slider);
-        slider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @Override public void onProgressChanged(SeekBar bar,int progress,boolean fromUser) {
-                if(!fromUser)return;
-                int value=minimum+progress;
-                label.setText(title+": "+value+" dp");
-                prefs.edit().putInt(key,value).apply();
-                refreshNotch();
-            }
-            @Override public void onStartTrackingTouch(SeekBar bar) {}
-            @Override public void onStopTrackingTouch(SeekBar bar) {}
-        });
-    }
-    private void showQR() {
-        try {
-            BitMatrix matrix = new MultiFormatWriter().encode(DOWNLOAD,BarcodeFormat.QR_CODE,360,360);
-            Bitmap bmp=Bitmap.createBitmap(360,360,Bitmap.Config.ARGB_8888);
-            for(int y=0;y<360;y++)for(int x=0;x<360;x++)bmp.setPixel(x,y,matrix.get(x,y)?Color.BLACK:Color.WHITE);
-            ImageView view=new ImageView(this); view.setImageBitmap(bmp);
-            new android.app.AlertDialog.Builder(this).setTitle("Instale o Home no Android")
-                .setMessage("Escaneie o QR Code e procure o arquivo Home-Android.apk na versão publicada.")
-                .setView(view).setPositiveButton("Abrir downloads",(d,w)->startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(DOWNLOAD))))
-                .setNegativeButton("Fechar",null).show();
-        } catch(Exception e) { showStatus("Não foi possível gerar QR Code: "+e.getMessage()); }
     }
 }
