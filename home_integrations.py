@@ -176,16 +176,18 @@ class IntegrationsDialog(QDialog):
         self.home = home
         self.prefs = home.integration_prefs
         self.setWindowTitle("Home — Interações")
-        self.setMinimumSize(475, 490)
+        self.setMinimumSize(420, 440)
         self.setStyleSheet("""
-            QDialog {background:#171819;color:#ededed;}
-            QLabel,QCheckBox {color:#dedede;}
-            QPushButton {background:#292b2e;color:#eee;border:1px solid #454749;border-radius:9px;padding:9px;}
-            QPushButton:hover {background:#383b3e;}
-            QTextEdit {background:#202224;color:#dadada;border:1px solid #444;border-radius:8px;}
+            QDialog {background:#0B111A;color:#FFFFFF;}
+            QLabel,QCheckBox {color:#FFFFFF;}
+            QPushButton {background:#292b2e;color:#eee;border:1px solid #324357;border-radius:9px;padding:9px;}
+            QPushButton:hover {background:#26384F;}
+            QTextEdit {background:#141D2A;color:#DDE7F4;border:1px solid #324357;border-radius:8px;}
         """)
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel("Permissões e interações do Home"))
+        layout.setContentsMargins(16,18,16,16)
+        layout.setSpacing(11)
+        layout.addWidget(QLabel("Permissões e interações do HOME"))
         for key, caption in [
             ("eyes_follow_mouse", "Olhos acompanham o mouse"),
             ("eyes_react_clicks", "Olhos reagem a cliques"),
