@@ -1,18 +1,22 @@
-# Home Android — notch e Alex offline (v0.1.5)
+# Home Android — voz Faber (Piper pt_BR-faber-medium)
 
-O Home Android é o aplicativo nativo que acompanha o Home Windows, com identidade visual dos olhinhos aprovada e personalização de largura, altura, posição e distância entre os olhos.
+A voz do Home é **Faber**, modelo Piper em português brasileiro, executado localmente por sherpa-onnx. O mesmo arquivo de modelo é utilizado em Windows e Android.
 
-## Voz Alex totalmente local
-- A aba **Voz** tem o botão **Instalar Alex**: o usuário autoriza um download único de aproximadamente 329 MB (modelo Kokoro v1.0 português), extraído na pasta privada do aplicativo. É necessário ter aproximadamente 850 MB livres temporariamente.
-- Depois de instalada, a síntese de voz **pm_alex, speaker ID 43** acontece no próprio celular, sem servidor e sem limite mensal, via **sherpa-onnx Android v2.0.1** (biblioteca oficial, baixada pelo CI com SHA-256 fixado).
-- A fonte do modelo é [cristianoaredes/kokoro-pt-br](https://huggingface.co/cristianoaredes/kokoro-pt-br). O Android valida estrutura e tamanhos na extração. **Ainda é necessário testar fisicamente a reprodução no Xiaomi 13 Pro**. Não afirmar execução validada só porque o APK compila.
-- Quando a voz não está instalada, o Home informa a ausência; **não usa a voz Google como se fosse Alex**.
-- Reconhecimento de voz ao apertar **Falar agora** ainda é fornecido pelo serviço de reconhecimento de fala instalado no Android. Isso é separado da síntese offline da Alex.
-- No Windows, Alex usa Kokoro local também. Em **Voz**, o botão de instalação obtém o modelo e a opção SAPI5 é alternativa **apenas quando explicitamente escolhida**.
-- Nem Android nem Windows exigem Cloudflare, URL, token ou chave de IA para usar a voz Alex.
+## Funcionalidades de voz
 
-## Compilação
-Os workflows Android baixam a biblioteca oficial `sherpa-onnx-2.0.1.aar`, validando SHA-256. Ela não é commitada ao repositório. Para compilar manualmente na raiz do projeto, rode:
+- **Instalar Faber**: download opcional, único, do pacote oficial de aproximadamente 67 MB, com checksum SHA-256 fixado.
+- **Testar Faber**: síntese e reprodução diretamente no Android, sem nuvem, servidor ou chave de API.
+- **Diagnóstico**: botão para copiar qual etapa falhou, caso o modelo não carregue ou reproduza.
+- **Falar agora**: reconhecimento pelo serviço de entrada de fala do Android (separado do motor de síntese Faber; esse reconhecimento pode usar a rede conforme as configurações do aparelho).
+- Na atualização, o Home remove apenas os arquivos do antigo modelo Alex de sua pasta privada; preserva o Notch, os olhinhos e todas as demais preferências.
+
+Fonte: https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-pt_BR-faber-medium.tar.bz2
+
+Modelo SHA-256: `7add3f923ad6bc25ca8a192805fd1a64d1b3893e4611c4a9719545a825039a83`
+
+## Compilar
+
+Na raiz do repositório, instale a biblioteca JNI oficial antes do Gradle:
 
 ```bash
 bash android/prepare-sherpa.sh
@@ -20,9 +24,6 @@ cd android
 gradle --no-daemon :app:assembleDebug
 ```
 
-A versão oficial é publicada em `android-vX.Y.Z` na seção Releases do GitHub, assinada pelo mesmo keystore privado; pode atualizar **por cima** da versão oficial anterior pelo botão Atualizações no aplicativo. A versão debug do GitHub Actions não é assinada com o certificado de release.
+Os workflows oficiais fazem a mesma etapa e assinam a release com o keystore estável. Instale sempre **Home-Android.apk** da Release oficial (não o debug) para atualizar por cima, preservando dados.
 
-## Privacidade e limitações
-O Home não acessa aplicativos de terceiros nem exige configurar servidores para funcionar. O download inicial do modelo e a verificação de atualizações exigem internet. Áudio de saída é produzido localmente. O reconhecimento da **entrada de voz** pode usar recursos online ou offline conforme o serviço de reconhecimento do dispositivo; ele não está implementado como mecanismo Vosk local no Android.
-
-A sobreposição do notch depende da permissão do sistema e pode ser limitada em regiões de barra de status do HyperOS.
+A reprodução de áudio precisa ser verificada em aparelho físico: passar na compilação não comprova qualidade ou fluidez. O Home nunca substituirá Faber silenciosamente por uma voz do Google.
