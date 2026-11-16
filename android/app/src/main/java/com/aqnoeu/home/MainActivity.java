@@ -429,7 +429,8 @@ public final class MainActivity extends Activity {
             try{
                 startForegroundService(new Intent(this,OverlayService.class));
                 statusMessage("✓ Notch ativado.");
-                if(WakeWordService.enabled(this))startWake();
+                if(WakeWordService.enabled(this))
+                    new Handler(Looper.getMainLooper()).postDelayed(this::startWake,750);
             }catch(Exception e){statusMessage("Não foi possível ativar: "+e.getMessage());}
         });
         action(box,"Desativar Notch",false,()->{
@@ -558,6 +559,9 @@ public final class MainActivity extends Activity {
     }
     @Override protected void onActivityResult(int request,int resultCode,Intent data){
         super.onActivityResult(request,resultCode,data);
+        if(request==HomeVoice.REQUEST_SPEECH && (resultCode!=RESULT_OK || data==null)){
+            resumeWakeLater();return;
+        }
         if(request==HomeVoice.REQUEST_SPEECH && resultCode==RESULT_OK && data!=null){
             java.util.ArrayList<String> results=data.getStringArrayListExtra(
                 android.speech.RecognizerIntent.EXTRA_RESULTS);
