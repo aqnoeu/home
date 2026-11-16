@@ -52,6 +52,8 @@ public final class EyesView extends View {
         else if("sonolento".equals(state)){rgb=Color.rgb(142,175,207);targetH=.38f;}
         else if("tedio".equals(state)){rgb=Color.rgb(139,149,164);targetH=.78f;targetW=.78f;}
         else if("carregando".equals(state)){rgb=Color.rgb(0,196,106);}
+        else if("bateria_baixa".equals(state)){rgb=Color.rgb(242,164,68);targetH=.86f;}
+        else if("economia".equals(state)){rgb=Color.rgb(147,184,219);targetH=.72f;}
         colorR=lerp(colorR,Color.red(rgb),smoothing);
         colorG=lerp(colorG,Color.green(rgb),smoothing);
         colorB=lerp(colorB,Color.blue(rgb),smoothing);

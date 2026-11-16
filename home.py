@@ -98,6 +98,8 @@ class EyesWidget(QWidget):
             "sonolento": (.40, 1., QColor("#8EAFCF")),
             "tedio": (.75, .77, QColor("#8B95A4")),
             "carregando": (1., 1., QColor("#00C46A")),
+            "bateria_baixa": (.86, 1., QColor("#F2A444")),
+            "economia": (.72, 1., QColor("#93B8DB")),
         }
         hh, ww, color = targets.get(self.emotion, targets["neutro"])
         factor = min(1., dt * 5.5)
@@ -337,7 +339,9 @@ class Home(QWidget):
         if foreground != self.emotion_context.focused_window:
             self.emotion_context.focused_window = foreground
             self.emotion_context.focused_since = now
-        self.eyes.emotion = self.emotion_context.choose(now, charging=charging)
+        low, saver = WindowsContext.power_details()
+        self.eyes.emotion = self.emotion_context.choose(
+            now, charging=charging, battery_low=low, power_saver=saver)
 
     def _remember_page(self,title,url,content):
         self.last_page = (title,url,content)

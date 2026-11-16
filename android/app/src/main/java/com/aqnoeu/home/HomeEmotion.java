@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.BatteryManager;
+import android.os.PowerManager;
 import android.os.SystemClock;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -53,10 +54,27 @@ public final class HomeEmotion {
                                 ||state==BatteryManager.BATTERY_STATUS_FULL);
         }catch(Exception ignored){return false;}
     }
+    private static boolean batteryLow(Context context){
+        try{
+            Intent battery=context.registerReceiver(null,new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+            if(battery==null)return false;
+            int level=battery.getIntExtra(BatteryManager.EXTRA_LEVEL,-1);
+            int scale=battery.getIntExtra(BatteryManager.EXTRA_SCALE,-1);
+            int plugged=battery.getIntExtra(BatteryManager.EXTRA_PLUGGED,0);
+            return scale>0 && level>=0 && plugged==0 &&
+                (100f*level/scale)<=20f;
+        }catch(Exception ignored){return false;}
+    }
+    private static boolean powerSaving(Context context){
+        PowerManager power=(PowerManager)context.getSystemService(Context.POWER_SERVICE);
+        return power!=null && power.isPowerSaveMode();
+    }
     public static String current(Context context){
         long now=SystemClock.elapsedRealtime();
         if(now<conversationUntil)return conversational;
         if(charging(context))return "carregando";
+        if(batteryLow(context))return "bateria_baixa";
+        if(powerSaving(context))return "economia";
         if(now-LAST_TOUCH.get()>=5*60*1000L)return "sonolento";
         // Without Accessibility permission, observe only the HOME screen itself.
         if(now-pageSince>=12*60*1000L)return "tedio";

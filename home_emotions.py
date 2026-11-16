@@ -32,13 +32,17 @@ class ContextState:
         self.conversation_until = now + CONVERSATION_HOLD_SECONDS
         self.last_activity = now
 
-    def choose(self, now, charging=False):
+    def choose(self, now, charging=False, battery_low=False, power_saver=False):
         # A reply is always visible while the assistant speaks.
         if now < self.conversation_until:
             return self.conversation_emotion
         # Charging is an operational condition, not an AI-generated emotion.
         if charging:
             return "carregando"
+        if battery_low:
+            return "bateria_baixa"
+        if power_saver:
+            return "economia"
         if self.last_activity and now - self.last_activity >= IDLE_SLEEP_SECONDS:
             return "sonolento"
         if self.focused_since and now - self.focused_since >= SAME_WINDOW_BORED_SECONDS:
@@ -61,6 +65,22 @@ class WindowsContext:
             ("BatteryLifeTime", ctypes.c_ulong),
             ("BatteryFullLifeTime", ctypes.c_ulong),
         ]
+
+    @staticmethod
+    def power_details():
+        """Battery warning and saver state; never triggers alerts or notifications."""
+        if os.name != "nt":
+            return False, False
+        try:
+            power = WindowsContext.SystemPowerStatus()
+            if not ctypes.windll.kernel32.GetSystemPowerStatus(ctypes.byref(power)):
+                return False, False
+            low = bool(power.ACLineStatus == 0 and power.BatteryFlag != 128
+                       and power.BatteryLifePercent != 255 and power.BatteryLifePercent <= 20)
+            saver = bool(power.SystemStatusFlag == 1)
+            return low, saver
+        except (OSError, AttributeError, ValueError):
+            return False, False
 
     @staticmethod
     def sample(now=None):
