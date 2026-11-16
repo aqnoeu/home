@@ -85,9 +85,13 @@ class AssistantPage(QWidget):
         save=QPushButton("Salvar conexão")
         save.setObjectName("saveGroq")
         save.clicked.connect(self.save_groq_inline)
+        test=QPushButton("Testar Groq")
+        test.setObjectName("testGroq")
+        test.clicked.connect(self.test_groq_inline)
         cancel=QPushButton("Cancelar")
         cancel.clicked.connect(self.hide_groq_inline)
         key_actions.addWidget(save)
+        key_actions.addWidget(test)
         key_actions.addWidget(cancel)
         credential_layout.addLayout(key_actions)
         self.groq_panel.setVisible(False)
@@ -227,6 +231,31 @@ class AssistantPage(QWidget):
             self.hide_groq_inline()
         except Exception as exc:
             self.groq_hint.setText("Não foi possível salvar: "+str(exc)[:160])
+
+    def test_groq_inline(self):
+        # Real authentication check without a popup, plaintext logs, or audio.
+        if self.groq_input.text().strip():
+            try:
+                save_key(self.groq_input.text())
+                self.groq_input.clear()
+            except Exception as exc:
+                self.groq_hint.setText("Chave inválida: "+str(exc)[:160])
+                return
+        if not get_key():
+            self.groq_hint.setText("Cole sua chave Groq antes de testar.")
+            return
+        if self.groq_worker and self.groq_worker.isRunning():
+            self.groq_hint.setText("Já estou verificando a conexão.")
+            return
+        worker=GroqWorker("Responda apenas com uma saudação curta.", parent=self.home)
+        self.groq_worker=worker
+        self.home.groq_worker=worker
+        self.groq_hint.setText("Verificando conexão e permissão do modelo…")
+        worker.answered.connect(lambda text:self.groq_hint.setText(
+            "✓ Groq funcionando neste PC: "+text[:90]))
+        worker.failed.connect(lambda problem:self.groq_hint.setText(
+            "Teste falhou: "+problem[:180]))
+        worker.start()
 
     def ask_ai(self, question):
         if not get_key():
