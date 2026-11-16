@@ -60,6 +60,44 @@ def clear_key():
         pass
 
 
+def explain_groq_http_error(exc):
+    """Distinguish model/organization/project permissions without showing API secrets."""
+    try:
+        raw=exc.read(8193)
+        if len(raw)>8192:
+            return "Groq HTTP %s: retorno de erro muito grande." % exc.code
+        payload=json.loads(raw)
+        details=payload.get("error", {})
+        if not isinstance(details, dict):
+            details={}
+        code=details.get("code","")
+        kind=details.get("type","")
+    except (OSError, ValueError, TypeError, AttributeError):
+        code=kind=""
+    if exc.code == 401:
+        return "Groq HTTP 401: credencial recusada. Troque a chave salva no HOME."
+    if exc.code == 403:
+        if code == "model_permission_blocked_org":
+            return ("Groq HTTP 403: o modelo openai/gpt-oss-20b foi bloqueado "
+                    "pela organização. Verifique Settings → Organization → Limits.")
+        if code == "model_permission_blocked_project":
+            return ("Groq HTTP 403: o modelo openai/gpt-oss-20b foi bloqueado "
+                    "pelo projeto. Verifique Settings → Project → Limits.")
+        if code:
+            # The code is a classifier, not an arbitrary server message.
+            safe_code="".join(ch for ch in str(code) if ch.isascii() and
+                              (ch.isalnum() or ch in "_-"))[:70]
+            return "Groq HTTP 403: permissão negada (código %s)." % safe_code
+        return ("Groq HTTP 403: requisição proibida. A chave pode estar válida, "
+                "mas o projeto, organização ou acesso ao modelo precisa ser verificado.")
+    if exc.code == 429:
+        return "Groq HTTP 429: limite de requisições atingido."
+    if exc.code == 400:
+        return ("Groq HTTP 400: parâmetros rejeitados pelo modelo. "
+                "Verifique a versão do HOME.")
+    return "Groq HTTP %s: solicitação não concluída." % exc.code
+
+
 def ask_groq(message, history=None, api_key=None, structured=False):
     key = api_key or get_key()
     if not key:
@@ -93,15 +131,7 @@ def ask_groq(message, history=None, api_key=None, structured=False):
             if len(raw)>128000:
                 raise RuntimeError("Resposta da Groq excedeu o limite.")
     except urllib.error.HTTPError as exc:
-        # 401 means invalid credential; 403 can also be project/model permissions.
-        # Do not print or return the authorization header or raw response body.
-        if exc.code == 401:
-            raise RuntimeError("Groq HTTP 401: credencial recusada. Substitua a chave no HOME PC.") from None
-        if exc.code == 403:
-            raise RuntimeError("Groq HTTP 403: acesso bloqueado ou modelo sem permissão no projeto; a chave pode ser válida.") from None
-        if exc.code==429:
-            raise RuntimeError("Limite da Groq atingido. Tente mais tarde.") from None
-        raise RuntimeError("Groq indisponível (HTTP %s)." % exc.code) from None
+        raise RuntimeError(explain_groq_http_error(exc)) from None
     except urllib.error.URLError:
         raise RuntimeError("Não foi possível conectar à Groq. Verifique a internet.") from None
     try:
