@@ -44,6 +44,10 @@ public final class MainActivity extends Activity {
     private ScrollView scroll;
     private TextView status;
     private LinearLayout chatMessages, chatPicker;
+    private ScrollView chatScroll;
+    private android.widget.EditText chatInput;
+    private final Handler wakeHandler=new Handler(Looper.getMainLooper());
+    private Runnable wakeResumeTask;
     private TextView chatTitle;
     private String currentPage = "hub";
     private static final int WAKE_PERMISSION_REQUEST = 721;
@@ -263,7 +267,7 @@ public final class MainActivity extends Activity {
             clearInline();accept.run();
         },"Cancelar",this::clearInline);
         add(inlineHost,panel,0,17);
-        scroll.smoothScrollTo(0,0);
+        if(scroll!=null && scroll.getParent()!=null)scroll.smoothScrollTo(0,0);
     }
     private void showHub(){
         initScreen("hub",null);
@@ -327,74 +331,197 @@ public final class MainActivity extends Activity {
             default: exitPage();
         }
     }
+    /** A real chat layout: independent message scroll and a fixed input dock. */
     private void assistantPage(){
-        LinearLayout welcome=card("Converse com HOME","A Groq pensa. A Faber fala no próprio dispositivo.");
-        TextView state=note(HomeGroq.connected(this)?"✓ Groq conectada":"Conecte a Groq para começar.");
-        if(HomeGroq.connected(this))state.setTextColor(GREEN);
-        add(welcome,state,0,8);
-        LinearLayout credential=column();
-        EditText secret=edit("Chave pessoal Groq · gsk_...",true);
-        add(credential,secret,2,8);
-        TextView keyInfo=note("Sua chave fica protegida pelo Android. Só precisa cadastrar uma vez.");
-        add(credential,keyInfo,0,8);
-        action(credential,"Salvar conexão",true,()->{
-            try{
-                HomeGroq.connect(this,secret.getText().toString());
-                secret.setText("");success(state,"Groq conectada");
-                credential.setVisibility(View.GONE);
-                statusMessage("Conexão Groq salva com segurança.");
-            }catch(Exception e){keyInfo.setText("Não foi possível conectar: "+e.getMessage());}
+        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+        LinearLayout shell=column();
+        shell.setBackgroundColor(BG);
+        shell.setFocusableInTouchMode(true);
+        final int horizontal=dp(14);
+        shell.setPadding(horizontal,dp(12),horizontal,dp(12));
+        shell.setOnApplyWindowInsetsListener((view,insets)->{
+            if(Build.VERSION.SDK_INT>=30){
+                android.graphics.Insets bars=insets.getInsets(
+                    WindowInsets.Type.systemBars()|WindowInsets.Type.displayCutout());
+                android.graphics.Insets keyboard=insets.getInsets(WindowInsets.Type.ime());
+                shell.setPadding(horizontal,bars.top+dp(10),horizontal,
+                    Math.max(bars.bottom,keyboard.bottom)+dp(8));
+            }
+            return insets;
         });
-        credential.setVisibility(View.GONE);
-        welcome.addView(credential);
-        action(welcome,"Conectar / alterar chave",false,
-            ()->credential.setVisibility(credential.getVisibility()==View.VISIBLE?View.GONE:View.VISIBLE));
+        setContentView(shell);
+        shell.requestApplyInsets();
 
-        LinearLayout history=card("Histórico de conversas","As mensagens ficam salvas neste aparelho, inclusive as perguntas por voz.");
-        TextView current=note("Conversa atual");
-        chatTitle=current;
-        add(history,current,0,11);
-        actions(history,"Nova conversa",()->{
+        LinearLayout top=new LinearLayout(this);
+        top.setOrientation(LinearLayout.HORIZONTAL);
+        top.setGravity(Gravity.CENTER_VERTICAL);
+        Button back=button("‹",false,this::showHub);
+        back.setTextSize(22);
+        top.addView(back,new LinearLayout.LayoutParams(dp(48),dp(48)));
+        LinearLayout titleBox=column();
+        TextView label=heading("HOME",19);
+        add(titleBox,label,0,3);
+        TextView state=note(HomeGroq.connected(this)?"● Groq conectada":"● Groq desconectada");
+        state.setTextColor(HomeGroq.connected(this)?GREEN:MUTED);
+        add(titleBox,state,0,0);
+        LinearLayout.LayoutParams titleParams=new LinearLayout.LayoutParams(0,-2,1);
+        titleParams.leftMargin=dp(12);
+        top.addView(titleBox,titleParams);
+        Button newChat=button("+",false,()->{
             HomeChatStore.get(this).newChat();
             refreshChat();
-            showStatus("Nova conversa criada.");
-        },"Conversas salvas",()->{
-            if(chatPicker.getVisibility()==View.VISIBLE)chatPicker.setVisibility(View.GONE);
-            else{renderChatList();chatPicker.setVisibility(View.VISIBLE);}
+            if(chatPicker!=null)chatPicker.setVisibility(View.GONE);
         });
-        chatPicker=column();
-        chatPicker.setVisibility(View.GONE);
-        history.addView(chatPicker);
+        newChat.setContentDescription("Nova conversa");
+        newChat.setTextSize(23);
+        top.addView(newChat,new LinearLayout.LayoutParams(dp(48),dp(48)));
+        shell.addView(top,new LinearLayout.LayoutParams(-1,-2));
 
-        LinearLayout conversation=card("Mensagens","Suas perguntas à direita e respostas do HOME à esquerda.");
+        LinearLayout infoRow=new LinearLayout(this);
+        infoRow.setOrientation(LinearLayout.HORIZONTAL);
+        infoRow.setGravity(Gravity.CENTER_VERTICAL);
+        chatTitle=note("Conversa atual");
+        chatTitle.setSingleLine(true);
+        chatTitle.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        infoRow.addView(chatTitle,new LinearLayout.LayoutParams(0,dp(44),1));
+        chatTitle.setGravity(Gravity.CENTER_VERTICAL);
+        Button history=button("Conversas ▾",false,()->{
+            if(chatPicker.getVisibility()==View.VISIBLE) chatPicker.setVisibility(View.GONE);
+            else { renderChatList(); chatPicker.setVisibility(View.VISIBLE); }
+        });
+        history.setTextSize(12);
+        infoRow.addView(history,new LinearLayout.LayoutParams(dp(126),dp(44)));
+        shell.addView(infoRow,new LinearLayout.LayoutParams(-1,-2));
+
+        ScrollView pickerScroll=new ScrollView(this);
+        pickerScroll.setFillViewport(false);
+        pickerScroll.setBackground(bg(SURFACE,14));
+        pickerScroll.setVerticalScrollBarEnabled(true);
+        chatPicker=column();
+        chatPicker.setPadding(dp(8),dp(8),dp(8),dp(8));
+        pickerScroll.addView(chatPicker,new ScrollView.LayoutParams(-1,-2));
+        pickerScroll.setVisibility(View.GONE);
+        // Keep the list from growing beyond the available screen.
+        shell.addView(pickerScroll,new LinearLayout.LayoutParams(-1,dp(190)));
+        pickerScroll.setVisibility(View.GONE);
+        // The button is connected to the bounded ScrollView instead of the unbounded list.
+        history.setOnClickListener(v->{
+            if(pickerScroll.getVisibility()==View.VISIBLE)pickerScroll.setVisibility(View.GONE);
+            else{renderChatList();pickerScroll.setVisibility(View.VISIBLE);}
+        });
+
+        View rule=new View(this);
+        rule.setBackgroundColor(LINE);
+        LinearLayout.LayoutParams ruleParams=new LinearLayout.LayoutParams(-1,dp(1));
+        ruleParams.bottomMargin=dp(6);
+        shell.addView(rule,ruleParams);
+
+        chatScroll=new ScrollView(this);
+        chatScroll.setFillViewport(true);
+        chatScroll.setClipToPadding(false);
+        chatScroll.setVerticalScrollBarEnabled(true);
         chatMessages=column();
-        add(conversation,chatMessages,0,13);
-        EditText question=edit("Escreva sua pergunta...",false);
-        question.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(750)});
-        add(conversation,question,2,12);
-        TextView feedback=note("");
-        feedback.setVisibility(View.GONE);
-        conversation.addView(feedback);
-        actions(conversation,"Enviar ↗",()->{
-            String q=question.getText().toString().trim();
-            if(q.isEmpty()){feedback.setText("Digite uma pergunta.");feedback.setVisibility(View.VISIBLE);return;}
-            question.setText("");
-            feedback.setText("HOME está pensando…");feedback.setVisibility(View.VISIBLE);
-            ((InputMethodManager)getSystemService(INPUT_METHOD_SERVICE))
-                .hideSoftInputFromWindow(question.getWindowToken(),0);
-            askHome(q,feedback);
-            refreshChat();
-        },"Falar agora",()->HomeVoice.listen(this));
-        action(conversation,"Desconectar Groq",false,()->requestInlineConfirm(
-            "Desconectar Groq","Isso apaga apenas a chave e a memória temporária da IA. Suas conversas salvas serão preservadas.",()->{
-                HomeGroq.disconnect(this);
-                state.setText("Groq desconectada");
-                state.setTextColor(MUTED);
-                feedback.setText("Conexão removida. O histórico continua salvo.");
-                feedback.setVisibility(View.VISIBLE);
-            }));
+        chatMessages.setPadding(dp(2),dp(10),dp(2),dp(12));
+        chatScroll.addView(chatMessages,new ScrollView.LayoutParams(-1,-2));
+        shell.addView(chatScroll,new LinearLayout.LayoutParams(-1,0,1f));
+
+        status=note("");
+        status.setVisibility(View.GONE);
+        status.setMaxLines(3);
+        status.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        LinearLayout.LayoutParams stateParams=new LinearLayout.LayoutParams(-1,-2);
+        stateParams.topMargin=dp(3);stateParams.bottomMargin=dp(4);
+        shell.addView(status,stateParams);
+
+        LinearLayout dock=new LinearLayout(this);
+        dock.setOrientation(LinearLayout.HORIZONTAL);
+        dock.setGravity(Gravity.BOTTOM|Gravity.CENTER_VERTICAL);
+        dock.setBackground(bg(RAISED,22));
+        dock.setPadding(dp(6),dp(5),dp(6),dp(5));
+
+        Button mic=button("◉",false,()->HomeVoice.listen(this));
+        mic.setTextSize(20);
+        mic.setContentDescription("Falar com o Home");
+        mic.setBackgroundColor(Color.TRANSPARENT);
+        dock.addView(mic,new LinearLayout.LayoutParams(dp(44),dp(48)));
+
+        chatInput=new EditText(this);
+        chatInput.setHint("Mensagem para o HOME…");
+        chatInput.setHintTextColor(MUTED);
+        chatInput.setTextColor(WHITE);
+        chatInput.setTextSize(15);
+        chatInput.setIncludeFontPadding(false);
+        chatInput.setSingleLine(false);
+        chatInput.setMinLines(1);chatInput.setMaxLines(5);
+        chatInput.setGravity(Gravity.CENTER_VERTICAL|Gravity.START);
+        chatInput.setInputType(InputType.TYPE_CLASS_TEXT|
+            InputType.TYPE_TEXT_FLAG_CAP_SENTENCES|InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        chatInput.setPadding(dp(6),dp(9),dp(6),dp(9));
+        chatInput.setBackgroundColor(Color.TRANSPARENT);
+        chatInput.setFilters(new android.text.InputFilter[]{
+            new android.text.InputFilter.LengthFilter(750)});
+        dock.addView(chatInput,new LinearLayout.LayoutParams(0,-2,1f));
+
+        Button send=button("➤",true,()->sendChatMessage());
+        send.setTextSize(20);
+        send.setContentDescription("Enviar mensagem");
+        LinearLayout.LayoutParams sendParams=new LinearLayout.LayoutParams(dp(46),dp(46));
+        sendParams.leftMargin=dp(3);
+        dock.addView(send,sendParams);
+        LinearLayout.LayoutParams dockParams=new LinearLayout.LayoutParams(-1,-2);
+        dockParams.topMargin=dp(6);
+        shell.addView(dock,dockParams);
+
+        inlineHost=column();
+        shell.addView(inlineHost,new LinearLayout.LayoutParams(-1,-2));
         refreshChat();
-        add(root,note("A fala é sintetizada pela Faber offline. As perguntas são enviadas à Groq somente quando conectada."),0,12);
+        shell.requestFocus();
+
+        // Connection management is hidden behind a long press on the connection indicator.
+        state.setOnClickListener(v->showConnectionSettings(state));
+        state.setText(state.getText()+" · toque para configurar");
+    }
+
+    private void showConnectionSettings(TextView state){
+        clearInline();
+        LinearLayout panel=column();
+        panel.setPadding(dp(12),dp(12),dp(12),dp(12));
+        panel.setBackground(bg(SURFACE,14));
+        add(panel,heading("Conexão Groq",16),0,6);
+        EditText secret=edit("Chave Groq · gsk_…",true);
+        add(panel,secret,0,7);
+        action(panel,"Salvar chave",true,()->{
+            try{
+                HomeGroq.connect(this,secret.getText().toString());
+                secret.setText("");
+                state.setText("● Groq conectada · toque para configurar");
+                state.setTextColor(GREEN);
+                clearInline();
+                statusMessage("Conexão Groq salva.");
+            }catch(Exception e){statusMessage("Não foi possível conectar: "+e.getMessage());}
+        });
+        action(panel,"Desconectar",false,()->requestInlineConfirm(
+            "Desconectar Groq","Suas conversas salvas serão preservadas.",()->{
+                HomeGroq.disconnect(this);
+                state.setText("● Groq desconectada · toque para configurar");
+                state.setTextColor(MUTED);
+            }));
+        action(panel,"Fechar",false,this::clearInline);
+        inlineHost.addView(panel,new LinearLayout.LayoutParams(-1,-2));
+    }
+
+    private void sendChatMessage(){
+        if(chatInput==null)return;
+        String q=chatInput.getText().toString().trim();
+        if(q.isEmpty())return;
+        if(!HomeGroq.connected(this)){
+            statusMessage("Conecte a Groq tocando no indicador do cabeçalho.");
+            return;
+        }
+        chatInput.setText("");
+        statusMessage("HOME está pensando…");
+        refreshChat();
+        askHome(q,status);
     }
     private void bubble(String role,String message){
         if(chatMessages==null)return;
@@ -403,7 +530,7 @@ public final class MainActivity extends Activity {
         line.setOrientation(LinearLayout.HORIZONTAL);
         line.setGravity(user?Gravity.RIGHT:Gravity.LEFT);
         TextView body=text(message,15,WHITE,false);
-        body.setMaxWidth(dp(narrow()?280:390));
+        body.setMaxWidth(Math.round(getResources().getDisplayMetrics().widthPixels*0.80f));
         body.setBackground(bg(user?BLUE:RAISED,16));
         body.setPadding(dp(15),dp(12),dp(15),dp(12));
         LinearLayout.LayoutParams bodySize=new LinearLayout.LayoutParams(-2,-2);
@@ -427,7 +554,8 @@ public final class MainActivity extends Activity {
             JSONObject m=messages.optJSONObject(i);
             if(m!=null)bubble(m.optString("role"),m.optString("text"));
         }
-        if(messages.length()==0)add(chatMessages,note("Ainda não há mensagens nesta conversa."),0,10);
+        if(messages.length()==0)add(chatMessages,note("Comece uma conversa com o HOME."),0,10);
+        if(chatScroll!=null)chatScroll.post(()->chatScroll.fullScroll(View.FOCUS_DOWN));
     }
     private void renderChatList(){
         if(chatPicker==null)return;
@@ -441,7 +569,7 @@ public final class MainActivity extends Activity {
             LinearLayout item=column();
             item.setPadding(dp(10),dp(9),dp(10),dp(9));
             add(item,button(name+" · "+date,false,()->{
-                store.select(id);chatPicker.setVisibility(View.GONE);refreshChat();
+                store.select(id);((View)chatPicker.getParent()).setVisibility(View.GONE);refreshChat();
             }),0,5);
             Button delete=button("Excluir conversa",false,()->requestInlineConfirm(
                 "Excluir conversa","Excluir permanentemente esta conversa apenas deste aparelho?",()->{
