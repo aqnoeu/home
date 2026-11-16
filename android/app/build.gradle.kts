@@ -15,7 +15,7 @@ android {
         require(groqKey.isEmpty() || groqKey.matches(Regex("gsk_[A-Za-z0-9_-]{20,200}"))) {
             "HOME_GROQ_API_KEY must be a valid Groq API key without whitespace"
         }
-        buildConfigField("String", "HOME_GROQ_API_KEY", "\\\"${groqKey}\\\"")
+        buildConfigField("String", "HOME_GROQ_API_KEY", "\"${groqKey}\"")
     }
     signingConfigs {
         create("releaseKey") {
