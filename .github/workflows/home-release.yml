@@ -62,7 +62,7 @@ jobs:
       - name: Instalar dependências
         run: python -m pip install --upgrade -r requirements.txt pyinstaller pillow
       - name: Verificar sintaxe de todos os módulos Windows
-        run: python -m compileall -q home_groq_client.py home.py home_ui.py home_navigation.py home_assistant.py home_integrations.py home_voice.py home_faber.py home_groq.py home_emotions.py home_chat_store.py updater.py update_service.py
+        run: python -m compileall -q home_device.py home_groq_client.py home.py home_ui.py home_navigation.py home_assistant.py home_integrations.py home_voice.py home_faber.py home_groq.py home_emotions.py home_chat_store.py updater.py update_service.py
       - name: Testar chat, credenciais, voz e Groq simulada
         run: python -m unittest discover -s tests -v
       - name: Testar interface Windows sem display físico

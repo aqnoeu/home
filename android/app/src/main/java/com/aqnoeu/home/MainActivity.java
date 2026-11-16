@@ -541,6 +541,7 @@ public final class MainActivity extends Activity {
             "Ações visíveis e notificações apenas após sua autorização.");
         actions(daily,"Abrir agenda",()->openDeviceIntent(DeviceHub.calendarIntent()),
             "Novo evento",()->openDeviceIntent(DeviceHub.newEventIntent()));
+        action(daily,"Compromissos de hoje (com permissão)",false,this::showTodayEvents);
         actions(daily,"Alarmes",()->openDeviceIntent(DeviceHub.alarmsIntent()),
             "Som do sistema",()->openDeviceIntent(DeviceHub.soundSettings()));
         action(daily,"Ver notificações autorizadas",false,this::showNotifications);
@@ -569,6 +570,46 @@ public final class MainActivity extends Activity {
                 android.media.AudioManager.FLAG_SHOW_UI);
             statusMessage(DeviceHub.audio(this));
         }catch(SecurityException ex){statusMessage("O sistema não permitiu alterar o volume.");}
+    }
+    private void showTodayEvents(){
+        if(checkSelfPermission(Manifest.permission.READ_CALENDAR)!=PackageManager.PERMISSION_GRANTED){
+            statusMessage("Autorize a leitura da agenda para ver os eventos de hoje. Nenhum evento será enviado à IA.");
+            requestPermissions(new String[]{Manifest.permission.READ_CALENDAR},723);
+            return;
+        }
+        statusMessage("Consultando a agenda local...");
+        new Thread(()->{
+            String answer="Nenhum compromisso encontrado hoje.";
+            try{
+                java.util.Calendar calendar=java.util.Calendar.getInstance();
+                calendar.set(java.util.Calendar.HOUR_OF_DAY,0);
+                calendar.set(java.util.Calendar.MINUTE,0);
+                calendar.set(java.util.Calendar.SECOND,0);
+                calendar.set(java.util.Calendar.MILLISECOND,0);
+                long begin=calendar.getTimeInMillis();
+                calendar.add(java.util.Calendar.DAY_OF_MONTH,1);
+                long end=calendar.getTimeInMillis();
+                java.util.ArrayList<String> titles=new java.util.ArrayList<>();
+                try(android.database.Cursor cursor=android.provider.CalendarContract.Instances.query(
+                    getContentResolver(),
+                    new String[]{android.provider.CalendarContract.Instances.TITLE,
+                        android.provider.CalendarContract.Instances.BEGIN},begin,end)){
+                    if(cursor!=null){
+                        while(cursor.moveToNext() && titles.size()<8){
+                            String title=cursor.getString(0);
+                            long time=cursor.getLong(1);
+                            String clock=new java.text.SimpleDateFormat("HH:mm",
+                                new java.util.Locale("pt","BR")).format(new Date(time));
+                            titles.add(clock+" · "+(title==null?"Sem título":
+                                title.substring(0,Math.min(title.length(),90))));
+                        }
+                    }
+                }
+                if(!titles.isEmpty())answer="Compromissos de hoje:\\n"+String.join("\\n",titles);
+            }catch(Exception ex){answer="Não consegui ler os compromissos deste aparelho.";}
+            final String result=answer;
+            runOnUiThread(()->{if(!isFinishing())statusMessage(result);});
+        },"home-calendar-read").start();
     }
     private void showNotifications(){
         if(!HomeNotifications.connected()){
