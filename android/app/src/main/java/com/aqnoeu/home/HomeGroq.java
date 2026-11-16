@@ -127,9 +127,9 @@ public final class HomeGroq {
                 if(status==401)throw new IllegalStateException("Groq HTTP 401: chave recusada.");
                 if(status==403){
                     String reason="Groq HTTP 403: acesso negado para este modelo ou projeto.";
-                    try(InputStream error=connection.getErrorStream()){
-                        if(error!=null){
-                            byte[] raw=new byte[4096];int size=error.read(raw);
+                    try(InputStream errorStream=connection.getErrorStream()){
+                        if(errorStream!=null){
+                            byte[] raw=new byte[4096];int size=errorStream.read(raw);
                             if(size>0){
                                 JSONObject detail=new JSONObject(new String(raw,0,size,StandardCharsets.UTF_8))
                                     .optJSONObject("error");
