@@ -30,6 +30,6 @@ public final class HomeVoice {
         if(message.contains("bom dia")||message.contains("boa tarde")||message.contains("boa noite")||message.contains("olá")||message.equals("oi"))return "Olá! Que bom ouvir você!";
         if(message.contains("hora"))return "Agora são "+new java.text.SimpleDateFormat("HH:mm",new Locale("pt","BR")).format(new java.util.Date())+".";
         if(message.contains("como você está"))return "Estou muito feliz por estar aqui com você!";
-        return "Eu ouvi: "+phrase+". Ainda estou aprendendo a responder.";
+        return "Ainda não estou conectado a uma inteligência artificial para responder perguntas abertas. Por enquanto, posso dizer as horas e reagir a saudações.";
     }
 }
