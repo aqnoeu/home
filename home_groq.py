@@ -39,7 +39,7 @@ def get_key():
         # A failure reading the Windows vault must never silently select a
         # packaged key and cause misleading HTTP 401 responses.
         return None
-    return BUILTIN_GROQ_KEY.strip() if BUILTIN_GROQ_KEY.strip().startswith("gsk_") else None
+    return None
 
 
 def has_native_key():
@@ -106,10 +106,33 @@ def explain_groq_http_error(exc):
     return "Groq HTTP %s: solicitação não concluída." % exc.code
 
 
+def verify_groq_credentials(api_key=None):
+    """Diagnose authentication without depending on chat-completion permissions."""
+    key = api_key or get_key()
+    if not key:
+        raise RuntimeError("Nenhuma chave pessoal recuperada do Windows.")
+    request = urllib.request.Request(
+        "https://api.groq.com/openai/v1/models",
+        headers={"Authorization": "Bearer " + key, "Accept": "application/json"},
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            payload = json.load(response)
+    except urllib.error.HTTPError as exc:
+        raise RuntimeError(explain_groq_http_error(exc)) from None
+    except urllib.error.URLError:
+        raise RuntimeError("Não foi possível alcançar a Groq. Verifique rede e firewall.") from None
+    if not isinstance(payload, dict) or not isinstance(payload.get("data"), list):
+        raise RuntimeError("Resposta de autenticação inesperada da Groq.")
+    models = {item.get("id") for item in payload["data"] if isinstance(item, dict)}
+    return MODEL in models
+
+
 def ask_groq(message, history=None, api_key=None, structured=False):
     key = api_key or get_key()
     if not key:
-        raise RuntimeError("A Groq ainda não foi provisionada nesta compilação do HOME.")
+        raise RuntimeError("Nenhuma chave Groq recuperada do Gerenciador de Credenciais do Windows.")
     question = (message or "").strip()
     if not question or len(question) > 750:
         raise ValueError("Pergunta vazia ou maior que 750 caracteres.")
@@ -162,15 +185,22 @@ def ask_groq(message, history=None, api_key=None, structured=False):
 class GroqWorker(QThread):
     answered=Signal(str)
     emotional_answer=Signal(str,str)
+    credentials_checked=Signal(bool)
     failed=Signal(str)
 
-    def __init__(self, question, history=None, parent=None):
+    def __init__(self, question, history=None, parent=None, check_credentials=False):
         super().__init__(parent)
         self.question=question
         self.history=list(history or [])
+        self.check_credentials=check_credentials
 
     def run(self):
         try:
+            if self.check_credentials:
+                model_available = verify_groq_credentials()
+                self.credentials_checked.emit(model_available)
+                if not model_available:
+                    raise RuntimeError("Chave aceita pela Groq, mas o modelo do HOME não está listado nesta conta.")
             speech,emotion=ask_groq(self.question,self.history,structured=True)
             self.emotional_answer.emit(speech,emotion)
             self.answered.emit(speech)
