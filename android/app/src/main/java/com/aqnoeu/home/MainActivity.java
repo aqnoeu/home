@@ -171,9 +171,20 @@ public final class MainActivity extends Activity {
         if(!getSharedPreferences("home",MODE_PRIVATE).getBoolean("notch_active",false)){
             statusMessage("Ative o Notch para iniciar a escuta.");return;
         }
+        if(!WakeModelInstaller.installed(this)){
+            statusMessage("Instalando reconhecimento local pt-BR (~31 MB). O áudio permanecerá no aparelho.");
+            WakeModelInstaller.install(this,(ok,message)->{
+                if(status!=null)statusMessage(message);
+                if(ok && WakeWordService.enabled(this))startWake();
+                else if(!ok && !message.contains("já está sendo instalado")){
+                    getSharedPreferences("home",MODE_PRIVATE).edit().putBoolean("wake_enabled",false).apply();
+                }
+            });
+            return;
+        }
         try{
             startForegroundService(new Intent(this,WakeWordService.class));
-            statusMessage("Ei, Home habilitado. Verifique a notificação do microfone.");
+            statusMessage("Ei Home / Ok Home: detector offline ativo.");
         }catch(Exception e){statusMessage("Falha ao iniciar escuta: "+e.getMessage());}
     }
     private void pauseWake(){
@@ -203,7 +214,7 @@ public final class MainActivity extends Activity {
             if(WakeWordService.enabled(this))
                 try{startService(new Intent(this,WakeWordService.class).setAction(WakeWordService.RESUME));}
                 catch(Exception ignored){}
-        },12000);
+        },1000);
     }
     @Override public void onRequestPermissionsResult(int request,String[] perms,int[] results){
         super.onRequestPermissionsResult(request,perms,results);
@@ -482,7 +493,7 @@ public final class MainActivity extends Activity {
                     statusMessage("Notch desativado.");
                 }
             });
-        settingSwitch(controls,"Ouvir ‘Ei, Home’","O Android indica quando o microfone está em uso.",
+        settingSwitch(controls,"Ouvir ‘Ei, Home’","Detector local contínuo. O reconhecimento da conversa só abre após Ei Home ou Ok Home.",
             WakeWordService.enabled(this),(view,on)->{
                 prefs.edit().putBoolean("wake_enabled",on).apply();
                 if(on)startWake();
@@ -936,7 +947,7 @@ public final class MainActivity extends Activity {
         TextView diag=note("Status: "+getSharedPreferences("home",MODE_PRIVATE).getString("wake_status","Ainda não iniciado."));
         add(wake,diag,6,8);
         action(wake,"Verificar estado da escuta",false,()->diag.setText("Status: "+getSharedPreferences("home",MODE_PRIVATE).getString("wake_status","Ainda não iniciado.")));
-        add(wake,note("O Android pode interromper o reconhecimento contínuo. Se o sistema bloquear, o teste manual permanece disponível."),3,0);
+        add(wake,note("A ativação usa o modelo português offline. Enquanto ligada, a detecção mantém o microfone em uso, sem enviar áudio. O reconhecimento completo só abre após a frase. Ao desativar, a captura é encerrada."),3,0);
     }
     private void updatesPage(){
         LinearLayout box=card("Atualizações oficiais","O aplicativo verifica os lançamentos assinados do HOME.");
