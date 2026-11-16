@@ -41,6 +41,33 @@ jobs:
           print(f"Faber validada: {samples.size} amostras, {sample_rate} Hz")
           '@ | Set-Content faber_audio_check.py -Encoding utf8
           python faber_audio_check.py
+      - name: Confirmar configuração Groq dentro do HOME (sem popup)
+        shell: pwsh
+        run: |
+          @'
+          from unittest.mock import patch
+          from PySide6.QtWidgets import QApplication
+          from home import Home
+          app=QApplication([])
+          home=Home()
+          home.show()
+          home.navigate("assistant")
+          home.animation.setCurrentTime(300)
+          app.processEvents()
+          panel=home.workspace.current
+          assert not panel.groq_panel.isVisible()
+          panel.configure_groq()
+          assert panel.groq_panel.isVisible()
+          panel.groq_input.setText("gsk_" + "a"*30)
+          with patch("home_assistant.save_key") as store:
+              panel.save_groq_inline()
+              store.assert_called_once()
+          assert not panel.groq_panel.isVisible()
+          assert not panel.groq_input.text()
+          home.shutdown()
+          print("Groq: campo visível no HOME, salvo sem QInputDialog.")
+          '@ | Set-Content inline_groq_check.py -Encoding utf8
+          python inline_groq_check.py
       - name: Testar página de voz Faber
         shell: pwsh
         run: |
