@@ -434,7 +434,12 @@ class VoiceManager(QObject):
                 self.mode = "wake"
             return
         self.set_state("speaking")
-        if self.prefs.get("voice_engine") == "kokoro" and kokoro_installed():
+        if self.prefs.get("voice_engine") == "kokoro":
+            if not kokoro_installed():
+                # Nunca tocar uma voz diferente sem que o usuário a escolha.
+                self.set_state("Voz Alex indisponível: abra Voz e instale o modelo Kokoro (~330 MB).")
+                self.speaker = None
+                return
             self.speaker = KokoroSpeechWorker(
                 message, self.prefs.get("voice_rate", 165),
                 self.prefs.get("voice_volume", 100))
@@ -442,11 +447,9 @@ class VoiceManager(QObject):
             self.speaker = SpeechWorker(
                 message, self.prefs.get("voice_id", ""),
                 self.prefs.get("voice_rate", 165), self.prefs.get("voice_volume", 100))
-            if self.prefs.get("voice_engine") == "kokoro":
-                self.state.emit("Alex ainda não instalada; usando voz do Windows temporariamente.")
         speaker = self.speaker
         speaker.finished.connect(lambda: self.speech_finished(speaker))
-        speaker.failed.connect(lambda error: self.state.emit("Voz indisponível: " + error[:90]))
+        speaker.failed.connect(lambda error: self.set_state("Voz selecionada falhou: " + error[:140]))
         speaker.start()
 
     def speech_finished(self, speaker):
@@ -507,7 +510,7 @@ class VoiceDialog(QDialog):
         self.kokoro_label = QLabel(
             "Alex usa modelo local Kokoro-82M (licença Apache 2.0). "
             "A transferência inicial é grande (~330 MB) e exige internet; depois funciona offline. "
-            "Até instalar, as respostas usam temporariamente uma voz do Windows.")
+            "Até instalar, o Home mostra a falta do modelo e não troca de voz automaticamente.")
         self.kokoro_label.setWordWrap(True)
         self.kokoro_label.setStyleSheet("color:#acadb0;font-size:11px")
         outer.addWidget(self.kokoro_label)
@@ -610,7 +613,7 @@ class VoiceDialog(QDialog):
         save_preferences(self.prefs)
         self.kokoro_label.setText(
             "Alex selecionada. " + ("Modelo instalado; pronto para testar." if kokoro_installed()
-            else "Clique em Instalar Alex. Até lá, a voz do Windows será usada.")
+            else "Clique em Instalar Alex para ouvir esta voz.")
             if engine == "kokoro" else
             "Motor Windows SAPI5 selecionado. O Home continua funcionando sem o Kokoro.")
 
