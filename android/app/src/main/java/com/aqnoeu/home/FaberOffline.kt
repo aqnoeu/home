@@ -31,6 +31,7 @@ object FaberOffline {
     private const val MAX_EXTRACT = 130L * 1024L * 1024L
     private val installing = AtomicBoolean(false)
     private val talking = AtomicBoolean(false)
+    @Volatile private var cachedTts: OfflineTts? = null
     @Volatile private var lastProblem = ""
     @Volatile private var stage = "Aguardando teste"
 
@@ -179,7 +180,6 @@ object FaberOffline {
         lastProblem=""
         val context=activity.applicationContext
         Thread {
-            var tts: OfflineTts? = null
             try {
                 report(activity,callback,"Carregando Faber no dispositivo…")
                 val root=folder(context)
@@ -188,11 +188,17 @@ object FaberOffline {
                     tokens=File(root,"tokens.txt").absolutePath,
                     dataDir=File(root,"espeak-ng-data").absolutePath
                 )
-                tts=OfflineTts(
-                    config=OfflineTtsConfig(
-                        model=OfflineTtsModelConfig(vits=vits,numThreads=2, debug=true)
+                // Initialize only once per app process. Loading ONNX and eSpeak afresh
+                // on every spoken response caused unnecessary latency on mobile.
+                var tts=cachedTts
+                if(tts==null) {
+                    tts=OfflineTts(
+                        config=OfflineTtsConfig(
+                            model=OfflineTtsModelConfig(vits=vits,numThreads=2, debug=false)
+                        )
                     )
-                )
+                    cachedTts=tts
+                }
                 report(activity,callback,"Sintetizando a fala com Faber…")
                 val generated=tts.generate(text.take(500),sid=0,speed=1.0f)
                 val samples=generated.samples
@@ -239,9 +245,11 @@ object FaberOffline {
             } catch(e: Throwable) {
                 Log.e("HomeFaber","Síntese falhou",e)
                 lastProblem = (stage+": "+e.javaClass.simpleName+" "+(e.message?:"")).take(300)
+                val broken=cachedTts
+                cachedTts=null
+                try{broken?.release()}catch(_:Throwable){}
                 report(activity,callback,"Falha ao reproduzir Faber. Veja Diagnóstico.")
             }finally{
-                try{tts?.release()}catch(_:Throwable){}
                 talking.set(false)
             }
         }.start()
