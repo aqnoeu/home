@@ -185,7 +185,7 @@ public final class MainActivity extends Activity {
         int displayWidth = Math.round(getResources().getDisplayMetrics().widthPixels / getResources().getDisplayMetrics().density);
         addPositionControl("Largura do Notch", "notch_width", 90, Math.max(116,displayWidth-8),116);
         addPositionControl("Altura do Notch", "notch_height",24,100,34);
-        addPositionControl("Distância entre os olhos", "eye_gap",0,260,9);
+        addPositionControl("Distância entre os olhos", "eye_gap",0,Math.max(260,displayWidth-50),9);
         addPositionControl("Vertical • subir / descer", "offset_y", -60, 120, 0);
         addPositionControl("Aba de toque • altura", "handle_y", 0, 48, 4);
         Switch touch = new Switch(this);
