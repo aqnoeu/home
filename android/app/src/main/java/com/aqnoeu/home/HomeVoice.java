@@ -2,10 +2,11 @@ package com.aqnoeu.home;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.widget.Toast;
 import android.speech.RecognizerIntent;
 import java.util.Locale;
 
-/** Voice input only. Speech output is disabled until a new voice is selected. */
+/** Voice input only. Voice output uses local Faber Piper. */
 public final class HomeVoice {
     public static final int REQUEST_SPEECH = 412;
     private HomeVoice() {}
@@ -20,7 +21,8 @@ public final class HomeVoice {
     }
 
     public static void speak(Activity activity,String message) {
-        // No speech engine is bundled until the user chooses a replacement voice.
+        FaberOffline.speak(activity,message,status ->
+            Toast.makeText(activity,status,Toast.LENGTH_SHORT).show());
     }
 
     public static String localResponse(String phrase) {
