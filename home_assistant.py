@@ -4,7 +4,7 @@ from datetime import datetime
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, QLineEdit,
-    QScrollArea, QCheckBox, QFrame, QSizePolicy
+    QScrollArea, QCheckBox, QFrame, QSizePolicy, QComboBox
 )
 
 from home_voice import interpret
@@ -96,6 +96,22 @@ class AssistantPage(QWidget):
         credential_layout.addLayout(key_actions)
         self.groq_panel.setVisible(False)
         layout.addWidget(self.groq_panel)
+        # Chat history controls stay within HOME: no popups.
+        chats=QHBoxLayout()
+        self.chat_selector=QComboBox(self)
+        self.chat_selector.setObjectName("savedChats")
+        self.chat_selector.setStyleSheet("QComboBox{background:#1C2737;color:white;border:1px solid #324357;border-radius:9px;padding:9px}")
+        self.chat_selector.currentIndexChanged.connect(self.select_chat)
+        chats.addWidget(self.chat_selector,1)
+        new_chat_button=QPushButton("+ Nova")
+        new_chat_button.clicked.connect(self.new_chat)
+        chats.addWidget(new_chat_button)
+        self.delete_chat_btn=QPushButton("Excluir")
+        self.delete_chat_btn.clicked.connect(self.delete_chat)
+        chats.addWidget(self.delete_chat_btn)
+        layout.addLayout(chats)
+        self.pending_chat_delete=False
+        self.refresh_chat_selector()
         self.messages=QScrollArea()
         self.messages.setObjectName("messagesArea")
         self.messages.setWidgetResizable(True)
@@ -155,7 +171,7 @@ class AssistantPage(QWidget):
         for role, text in home.assistant_history[-50:]:
             self.add_bubble(role,text)
         if not home.assistant_history:
-            self.record("home","Olá! Digite 'teste de voz', 'que horas são?' ou 'abra a calculadora'.")
+            self.add_bubble("home","Olá! Você pode começar uma conversa ou abrir uma anterior.")
         self.entry.setFocus()
 
     def add_bubble(self, role, message):
@@ -175,9 +191,9 @@ class AssistantPage(QWidget):
         self.messages.verticalScrollBar().setValue(self.messages.verticalScrollBar().maximum())
 
     def record(self,role,message):
-        self.home.assistant_history.append((role,message))
-        self.home.assistant_history=self.home.assistant_history[-50:]
+        self.home.record_chat(role,message)
         self.add_bubble(role,message)
+        self.refresh_chat_selector()
 
     def say(self,message):
         if self.talk.isChecked():
