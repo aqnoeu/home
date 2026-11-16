@@ -58,6 +58,22 @@ jobs:
           Write-Host "Versao a publicar: $next"
       - name: Instalar dependencias
         run: python -m pip install --upgrade -r requirements.txt pyinstaller
+      - name: Provisionar Groq opcionalmente da configuração privada do proprietário
+        shell: pwsh
+        env:
+          HOME_GROQ_API_KEY: ${{ secrets.HOME_GROQ_API_KEY }}
+        run: |
+          @'
+          import os
+          from pathlib import Path
+          key=os.environ.get("HOME_GROQ_API_KEY","").strip()
+          if key and (not key.startswith("gsk_") or len(key)<25):
+              raise SystemExit("HOME_GROQ_API_KEY inválida")
+          # Never print or commit this generated module. It is compiled into the binary.
+          Path("home_groq_builtin.py").write_text(
+              "BUILTIN_GROQ_KEY = " + repr(key) + "\n",encoding="utf-8")
+          print("Configuração Groq preparada." if key else "Groq sem chave nativa; conexão inline disponível.")
+          '@ | python
       - name: Verificar sintaxe
         run: python -m py_compile home.py home_ui.py home_navigation.py home_assistant.py home_integrations.py home_voice.py home_faber.py home_groq.py updater.py update_service.py
       - name: Testar comandos de voz e wake word
@@ -135,7 +151,7 @@ jobs:
                    sizes=[(16,16),(32,32),(48,48),(64,64),(128,128)])
           '@ | python
       - name: Compilar Home
-        run: pyinstaller --noconfirm --clean --onefile --windowed --collect-all vosk --collect-binaries sounddevice --hidden-import sounddevice --collect-all sherpa_onnx --collect-all keyring --icon assets/home_icon.ico --name Home home.py
+        run: pyinstaller --noconfirm --clean --onefile --windowed --collect-all vosk --collect-binaries sounddevice --hidden-import sounddevice --collect-all sherpa_onnx --collect-all keyring --add-data "assets/home_icon_approved.png;assets" --icon assets/home_icon.ico --name Home home.py
       - name: Verificar biblioteca nativa Vosk no Home.exe
         shell: pwsh
         run: |

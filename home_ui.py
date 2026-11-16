@@ -1,5 +1,8 @@
 """Painel grafite do Home: controles compactos e responsivos, sem brilho neon."""
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QPixmap
+from pathlib import Path
+import sys
 from PySide6.QtWidgets import (
     QWidget, QLabel, QPushButton, QHBoxLayout, QVBoxLayout,
     QButtonGroup, QFrame, QSizePolicy, QGridLayout
@@ -17,14 +20,14 @@ class ActionCard(QPushButton):
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setStyleSheet("""
             QPushButton#actionCard {
-                background: #242628; color: #f0f0f0;
-                border: 1px solid #444648; border-radius: 13px;
+                background: #1C2737; color: #FFFFFF;
+                border: 1px solid #34455B; border-radius: 13px;
                 text-align: center; padding: 4px 2px;
                 font-size: 11px; font-weight: 600;
             }
-            QPushButton#actionCard:hover { background: #303235; border-color: #77797c; }
-            QPushButton#actionCard:pressed { background: #191b1d; }
-            QPushButton#actionCard:disabled { color: #888b8e; }
+            QPushButton#actionCard:hover { background: #26384F; border-color: #2F6BFF; }
+            QPushButton#actionCard:pressed { background: #101B29; }
+            QPushButton#actionCard:disabled { color: #9FAFC4; }
         """)
         self.set_content()
 
@@ -46,41 +49,46 @@ class HomePanel(QFrame):
         super().__init__(parent)
         self.setObjectName("homePanel")
         self.setStyleSheet("""
-            QFrame#homePanel { background: #17181a; border: 1px solid #3d4042; border-radius: 19px; }
-            QLabel { background: transparent; color: #e5e5e5; border: none; }
-            QLabel#sub { color: #a5a6a8; font-size: 10px; }
-            QLabel#small { color: #898b8e; font-size: 9px; }
+            QFrame#homePanel { background: #0B111A; border: 1px solid #324357; border-radius: 19px; }
+            QLabel { background: transparent; color: #FFFFFF; border: none; }
+            QLabel#sub { color: #A8B6C8; font-size: 10px; }
+            QLabel#small { color: #A0AEC0; font-size: 9px; }
             QLabel#title { font-size: 13px; font-weight: bold; }
             QPushButton#mood {
-                background: #26282a; color: #c2c4c6;
-                border: 1px solid #3c3e40; border-radius: 9px;
+                background: #1C2737; color: #DDE7F4;
+                border: 1px solid #34465A; border-radius: 9px;
                 padding: 5px 6px; font-size: 10px;
             }
-            QPushButton#mood:checked { background: #4a4c4f; color: white; border-color: #66686a; }
-            QPushButton#mood:hover { background: #393b3e; }
+            QPushButton#mood:checked { background: #2F6BFF; color: white; border-color: #2F6BFF; }
+            QPushButton#mood:hover { background: #26384F; }
             QPushButton#more { background: transparent; color: #ddd; border: none; font-size: 15px; }
             QPushButton#more:hover { color: white; }
         """)
         self.root = QVBoxLayout(self)
-        self.root.setContentsMargins(15, 13, 15, 12)
-        self.root.setSpacing(10)
+        self.root.setContentsMargins(17, 16, 17, 14)
+        self.root.setSpacing(12)
 
         self.header = QWidget(self)
         self.header.setStyleSheet("background: transparent;")
         h = QHBoxLayout(self.header)
         h.setContentsMargins(0,0,0,0)
         h.setSpacing(8)
-        self.smile = QLabel("☺")
-        self.smile.setStyleSheet("font-size: 25px; color: #f0f0f0; background: transparent;")
+        self.smile = QLabel("HOME")
+        self.smile.setStyleSheet("color:#FFFFFF;font-size:12px;font-weight:700;background:transparent")
+        icon_path = Path(getattr(sys, "_MEIPASS", Path(__file__).parent)) / "assets" / "home_icon_approved.png"
+        if icon_path.is_file():
+            self.smile.setPixmap(QPixmap(str(icon_path)).scaled(
+                36, 36, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        self.smile.setToolTip("Símbolo oficial HOME")
         h.addWidget(self.smile)
         titles = QWidget()
         titles.setStyleSheet("background: transparent;")
         tl = QVBoxLayout(titles)
         tl.setContentsMargins(0,0,0,0)
         tl.setSpacing(1)
-        title = QLabel("Expressão")
+        title = QLabel("HOME  ·  Expressões")
         title.setObjectName("title")
-        self.subtitle = QLabel("Aparência e comportamento")
+        self.subtitle = QLabel("Um assistente para você.")
         self.subtitle.setObjectName("sub")
         tl.addWidget(title)
         tl.addWidget(self.subtitle)
@@ -108,7 +116,7 @@ class HomePanel(QFrame):
 
         self.line1 = QFrame()
         self.line1.setFrameShape(QFrame.HLine)
-        self.line1.setStyleSheet("background:#383a3c; border:none; max-height:1px;")
+        self.line1.setStyleSheet("background:#324357; border:none; max-height:1px;")
         self.root.addWidget(self.line1)
 
         self.cards = QWidget()
@@ -132,7 +140,7 @@ class HomePanel(QFrame):
 
         self.line2 = QFrame()
         self.line2.setFrameShape(QFrame.HLine)
-        self.line2.setStyleSheet("background:#383a3c; border:none; max-height:1px;")
+        self.line2.setStyleSheet("background:#324357; border:none; max-height:1px;")
         self.root.addWidget(self.line2)
 
         self.footer=QWidget()
@@ -166,7 +174,7 @@ class HomePanel(QFrame):
         self.subtitle.setVisible(not compact)
         self.smile.setVisible(not compact)
         self.more.setVisible(not compact)
-        self.root.setContentsMargins(10 if compact else 15,7 if compact else 13,10 if compact else 15,6 if compact else 12)
-        self.root.setSpacing(5 if compact else 10)
+        self.root.setContentsMargins(11 if compact else 17,9 if compact else 16,11 if compact else 17,8 if compact else 14)
+        self.root.setSpacing(7 if compact else 12)
         for card in (self.update_btn,self.edit_btn,self.interactions_btn,self.voice_btn,self.assistant_btn,self.quit_btn):
             card.set_content()

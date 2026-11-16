@@ -1,5 +1,8 @@
 """Navegação interna do Home: páginas incorporadas ao entalhe expandido."""
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QPixmap
+from pathlib import Path
+import sys
 from update_service import VERSION
 from PySide6.QtWidgets import (
     QWidget, QLabel, QPushButton, QHBoxLayout, QVBoxLayout, QGridLayout,
@@ -12,10 +15,10 @@ class EditPage(QWidget):
         super().__init__(parent)
         self.home = home
         self.setStyleSheet("""QWidget{background:transparent;color:#eee}
-            QLabel{color:#ccc}
-            QSpinBox{background:#282a2d;color:#fff;border:1px solid #4c4f51;border-radius:8px;padding:6px}
-            QPushButton{background:#303235;color:white;border:1px solid #505255;border-radius:9px;padding:8px}
-            QPushButton:hover{background:#44464a}
+            QLabel{color:#DDE7F4}
+            QSpinBox{background:#1C2737;color:#fff;border:1px solid #324357;border-radius:8px;padding:6px}
+            QPushButton{background:#1C2737;color:white;border:1px solid #324357;border-radius:9px;padding:8px}
+            QPushButton:hover{background:#26384F}
         """)
         layout=QVBoxLayout(self)
         layout.addWidget(QLabel("Ajuste os tamanhos do Home e sua distância da esquerda."))
@@ -71,24 +74,31 @@ class Workspace(QWidget):
         self.current=None
         self._stretch=None
         self.setStyleSheet("""
-            QWidget#workspace{background:#17181a;border:1px solid #3d4042;border-radius:19px}
+            QWidget#workspace{background:#0B111A;border:1px solid #324357;border-radius:19px}
             QWidget#pagehost{background:transparent;border:none}
-            QLabel{background:transparent;color:#ddd;border:none}
-            QPushButton#nav{background:#27292b;border:1px solid #3d3f41;border-radius:8px;
-                            padding:7px 6px;color:#c9cbcc;font-size:11px}
-            QPushButton#nav:checked{background:#505256;color:white;border-color:#6c6d70}
-            QPushButton#nav:hover{background:#3a3c40}
-            QPushButton#primary{background:#303235;border:1px solid #57595c;border-radius:9px;
+            QLabel{background:transparent;color:#DDE7F4;border:none}
+            QPushButton#nav{background:#1C2737;border:1px solid #324357;border-radius:8px;
+                            padding:8px 7px;color:#DDE7F4;font-size:11px}
+            QPushButton#nav:checked{background:#2F6BFF;color:white;border-color:#2F6BFF}
+            QPushButton#nav:hover{background:#26384F}
+            QPushButton#primary{background:#2F6BFF;border:1px solid #324357;border-radius:9px;
                                 color:white;padding:12px}
-            QPushButton#primary:hover{background:#44464a}
+            QPushButton#primary:hover{background:#26384F}
         """)
         self.setObjectName("workspace")
         outer=QVBoxLayout(self)
-        outer.setContentsMargins(15,12,15,12)
+        outer.setContentsMargins(16,16,16,14)
         outer.setSpacing(10)
         title=QHBoxLayout()
-        self.heading=QLabel("Home")
-        self.heading.setStyleSheet("font-size:16px;font-weight:bold")
+        title.setSpacing(10)
+        icon = QLabel()
+        asset = Path(getattr(sys, "_MEIPASS", Path(__file__).parent)) / "assets" / "home_icon_approved.png"
+        if asset.is_file():
+            icon.setPixmap(QPixmap(str(asset)).scaled(30,30,Qt.KeepAspectRatio,Qt.SmoothTransformation))
+            icon.setToolTip("Símbolo oficial HOME")
+            title.addWidget(icon)
+        self.heading=QLabel("HOME")
+        self.heading.setStyleSheet("font-size:17px;font-weight:600")
         title.addWidget(self.heading)
         title.addStretch()
         self.back=QPushButton("← Voltar ao Hub")
@@ -97,14 +107,14 @@ class Workspace(QWidget):
         title.addWidget(self.back)
         outer.addLayout(title)
         nav=QGridLayout()
-        nav.setSpacing(5)
+        nav.setSpacing(6)
         self.navbuttons={}
         for i,(section,caption) in enumerate(self.SECTIONS):
             button=QPushButton(caption)
             button.setObjectName("nav")
             button.setCheckable(True)
             button.clicked.connect(lambda _=False,name=section:self.requested.emit(name))
-            nav.addWidget(button,i//3,i%3)
+            nav.addWidget(button,i//4,i%4)
             self.navbuttons[section]=button
         outer.addLayout(nav)
         self.scroll=QScrollArea()
@@ -114,11 +124,11 @@ class Workspace(QWidget):
         self.host=QWidget()
         self.host.setObjectName("pagehost")
         self.host_layout=QVBoxLayout(self.host)
-        self.host_layout.setContentsMargins(2,3,2,3)
+        self.host_layout.setContentsMargins(3,10,3,8)
         self.scroll.setWidget(self.host)
         outer.addWidget(self.scroll,1)
         self.footer=QLabel(f"Desenvolvido com @aqnoeu   ·   v{VERSION}")
-        self.footer.setStyleSheet("color:#858689;font-size:10px")
+        self.footer.setStyleSheet("color:#A8B6C8;font-size:10px")
         outer.addWidget(self.footer)
 
     def set_section(self,section):
@@ -141,7 +151,7 @@ class Workspace(QWidget):
             button.setChecked(section==name)
         titles={"assistant":"Assistente — Digite e ouça","voice":"Voz e microfone","integrations":"Interações com Windows e Chrome",
                 "edit":"Modo edição","updates":"Atualizações","exit":"Encerrar o Home"}
-        self.heading.setText(titles.get(section,"Home"))
+        self.heading.setText(titles.get(section,"HOME"))
         if section=="assistant":
             from home_assistant import AssistantPage
             page=AssistantPage(self.home)
@@ -235,7 +245,7 @@ class Workspace(QWidget):
         painter.end()
         popup = QDialog(self)
         popup.setWindowTitle("Home para Android")
-        popup.setStyleSheet("QDialog{background:#17181a;color:#eeeeee} QLabel{color:#eeeeee}")
+        popup.setStyleSheet("QDialog{background:#0B111A;color:#FFFFFF} QLabel{color:#FFFFFF}")
         layout = QVBoxLayout(popup)
         info = QLabel("Escaneie para abrir as Releases do Home.\\n"
                       "Quando houver APK publicado, selecione Home-Android.apk.")

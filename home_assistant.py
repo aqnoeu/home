@@ -4,7 +4,7 @@ from datetime import datetime
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, QLineEdit,
-    QScrollArea, QCheckBox, QFrame, QSizePolicy, QInputDialog, QMessageBox
+    QScrollArea, QCheckBox, QFrame, QSizePolicy
 )
 
 from home_voice import interpret
@@ -41,34 +41,67 @@ class AssistantPage(QWidget):
         self.pending = None
         self.groq_worker = None
         self.setStyleSheet("""
-            QWidget#assistantPage {background:transparent;color:#ececec}
-            QLineEdit {background:#292b30;color:#fff;border:1px solid #53555a;border-radius:10px;padding:11px}
-            QCheckBox {color:#ddd}
-            QPushButton {background:#303237;color:white;border:1px solid #4c5055;border-radius:9px;padding:10px}
-            QPushButton:hover {background:#44474b}
-            QLabel {color:#ddd;background:transparent}
+            QWidget#assistantPage {background:transparent;color:#FFFFFF}
+            QLineEdit {background:#1C2737;color:#fff;border:1px solid #324357;border-radius:10px;padding:11px}
+            QCheckBox {color:#DDE7F4}
+            QPushButton {background:#1C2737;color:white;border:1px solid #324357;border-radius:9px;padding:10px}
+            QPushButton:hover {background:#26384F}
+            QLabel {color:#DDE7F4;background:transparent}
         """)
         self.setObjectName("assistantPage")
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(4,3,4,3)
-        layout.setSpacing(9)
-        intro=QLabel("Groq responde às perguntas • Faber fala offline • comandos locais com confirmação")
+        layout.setContentsMargins(10,12,10,12)
+        layout.setSpacing(12)
+        intro=QLabel("Converse com o HOME. A Groq responde; a Faber dá voz às mensagens.")
         intro.setWordWrap(True)
-        intro.setStyleSheet("color:#a5a7ab;font-size:11px")
+        intro.setStyleSheet("color:#A8B6C8;font-size:12px")
         layout.addWidget(intro)
-        self.groq_config=QPushButton("✓ Groq conectada • alterar chave" if get_key() else "Conectar Groq (uma única vez)")
+        self.groq_config=QPushButton("Groq conectada · Gerenciar" if get_key() else "Conectar Groq")
         self.groq_config.clicked.connect(self.configure_groq)
         layout.addWidget(self.groq_config)
+        # Inline credential panel: never open a modal behind HOME's always-on-top notch.
+        self.groq_panel=QFrame(self)
+        self.groq_panel.setObjectName("groqCredentialPanel")
+        self.groq_panel.setStyleSheet("""
+            QFrame#groqCredentialPanel {background:#141D2A;border:1px solid #324357;border-radius:13px}
+            QLineEdit {background:#1C2737;border:1px solid #324357;border-radius:9px;
+                       color:white;padding:10px}
+            QPushButton#saveGroq {background:#2F6BFF;color:#FFFFFF;border:1px solid #2F6BFF;
+                                  border-radius:9px;padding:11px;font-weight:600}
+        """)
+        credential_layout=QVBoxLayout(self.groq_panel)
+        credential_layout.setContentsMargins(14,13,14,13)
+        credential_layout.setSpacing(9)
+        self.groq_hint=QLabel("Cole sua chave Groq. Ela será guardada no Gerenciador de Credenciais do Windows.")
+        self.groq_hint.setWordWrap(True)
+        credential_layout.addWidget(self.groq_hint)
+        self.groq_input=QLineEdit()
+        self.groq_input.setObjectName("groqKeyInput")
+        self.groq_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.groq_input.setPlaceholderText("gsk_...")
+        self.groq_input.returnPressed.connect(self.save_groq_inline)
+        credential_layout.addWidget(self.groq_input)
+        key_actions=QHBoxLayout()
+        save=QPushButton("Salvar conexão")
+        save.setObjectName("saveGroq")
+        save.clicked.connect(self.save_groq_inline)
+        cancel=QPushButton("Cancelar")
+        cancel.clicked.connect(self.hide_groq_inline)
+        key_actions.addWidget(save)
+        key_actions.addWidget(cancel)
+        credential_layout.addLayout(key_actions)
+        self.groq_panel.setVisible(False)
+        layout.addWidget(self.groq_panel)
         self.messages=QScrollArea()
         self.messages.setObjectName("messagesArea")
         self.messages.setWidgetResizable(True)
         self.messages.setFrameShape(QFrame.NoFrame)
-        self.messages.setMinimumHeight(160)
-        self.messages.setStyleSheet("QScrollArea{background:#202125;border:1px solid #37393c;border-radius:11px}")
+        self.messages.setMinimumHeight(135)
+        self.messages.setStyleSheet("QScrollArea{background:#141D2A;border:1px solid #324357;border-radius:11px}")
         self.message_host=QWidget()
         self.message_layout=QVBoxLayout(self.message_host)
         self.message_layout.setAlignment(Qt.AlignTop)
-        self.message_layout.setSpacing(8)
+        self.message_layout.setSpacing(10)
         self.messages.setWidget(self.message_host)
         layout.addWidget(self.messages,1)
 
@@ -87,11 +120,13 @@ class AssistantPage(QWidget):
         layout.addWidget(self.confirm_box)
 
         row=QHBoxLayout()
+        row.setSpacing(9)
         self.entry=QLineEdit()
         self.entry.setPlaceholderText("Digite um comando ou uma mensagem...")
         self.entry.setMaxLength(500)
         self.entry.returnPressed.connect(self.send)
         send=QPushButton("Enviar")
+        send.setObjectName("sendPrimary")
         send.clicked.connect(self.send)
         row.addWidget(self.entry,1)
         row.addWidget(send)
@@ -109,7 +144,7 @@ class AssistantPage(QWidget):
         layout.addLayout(options)
         self.status=QLabel("")
         self.status.setWordWrap(True)
-        self.status.setStyleSheet("color:#acadb0;font-size:11px")
+        self.status.setStyleSheet("color:#A8B6C8;font-size:11px")
         layout.addWidget(self.status)
 
         self.home.voice.state.connect(self.on_voice_state)
@@ -125,7 +160,7 @@ class AssistantPage(QWidget):
         box.setTextInteractionFlags(Qt.TextSelectableByMouse)
         user=role=="user"
         box.setStyleSheet(
-            "QLabel{background:" + ("#3c424b" if user else "#2e3033")
+            "QLabel{background:" + ("#3c424b" if user else "#1C2737")
             + ";border-radius:10px;padding:10px;color:#f1f1f1}"
         )
         line=QHBoxLayout()
@@ -174,17 +209,24 @@ class AssistantPage(QWidget):
         self.say(response)
 
     def configure_groq(self):
-        key, accepted=QInputDialog.getText(
-            self,"Conectar Groq","Cole sua chave Groq (guardada no Gerenciador de Credenciais do Windows):",
-            QLineEdit.EchoMode.Password)
-        if not accepted or not key.strip():
-            return
+        """Expand the in-page field instead of opening QInputDialog behind HOME."""
+        self.groq_panel.setVisible(not self.groq_panel.isVisible())
+        if self.groq_panel.isVisible():
+            self.groq_input.setFocus()
+
+    def hide_groq_inline(self):
+        self.groq_input.clear()
+        self.groq_panel.hide()
+
+    def save_groq_inline(self):
         try:
-            save_key(key)
-            self.groq_config.setText("✓ Groq conectada • alterar chave")
-            self.status.setText("Groq conectada. As respostas por voz usam a Faber local.")
+            save_key(self.groq_input.text())
+            self.groq_config.setText("Groq conectada · Gerenciar")
+            self.groq_hint.setText("Chave salva no Windows.")
+            self.status.setText("Groq conectada. A Faber poderá falar as respostas.")
+            self.hide_groq_inline()
         except Exception as exc:
-            QMessageBox.warning(self,"Groq",str(exc)[:200])
+            self.groq_hint.setText("Não foi possível salvar: "+str(exc)[:160])
 
     def ask_ai(self, question):
         if not get_key():

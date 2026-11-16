@@ -1,7 +1,6 @@
 package com.aqnoeu.home;
 
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
@@ -67,10 +66,12 @@ public final class UpdateHelper {
                 if (size <= 0 || size > MAX_APK) throw new IOException("APK fora do limite de segurança");
                 ui(activity, () -> {
                     status.setText("Atualização disponível: " + tag + " (instalada: " + BuildConfig.VERSION_NAME + ")");
-                    new AlertDialog.Builder(activity).setTitle("Atualização do Home — " + tag)
-                        .setMessage("Baixar a versão Android assinada e abrir o instalador do sistema? As configurações serão preservadas se a assinatura for compatível.")
-                        .setPositiveButton("Baixar e instalar", (dialog, which) -> download(activity, status, url, digest, size))
-                        .setNegativeButton("Agora não", null).show();
+                    if (activity instanceof MainActivity) {
+                        ((MainActivity)activity).requestInlineConfirm(
+                            "Atualização " + tag,
+                            "Baixar o APK assinado e abrir o instalador oficial do Android? Suas configurações serão mantidas se a assinatura for compatível.",
+                            () -> download(activity,status,url,digest,size));
+                    } else status.setText("Nova atualização disponível: " + tag + ".");
                 });
             } catch (Exception e) {
                 ui(activity, () -> status.setText("Não foi possível verificar atualizações: " + e.getMessage()));

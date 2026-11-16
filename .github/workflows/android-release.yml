@@ -19,6 +19,7 @@ jobs:
       HOME_KEY_ALIAS: ${{ secrets.HOME_ANDROID_KEY_ALIAS }}
       HOME_KEY_PASSWORD: ${{ secrets.HOME_ANDROID_KEY_PASSWORD }}
       KEYSTORE_BASE64: ${{ secrets.HOME_ANDROID_KEYSTORE_BASE64 }}
+      HOME_GROQ_API_KEY: ${{ secrets.HOME_GROQ_API_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
