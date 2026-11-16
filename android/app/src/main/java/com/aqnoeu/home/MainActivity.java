@@ -132,6 +132,7 @@ public final class MainActivity extends Activity {
     }
     private void initScreen(String page,String subtitle){
         currentPage=page;
+        HomeEmotion.pageChanged(page);
         getWindow().setStatusBarColor(BG);
         getWindow().setNavigationBarColor(BG);
         getWindow().getDecorView().setSystemUiVisibility(0);
