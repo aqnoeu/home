@@ -44,10 +44,12 @@ class GroqTests(unittest.TestCase):
         self.assertNotIn("gsk_test",json.dumps(seen["body"]))
         self.assertEqual(seen["body"]["messages"][-1]["content"],"Oi")
 
-    def test_saved_key_overrides_embedded_key(self):
-        with patch("home_groq.BUILTIN_GROQ_KEY","gsk_old_invalid"):
-            with patch("keyring.get_password",return_value="gsk_current_personal"):
-                self.assertEqual(get_key(),"gsk_current_personal")
+    def test_saved_key_is_used_without_a_bundled_secret(self):
+        # Public releases no longer contain BUILTIN_GROQ_KEY. Only the vault is read.
+        with patch("keyring.get_password",return_value="gsk_current_personal"):
+            self.assertEqual(get_key(),"gsk_current_personal")
+        with patch("keyring.get_password",return_value=None):
+            self.assertIsNone(get_key())
 
     def test_project_model_permission_explained(self):
         raw=json.dumps({"error":{"code":"model_permission_blocked_project","type":"permissions_error","message":"blocked"}}).encode()
