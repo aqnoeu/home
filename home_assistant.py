@@ -1,7 +1,7 @@
 """Assistente digitável do Home: Groq para respostas, Faber offline para fala."""
 from datetime import datetime
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, QLineEdit,
     QScrollArea, QCheckBox, QFrame, QSizePolicy, QComboBox
@@ -90,8 +90,11 @@ class AssistantPage(QWidget):
         test.clicked.connect(self.test_groq_inline)
         cancel=QPushButton("Cancelar")
         cancel.clicked.connect(self.hide_groq_inline)
+        disconnect=QPushButton("Desconectar")
+        disconnect.clicked.connect(self.disconnect_groq_inline)
         key_actions.addWidget(save)
         key_actions.addWidget(test)
+        key_actions.addWidget(disconnect)
         key_actions.addWidget(cancel)
         credential_layout.addLayout(key_actions)
         self.groq_panel.setVisible(False)
@@ -148,6 +151,10 @@ class AssistantPage(QWidget):
         send=QPushButton("Enviar")
         send.setObjectName("sendPrimary")
         send.clicked.connect(self.send)
+        microphone=QPushButton("🎙 Falar")
+        microphone.setToolTip("Usar o microfone do Windows para conversar com HOME")
+        microphone.clicked.connect(self.home.voice.toggle_push)
+        row.addWidget(microphone)
         row.addWidget(self.entry,1)
         row.addWidget(send)
         layout.addLayout(row)
@@ -168,6 +175,7 @@ class AssistantPage(QWidget):
         layout.addWidget(self.status)
 
         self.home.voice.state.connect(self.on_voice_state)
+        self.home.voice.command.connect(self.on_voice_command)
         for role, text in home.assistant_history[-50:]:
             self.add_bubble(role,text)
         if not home.assistant_history:
@@ -293,6 +301,16 @@ class AssistantPage(QWidget):
         self.groq_input.clear()
         self.groq_panel.hide()
 
+    def disconnect_groq_inline(self):
+        try:
+            clear_key()
+            self.groq_input.clear()
+            self.groq_config.setText("Conectar Groq")
+            self.groq_hint.setText("Conexão removida deste PC. As conversas foram preservadas.")
+            self.status.setText("Groq desconectada. Seu histórico continua salvo.")
+        except Exception as exc:
+            self.groq_hint.setText("Falha ao desconectar: "+str(exc)[:160])
+
     def save_groq_inline(self):
         try:
             save_key(self.groq_input.text())
@@ -392,7 +410,13 @@ class AssistantPage(QWidget):
                 return
         self.status.setText("Ainda não há resposta para reproduzir.")
 
+    def on_voice_command(self,phrase):
+        # The voice manager persists the transcript immediately after emitting command.
+        QTimer.singleShot(0, self.load_chat_messages)
+
     def on_voice_state(self,text):
+        if text == "speaking":
+            QTimer.singleShot(0, self.load_chat_messages)
         if text.startswith("Voz indisponível:"):
             self.status.setText(text)
         elif text=="speaking":
@@ -405,5 +429,9 @@ class AssistantPage(QWidget):
     def disconnect_signals(self):
         try:
             self.home.voice.state.disconnect(self.on_voice_state)
+        except (TypeError,RuntimeError):
+            pass
+        try:
+            self.home.voice.command.disconnect(self.on_voice_command)
         except (TypeError,RuntimeError):
             pass
