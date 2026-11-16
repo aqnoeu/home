@@ -64,9 +64,7 @@ public final class HomeGroq {
             .apply();
     }
     private static String key(Context context) {
-        // Native key is used automatically if the owner supplied it at build time.
-        // Local credential is retained for backward-compatible existing installs.
-        if(BuildConfig.HOME_GROQ_API_KEY.startsWith("gsk_")) return BuildConfig.HOME_GROQ_API_KEY;
+        // Always use the key entered by the owner and secured by Android Keystore.
         try {
             SharedPreferences p=context.getSharedPreferences(PREF,Context.MODE_PRIVATE);
             String data=p.getString("secret",null), iv=p.getString("iv",null);
@@ -78,7 +76,7 @@ public final class HomeGroq {
         }catch(Exception e){return null;}
     }
     public static boolean connected(Context context){return key(context)!=null;}
-    public static boolean builtIn(){return BuildConfig.HOME_GROQ_API_KEY.startsWith("gsk_");}
+    public static boolean builtIn(){return false;}
     public static void disconnect(Context context){
         context.getSharedPreferences(PREF,Context.MODE_PRIVATE).edit().clear().apply();
         synchronized(HISTORY_LOCK){while(HISTORY.length()>0)HISTORY.remove(HISTORY.length()-1);}
@@ -89,6 +87,7 @@ public final class HomeGroq {
         if(!normalized.startsWith("gsk_")||normalized.length()<25)
             throw new IllegalArgumentException("A chave Groq deve começar com gsk_.");
         save(context,normalized);
+        if(!normalized.equals(key(context))) throw new IllegalStateException("Não foi possível recuperar a chave salva.");
     }
     public static void ask(Activity activity,String question,Callback callback) {
         String apiKey=key(activity);
@@ -125,7 +124,24 @@ public final class HomeGroq {
                     out.write(body.toString().getBytes(StandardCharsets.UTF_8));
                 }
                 int status=connection.getResponseCode();
-                if(status==401||status==403)throw new IllegalStateException("Chave Groq recusada. Verifique a chave nas configurações.");
+                if(status==401)throw new IllegalStateException("Groq HTTP 401: chave recusada.");
+                if(status==403){
+                    String reason="Groq HTTP 403: acesso negado para este modelo ou projeto.";
+                    try(InputStream error=connection.getErrorStream()){
+                        if(error!=null){
+                            byte[] raw=new byte[4096];int size=error.read(raw);
+                            if(size>0){
+                                JSONObject detail=new JSONObject(new String(raw,0,size,StandardCharsets.UTF_8))
+                                    .optJSONObject("error");
+                                if(detail!=null){
+                                    String code=detail.optString("code","").replaceAll("[^a-zA-Z0-9_-]","");
+                                    if(!code.isEmpty())reason+=" Código: "+code.substring(0,Math.min(70,code.length()));
+                                }
+                            }
+                        }
+                    }catch(Exception ignored){}
+                    throw new IllegalStateException(reason);
+                }
                 if(status==429)throw new IllegalStateException("Limite de uso da Groq atingido. Tente novamente mais tarde.");
                 if(status!=200)throw new IllegalStateException("Groq indisponível (HTTP "+status+").");
                 ByteArrayOutputStream buffer=new ByteArrayOutputStream();
