@@ -18,6 +18,10 @@ import android.widget.*;
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.MultiFormatWriter;
 import com.google.zxing.common.BitMatrix;
+import org.json.JSONArray;
+import org.json.JSONObject;
+import java.text.DateFormat;
+import java.util.Date;
 
 /**
  * HOME mobile, Brand Guidelines 1.2.
@@ -39,8 +43,9 @@ public final class MainActivity extends Activity {
     private LinearLayout root, inlineHost;
     private ScrollView scroll;
     private TextView status;
+    private LinearLayout chatMessages, chatPicker;
+    private TextView chatTitle;
     private String currentPage = "hub";
-    private static final int WAKE_PERMISSION_REQUEST = 721;
 
     private int dp(float n) {return Math.round(n*getResources().getDisplayMetrics().density);}
     private boolean narrow(){return getResources().getConfiguration().screenWidthDp<440;}
@@ -130,50 +135,6 @@ public final class MainActivity extends Activity {
         super.onCreate(saved);
         VoiceCleanup.cleanup(this);
         showHub();
-        handleWakeIntent(getIntent());
-    }
-    @Override protected void onNewIntent(Intent intent){
-        super.onNewIntent(intent);setIntent(intent);handleWakeIntent(intent);
-    }
-    private void handleWakeIntent(Intent intent){
-        if(intent==null || !intent.hasExtra(WakeWordService.EXTRA_QUERY))return;
-        String query=intent.getStringExtra(WakeWordService.EXTRA_QUERY);
-        intent.removeExtra(WakeWordService.EXTRA_QUERY);
-        if(query==null)return;
-        showPage("assistant");
-        if(query.trim().isEmpty()){
-            statusMessage("Ei, Home! Pode falar.");
-            HomeVoice.listen(this);
-        } else {
-            statusMessage("Você: "+query+" · HOME está pensando…");
-            askHome(query,null);
-        }
-    }
-    private void startWake(){
-        if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){
-            requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},WAKE_PERMISSION_REQUEST);return;
-        }
-        if(!getSharedPreferences("home",MODE_PRIVATE).getBoolean("notch_active",false)){
-            statusMessage("Ative o Notch antes de ligar o Ei, Home.");return;
-        }
-        getSharedPreferences("home",MODE_PRIVATE).edit().putBoolean("wake_enabled",true).apply();
-        try{startForegroundService(new Intent(this,WakeWordService.class));
-            statusMessage("✓ Ei, Home ativado enquanto o Notch estiver ativo.");}
-        catch(RuntimeException e){statusMessage("Não foi possível iniciar o microfone: "+e.getMessage());}
-    }
-    private void resumeWakeLater(){
-        new Handler(Looper.getMainLooper()).postDelayed(()->{
-            if(WakeWordService.enabled(this))
-                try{startService(new Intent(this,WakeWordService.class).setAction(WakeWordService.RESUME));}
-                catch(RuntimeException ignored){}
-        },15000);
-    }
-    @Override public void onRequestPermissionsResult(int request,String[] permissions,int[] results){
-        super.onRequestPermissionsResult(request,permissions,results);
-        if(request==WAKE_PERMISSION_REQUEST){
-            if(results.length>0 && results[0]==PackageManager.PERMISSION_GRANTED)startWake();
-            else statusMessage("Microfone não autorizado. Ei, Home permanece desligado.");
-        }
     }
     private void initScreen(String page,String subtitle){
         currentPage=page;
@@ -336,31 +297,107 @@ public final class MainActivity extends Activity {
         action(welcome,"Conectar / alterar chave",false,
             ()->credential.setVisibility(credential.getVisibility()==View.VISIBLE?View.GONE:View.VISIBLE));
 
-        LinearLayout conversation=card("Sua conversa","Digite ou use o microfone. O HOME responde na mesma tela.");
+        LinearLayout history=card("Histórico de conversas","As mensagens ficam salvas neste aparelho, inclusive as perguntas por voz.");
+        TextView current=note("Conversa atual");
+        chatTitle=current;
+        add(history,current,0,11);
+        actions(history,"Nova conversa",()->{
+            HomeChatStore.get(this).newChat();
+            refreshChat();
+            showStatus("Nova conversa criada.");
+        },"Conversas salvas",()->{
+            if(chatPicker.getVisibility()==View.VISIBLE)chatPicker.setVisibility(View.GONE);
+            else{renderChatList();chatPicker.setVisibility(View.VISIBLE);}
+        });
+        chatPicker=column();
+        chatPicker.setVisibility(View.GONE);
+        history.addView(chatPicker);
+
+        LinearLayout conversation=card("Mensagens","Suas perguntas à direita e respostas do HOME à esquerda.");
+        chatMessages=column();
+        add(conversation,chatMessages,0,13);
         EditText question=edit("Escreva sua pergunta...",false);
         question.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(750)});
-        add(conversation,question,0,12);
-        TextView response=text("Sua resposta aparecerá aqui.",15,WHITE,false);
-        LinearLayout answerPanel=column();
-        answerPanel.setBackground(bg(RAISED,14));
-        answerPanel.setPadding(dp(14),dp(14),dp(14),dp(14));
-        add(answerPanel,response,0,0);
-        add(conversation,answerPanel,4,14);
+        add(conversation,question,2,12);
+        TextView feedback=note("");
+        feedback.setVisibility(View.GONE);
+        conversation.addView(feedback);
         actions(conversation,"Enviar ↗",()->{
             String q=question.getText().toString().trim();
-            if(q.isEmpty()){response.setText("Digite uma pergunta.");return;}
+            if(q.isEmpty()){feedback.setText("Digite uma pergunta.");feedback.setVisibility(View.VISIBLE);return;}
             question.setText("");
-            response.setText("HOME está pensando…");
+            feedback.setText("HOME está pensando…");feedback.setVisibility(View.VISIBLE);
             ((InputMethodManager)getSystemService(INPUT_METHOD_SERVICE))
                 .hideSoftInputFromWindow(question.getWindowToken(),0);
-            askHome(q,response);
+            askHome(q,feedback);
+            refreshChat();
         },"Falar agora",()->HomeVoice.listen(this));
-        action(conversation,"Apagar conexão Groq",false,()->requestInlineConfirm(
-            "Desconectar Groq","Isso apaga a chave salva no aparelho e o histórico desta sessão.",()->{
-                HomeGroq.disconnect(this);state.setText("Groq desconectada");
-                state.setTextColor(MUTED);response.setText("Conexão apagada.");
+        action(conversation,"Desconectar Groq",false,()->requestInlineConfirm(
+            "Desconectar Groq","Isso apaga apenas a chave e a memória temporária da IA. Suas conversas salvas serão preservadas.",()->{
+                HomeGroq.disconnect(this);
+                state.setText("Groq desconectada");
+                state.setTextColor(MUTED);
+                feedback.setText("Conexão removida. O histórico continua salvo.");
+                feedback.setVisibility(View.VISIBLE);
             }));
+        refreshChat();
         add(root,note("A fala é sintetizada pela Faber offline. As perguntas são enviadas à Groq somente quando conectada."),0,12);
+    }
+    private void bubble(String role,String message){
+        if(chatMessages==null)return;
+        boolean user="user".equals(role);
+        LinearLayout line=new LinearLayout(this);
+        line.setOrientation(LinearLayout.HORIZONTAL);
+        line.setGravity(user?Gravity.RIGHT:Gravity.LEFT);
+        TextView body=text(message,15,WHITE,false);
+        body.setMaxWidth(dp(narrow()?280:390));
+        body.setBackground(bg(user?BLUE:RAISED,16));
+        body.setPadding(dp(15),dp(12),dp(15),dp(12));
+        LinearLayout.LayoutParams bodySize=new LinearLayout.LayoutParams(-2,-2);
+        bodySize.leftMargin=user?dp(27):0;
+        bodySize.rightMargin=user?0:dp(27);
+        line.addView(body,bodySize);
+        add(chatMessages,line,0,12);
+    }
+    private void refreshChat(){
+        if(chatMessages==null||!"assistant".equals(currentPage))return;
+        HomeChatStore store=HomeChatStore.get(this);
+        String id=store.ensureActive();
+        String title="Nova conversa";
+        for(JSONObject c:store.conversations()){
+            if(id.equals(c.optString("id"))){title=c.optString("title","Conversa");break;}
+        }
+        if(chatTitle!=null)chatTitle.setText("Atual: "+title);
+        chatMessages.removeAllViews();
+        JSONArray messages=store.messages();
+        for(int i=0;i<messages.length();i++){
+            JSONObject m=messages.optJSONObject(i);
+            if(m!=null)bubble(m.optString("role"),m.optString("text"));
+        }
+        if(messages.length()==0)add(chatMessages,note("Ainda não há mensagens nesta conversa."),0,10);
+    }
+    private void renderChatList(){
+        if(chatPicker==null)return;
+        chatPicker.removeAllViews();
+        HomeChatStore store=HomeChatStore.get(this);
+        for(JSONObject c:store.conversations()){
+            String id=c.optString("id");
+            String name=c.optString("title","Conversa");
+            String date=DateFormat.getDateTimeInstance(DateFormat.SHORT,DateFormat.SHORT)
+                .format(new Date(c.optLong("updated")));
+            LinearLayout item=column();
+            item.setPadding(dp(10),dp(9),dp(10),dp(9));
+            add(item,button(name+" · "+date,false,()->{
+                store.select(id);chatPicker.setVisibility(View.GONE);refreshChat();
+            }),0,5);
+            Button delete=button("Excluir conversa",false,()->requestInlineConfirm(
+                "Excluir conversa","Excluir permanentemente esta conversa apenas deste aparelho?",()->{
+                    store.delete(id);renderChatList();refreshChat();
+                }));
+            delete.setTextColor(MUTED);
+            add(item,delete,0,4);
+            add(chatPicker,item,0,6);
+        }
     }
     private void askHome(String question,TextView response){
         if(!HomeGroq.connected(this)){
@@ -370,16 +407,15 @@ public final class MainActivity extends Activity {
         HomeGroq.ask(this,question,new HomeGroq.Callback(){
             @Override public void onEmotion(String emotion){HomeEmotion.fromGroq(emotion);}
             @Override public void onAnswer(String answer){
-                if(response!=null)response.setText(answer);
-                else statusMessage("HOME: "+answer);
-                resumeWakeLater();
+                if(response!=null){response.setText("");response.setVisibility(View.GONE);}
+                refreshChat();
                 if(FaberOffline.isInstalled(MainActivity.this))
                     HomeVoice.speak(MainActivity.this,answer);
                 else statusMessage("Resposta pronta em texto. Instale Faber em Voz para ouvir.");
             }
             @Override public void onError(String message){
-                resumeWakeLater();
-                if(response!=null)response.setText(message);
+                refreshChat();
+                if(response!=null){response.setVisibility(View.VISIBLE);response.setText(message);}
                 statusMessage(message);
             }
         });
@@ -429,29 +465,12 @@ public final class MainActivity extends Activity {
             try{
                 startForegroundService(new Intent(this,OverlayService.class));
                 statusMessage("✓ Notch ativado.");
-                if(WakeWordService.enabled(this))
-                    new Handler(Looper.getMainLooper()).postDelayed(this::startWake,750);
             }catch(Exception e){statusMessage("Não foi possível ativar: "+e.getMessage());}
         });
         action(box,"Desativar Notch",false,()->{
-            stopService(new Intent(this,WakeWordService.class));
             stopService(new Intent(this,OverlayService.class));statusMessage("Notch desativado.");
         });
         action(box,"Ajustar posição e tamanho",false,this::showEditor);
-        LinearLayout wake=card("Ativação por voz","Diga ‘Ei, Home’ enquanto o Notch estiver ativo. O Android poderá usar seu serviço de reconhecimento de fala, inclusive pela internet. O microfone fica indicado na notificação.");
-        Switch wakeToggle=new Switch(this);
-        wakeToggle.setText("Ativar ‘Ei, Home’");wakeToggle.setTextColor(WHITE);
-        wakeToggle.setChecked(WakeWordService.enabled(this));
-        add(wake,wakeToggle,0,10);
-        wakeToggle.setOnCheckedChangeListener((view,on)->{
-            if(on){ startWake();
-                if(!getSharedPreferences("home",MODE_PRIVATE).getBoolean("notch_active",false))wakeToggle.setChecked(false);
-            }else{
-                getSharedPreferences("home",MODE_PRIVATE).edit().putBoolean("wake_enabled",false).apply();
-                stopService(new Intent(this,WakeWordService.class));
-                statusMessage("Ei, Home desativado.");
-            }
-        });
     }
     private void updatesPage(){
         LinearLayout box=card("Atualizações oficiais","O aplicativo verifica os lançamentos assinados do HOME.");
@@ -559,35 +578,32 @@ public final class MainActivity extends Activity {
     }
     @Override protected void onActivityResult(int request,int resultCode,Intent data){
         super.onActivityResult(request,resultCode,data);
-        if(request==HomeVoice.REQUEST_SPEECH && (resultCode!=RESULT_OK || data==null)){
-            resumeWakeLater();return;
-        }
         if(request==HomeVoice.REQUEST_SPEECH && resultCode==RESULT_OK && data!=null){
             java.util.ArrayList<String> results=data.getStringArrayListExtra(
                 android.speech.RecognizerIntent.EXTRA_RESULTS);
-            if(results==null||results.isEmpty()){resumeWakeLater();return;}
+            if(results==null||results.isEmpty())return;
             String question=results.get(0);
-            if(!"assistant".equals(currentPage)&&!"voice".equals(currentPage))showPage("assistant");
+            if(!"assistant".equals(currentPage))showPage("assistant");
             statusMessage("Você: "+question+"  ·  HOME está pensando…");
             if(!HomeGroq.connected(this)){
                 statusMessage("Conecte a Groq no Assistente para receber respostas por voz.");
-                resumeWakeLater();
                 return;
             }
             HomeGroq.ask(this,question,new HomeGroq.Callback(){
                 @Override public void onEmotion(String emotion){HomeEmotion.fromGroq(emotion);}
                 @Override public void onAnswer(String answer){
-                    resumeWakeLater();
+                    refreshChat();
                     statusMessage("HOME: "+answer);
                     if(FaberOffline.isInstalled(MainActivity.this))
                         HomeVoice.speak(MainActivity.this,answer);
                     else statusMessage("HOME: "+answer+"\nInstale a voz Faber para ouvir.");
                 }
                 @Override public void onError(String reason){
-                    resumeWakeLater();
+                    refreshChat();
                     statusMessage(reason);
                 }
             });
+            refreshChat();
         }
     }
 }

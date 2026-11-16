@@ -18,6 +18,7 @@ from home_ui import HomePanel
 from home_navigation import Workspace
 from home_integrations import load_preferences, save_preferences, ChromeBridge, IntegrationsDialog, cleanup_retired_voice
 from home_voice import VoiceManager, VoiceDialog
+from home_chat_store import ChatStore
 from home_emotions import ContextState, WindowsContext, normalize_emotion
 
 
@@ -258,7 +259,8 @@ class Home(QWidget):
         cleanup_retired_voice()
         self.chrome_bridge = ChromeBridge(self.integration_prefs)
         self.last_page = None
-        self.assistant_history = []
+        self.chat_store = ChatStore()
+        self.assistant_history = [(x["role"],x["text"]) for x in self.chat_store.messages()]
         self.chrome_bridge.received.connect(self._remember_page)
         self.eyes_dialog = None
         # Detecta clique externo mesmo quando outro programa recebe o foco.
@@ -314,6 +316,15 @@ class Home(QWidget):
         if self.integration_prefs.get('voice_microphone') and self.integration_prefs.get('voice_wake'):
             self.voice.start('wake')
         QApplication.instance().aboutToQuit.connect(self.shutdown)
+
+    def record_chat(self, role, message, session=None):
+        self.chat_store.add(role, message, id=session)
+        if session is None or session == self.chat_store.active():
+            self.assistant_history = [(x["role"],x["text"]) for x in self.chat_store.messages()]
+
+    def select_chat(self, id):
+        self.chat_store.select(id)
+        self.assistant_history = [(x["role"],x["text"]) for x in self.chat_store.messages()]
 
     def set_ai_emotion(self, emotion):
         self.emotion_context.note_conversation(normalize_emotion(emotion))
