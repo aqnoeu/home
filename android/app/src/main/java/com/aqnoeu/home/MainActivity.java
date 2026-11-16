@@ -241,9 +241,9 @@ public final class MainActivity extends Activity {
         brand.setOrientation(LinearLayout.HORIZONTAL);
         brand.setGravity(Gravity.CENTER_VERTICAL);
         ImageView icon=new ImageView(this);
-        icon.setImageResource(R.drawable.home_logo_transparent);
+        icon.setImageResource(R.drawable.home_icon_approved);
         icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        icon.setContentDescription("Símbolo oficial HOME: dois olhos brancos em fundo grafite");
+        icon.setContentDescription("Logomarca oficial HOME, arte original do manual de marca");
         LinearLayout.LayoutParams iconSize=new LinearLayout.LayoutParams(dp(48),dp(48));
         iconSize.rightMargin=dp(10);
         brand.addView(icon,iconSize);
