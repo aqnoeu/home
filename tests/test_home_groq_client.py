@@ -46,7 +46,7 @@ class TestGroqClient(unittest.TestCase):
             calls.append(body["model"])
             if len(calls) == 1:
                 raise http_error(403)
-            self.assertNotIn("reasoning_effort", body)
+            self.assertEqual(body["reasoning_effort"], "low")
             return FakeResponse({"choices": [{"message": {
                 "content": json.dumps({"resposta": "Olá", "emocao": "neutro"})
             }}]})
