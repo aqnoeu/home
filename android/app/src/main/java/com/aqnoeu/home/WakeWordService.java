@@ -54,10 +54,12 @@ public final class WakeWordService extends Service {
             else startForeground(72,note);
         } catch(RuntimeException e) { stopSelf(); return START_NOT_STICKY; }
         running=true;
-        if(!SpeechRecognizer.isRecognitionAvailable(this)) { stopSelf(); return START_NOT_STICKY; }
+        if(!SpeechRecognizer.isRecognitionAvailable(this)) {
+            state("Reconhecimento de voz não disponível no Android.");stopSelf();return START_NOT_STICKY;
+        }
         recognizer=SpeechRecognizer.createSpeechRecognizer(this);
         recognizer.setRecognitionListener(new RecognitionListener() {
-            public void onReadyForSpeech(Bundle b) {}
+            public void onReadyForSpeech(Bundle b) { state("Microfone pronto. Diga Ei, Home."); failures=0; }
             public void onBeginningOfSpeech() {}
             public void onRmsChanged(float v) {}
             public void onBufferReceived(byte[] b) {}
@@ -67,8 +69,10 @@ public final class WakeWordService extends Service {
             public void onError(int error) {
                 if(!running || paused) return;
                 // Permission/recognizer errors must not cause a rapid retry loop.
-                if(error==SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS ||
-                    error==SpeechRecognizer.ERROR_CLIENT) { stopSelf(); return; }
+                if(error==SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
+                    state("Sem permissão para o microfone."); stopSelf(); return;
+                }
+                state("Reconhecimento interrompido (código "+error+"). Nova tentativa automática.");
                 failures=Math.min(failures+1,6);
                 schedule(Math.min(15000,800*(1<<Math.min(failures,4))));
             }
@@ -94,6 +98,7 @@ public final class WakeWordService extends Service {
                 int end=at+trigger.length();
                 if(end<normalized.length() && Character.isLetter(normalized.charAt(end))) continue;
                 paused=true;
+                state("Chamada Ei, Home reconhecida.");
                 handler.removeCallbacks(restart);
                 if(recognizer!=null) recognizer.cancel();
                 String query=phrase.substring(Math.min(end,phrase.length())).replaceFirst("^[,.:;!?\\s]+","").trim();
@@ -107,6 +112,9 @@ public final class WakeWordService extends Service {
             }
         }
     }
+    private void state(String value){
+        getSharedPreferences("home",MODE_PRIVATE).edit().putString("wake_status",value).apply();
+    }
     private void schedule(long delayMs) {
         handler.removeCallbacks(restart);
         if(running && !paused) handler.postDelayed(restart,delayMs);
@@ -114,14 +122,16 @@ public final class WakeWordService extends Service {
     private void listen() {
         if(!running || paused || recognizer==null) return;
         try {
-            recognizer.cancel();
             Intent i=new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
             i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
             i.putExtra(RecognizerIntent.EXTRA_LANGUAGE,"pt-BR");
             i.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS,true);
             i.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS,3);
             recognizer.startListening(i);
-        } catch(RuntimeException e) { failures++; schedule(3000); }
+        } catch(RuntimeException e) {
+            state("Falha na escuta: "+e.getClass().getSimpleName());
+            failures++; schedule(3000);
+        }
     }
     @Override public void onDestroy() {
         running=false; handler.removeCallbacks(restart);
