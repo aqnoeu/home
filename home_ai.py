@@ -20,7 +20,7 @@ def load_ai_settings():
     try:
         data = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
         if isinstance(data, dict):
-            return {"endpoint": str(data.get("endpoint", "")), "token": str(data.get("token", ""))}
+            return {"endpoint": str(data.get("endpoint") or DEFAULT_ENDPOINT), "token": str(data.get("token", ""))}
     except (OSError, ValueError):
         pass
     return {"endpoint": DEFAULT_ENDPOINT, "token": ""}
