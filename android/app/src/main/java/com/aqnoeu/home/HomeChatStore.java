@@ -105,10 +105,12 @@ public final class HomeChatStore {
         }catch(Exception e){throw new IllegalStateException(e);}
     }
     public synchronized void add(String role,String text){
+        addTo(ensureActive(),role,text);
+    }
+    public synchronized void addTo(String session,String role,String text){
         if(!"user".equals(role)&&!"assistant".equals(role))return;
         if(text==null||text.trim().isEmpty())return;
-        String id=ensureActive();
-        JSONObject chat=find(id);
+        JSONObject chat=find(session);
         if(chat==null)return;
         try {
             JSONArray messages=chat.getJSONArray("messages");
