@@ -117,6 +117,54 @@ public final class HomeAi {
                 }).start();
             }).setNegativeButton("Cancelar",null).show();
     }
+    /** Push-to-talk can use the same authenticated backend as the text chat. */
+    public static boolean voiceReply(Activity activity,String question) {
+        SharedPreferences prefs=activity.getSharedPreferences("home_ai",Context.MODE_PRIVATE);
+        String endpoint=prefs.getString("endpoint","");
+        String token=prefs.getString("token","");
+        if(endpoint.isEmpty()||token.isEmpty())return false;
+        new Thread(()->{
+            String answer;
+            int mood=0;
+            try {
+                URL target=new URL(endpoint);
+                if(!"https".equalsIgnoreCase(target.getProtocol()))throw new Exception("HTTPS obrigatório");
+                HttpURLConnection conn=(HttpURLConnection)target.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setConnectTimeout(12000);conn.setReadTimeout(25000);
+                conn.setRequestProperty("Authorization","Bearer "+token);
+                conn.setRequestProperty("Content-Type","application/json; charset=utf-8");
+                conn.setDoOutput(true);
+                JSONObject body=new JSONObject();
+                body.put("message",question.substring(0,Math.min(500,question.length())));
+                body.put("mood",activity.getSharedPreferences("home",Context.MODE_PRIVATE).getInt("mood",0));
+                try(OutputStream out=conn.getOutputStream()){out.write(body.toString().getBytes(StandardCharsets.UTF_8));}
+                if(conn.getResponseCode()!=200)throw new Exception("HTTP "+conn.getResponseCode());
+                ByteArrayOutputStream out=new ByteArrayOutputStream();
+                try(InputStream in=conn.getInputStream()){
+                    byte[] bytes=new byte[4096];int n;
+                    while((n=in.read(bytes))!=-1){
+                        if(out.size()+n>12000)throw new Exception("Resposta extensa");
+                        out.write(bytes,0,n);
+                    }
+                }finally{conn.disconnect();}
+                JSONObject result=new JSONObject(out.toString("UTF-8"));
+                answer=result.optString("reply","Sem resposta.");
+                mood=Math.max(0,Math.min(3,result.optInt("mood",0)));
+            }catch(Exception e){answer="A IA está indisponível. "+e.getMessage();}
+            final String message=answer;final int newMood=mood;
+            activity.runOnUiThread(()->{
+                if(activity.isFinishing())return;
+                activity.getSharedPreferences("home",Context.MODE_PRIVATE).edit().putInt("mood",newMood).apply();
+                try{activity.startService(new android.content.Intent(activity,OverlayService.class));}
+                catch(Exception ignored){}
+                HomeVoice.speak(activity,message);
+                show(activity,message);
+            });
+        }).start();
+        return true;
+    }
+
     private static void show(Activity activity,String message){
         if(!activity.isFinishing())new AlertDialog.Builder(activity).setTitle("Home")
             .setMessage(message).setPositiveButton("Fechar",null).show();
