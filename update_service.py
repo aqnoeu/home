@@ -13,7 +13,7 @@ from io import BytesIO
 from PySide6.QtCore import QThread, Signal
 
 OWNER, REPO = 'aqnoeu', 'home'
-LATEST = f'https://api.github.com/repos/{OWNER}/{REPO}/releases/latest'
+RELEASES = f'https://api.github.com/repos/{OWNER}/{REPO}/releases?per_page=100'
 VERSION = '0.7.1'
 ASSET = 'Home-Windows.zip'
 SUMS = 'SHA256SUMS.txt'
@@ -42,14 +42,33 @@ def fetch(url, limit=LIMIT):
     return data
 
 def release_info():
-    d = json.loads(fetch(LATEST,200000))
-    if d.get('draft') or d.get('prerelease') or version_tuple(d.get('tag_name',''))<=version_tuple(VERSION):
+    # GitHub /releases/latest pode retornar Android. Selecionar a maior
+    # versao Windows *com ambos os assets oficiais*, ignorando tags android-v*.
+    import re
+    releases = json.loads(fetch(RELEASES, 1800000))
+    if not isinstance(releases, list):
+        raise ValueError('Resposta de Releases inesperada')
+    candidates = []
+    for item in releases:
+        if item.get('draft') or item.get('prerelease'):
+            continue
+        tag = item.get('tag_name', '')
+        if not re.fullmatch(r'v\\d+\\.\\d+\\.\\d+', tag):
+            continue
+        assets = {asset.get('name'): asset.get('browser_download_url', '')
+                  for asset in item.get('assets', [])}
+        if any(name not in assets or
+               not assets[name].startswith(f'https://github.com/{OWNER}/{REPO}/releases/download/')
+               for name in (ASSET, SUMS)):
+            continue
+        candidates.append((version_tuple(tag), item, assets))
+    if not candidates:
         return None
-    assets = {a['name']:a['browser_download_url'] for a in d.get('assets',[])}
-    for name in (ASSET,SUMS):
-        if name not in assets or not assets[name].startswith(f'https://github.com/{OWNER}/{REPO}/releases/download/'):
-            raise ValueError('Release sem pacote oficial')
-    return {'version':d['tag_name'],'notes':d.get('body','')[:3000],'zip':assets[ASSET],'sums':assets[SUMS]}
+    version, item, assets = max(candidates, key=lambda triple: triple[0])
+    if version <= version_tuple(VERSION):
+        return None
+    return {'version': item['tag_name'], 'notes': item.get('body', '')[:3000],
+            'zip': assets[ASSET], 'sums': assets[SUMS]}
 
 def stage_update(info):
     data = fetch(info['zip'])
