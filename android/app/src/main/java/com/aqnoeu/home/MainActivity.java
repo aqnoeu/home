@@ -242,10 +242,12 @@ public final class MainActivity extends Activity {
         brand.setGravity(Gravity.CENTER_VERTICAL);
         // Static official app icon; animated eyes belong only to the notch and expression card.
         ImageView brandIcon=new ImageView(this);
-        brandIcon.setImageResource(R.drawable.home_icon_approved);
+        brandIcon.setImageResource(R.drawable.home_header_eyes);
         brandIcon.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        brandIcon.setBackground(null);
+        brandIcon.setAdjustViewBounds(true);
         brandIcon.setContentDescription("Logomarca oficial HOME");
-        LinearLayout.LayoutParams iconSize=new LinearLayout.LayoutParams(dp(48),dp(48));
+        LinearLayout.LayoutParams iconSize=new LinearLayout.LayoutParams(dp(58),dp(48));
         iconSize.rightMargin=dp(10);
         brand.addView(brandIcon,iconSize);
         LinearLayout brandCopy=column();
@@ -306,6 +308,8 @@ public final class MainActivity extends Activity {
         add(face,note("Expressão"),0,9);
         HorizontalScrollView hscroll=new HorizontalScrollView(this);
         hscroll.setHorizontalScrollBarEnabled(false);
+        hscroll.setHorizontalFadingEdgeEnabled(true);
+        hscroll.setFadingEdgeLength(dp(12));
         LinearLayout moods=new LinearLayout(this);moods.setOrientation(LinearLayout.HORIZONTAL);
         String[] labels={"Normal","Feliz","Sonolento","Bravo"};
         for(int i=0;i<labels.length;i++){
@@ -313,11 +317,17 @@ public final class MainActivity extends Activity {
             Button mood=button(labels[i],false,()->{
                 prefs.edit().putInt("mood",index).apply();
                 eyes.setMood(index);
+                for(int j=0;j<moods.getChildCount();j++)
+                    moods.getChildAt(j).setBackground(bg(j==index?BLUE:RAISED,12));
                 if(Settings.canDrawOverlays(this))refreshNotch();
                 showStatus("Expressão: "+labels[index]);
                 status.setVisibility(View.VISIBLE);
             });
-            LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(dp(94),dp(46));
+            mood.setSingleLine(true);
+            mood.setTextSize(13);
+            mood.setPadding(dp(12),0,dp(12),0);
+            mood.setBackground(bg(index==prefs.getInt("mood",0)?BLUE:RAISED,12));
+            LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(dp(labels[i].equals("Sonolento")?110:94),dp(46));
             p.rightMargin=dp(8);moods.addView(mood,p);
         }
         hscroll.addView(moods);
@@ -329,7 +339,7 @@ public final class MainActivity extends Activity {
             "Microfone",()->showPage("voice"));
         actions(quick,"Notch e Ei, Home",()->showPage("interactions"),"Ajustar aparência",this::showEditor);
         actions(quick,"Atualizações",()->showPage("updates"),"Sair",()->showPage("exit"));
-        add(root,quick,0,12);
+        add(root,quick,0,8);
 
         add(root,note("HOME · v"+BuildConfig.VERSION_NAME+" · @aqnoeu"),17,0);
     }
