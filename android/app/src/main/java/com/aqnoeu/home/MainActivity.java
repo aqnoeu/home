@@ -127,9 +127,35 @@ public final class MainActivity extends Activity {
                 status.setText("Home reage a interações locais. Sem servidor, chaves ou configuração de nuvem.");
                 break;
             case "voice":
-                root.addView(text("Voz em definição",16));
-                addButton("◉ Falar agora (reconhecimento)",()->HomeVoice.listen(this));
-                status.setText("A voz Alex foi retirada. Não há nenhum motor de fala instalado pelo Home nesta versão. Escolheremos uma nova voz depois.");
+                root.addView(text("Faber • Piper pt_BR-faber-medium",16));
+                TextView faberStatus=text(FaberOffline.isInstalled(this)
+                    ? "✓ Modelo instalado. A voz funciona offline."
+                    : "A voz Faber precisa ser instalada uma única vez (~67 MB).",13);
+                root.addView(faberStatus);
+                addButton("↓ Instalar Faber • grátis (~67 MB)",()->{
+                    if(FaberOffline.isInstalled(this)){
+                        faberStatus.setText("✓ Faber já instalada neste aparelho.");return;
+                    }
+                    new AlertDialog.Builder(this).setTitle("Instalar Faber")
+                        .setMessage("Baixar o modelo gratuito de aproximadamente 67 MB? A fala funcionará offline depois. Reserve pelo menos 250 MB temporários.")
+                        .setPositiveButton("Instalar",(d,w)->FaberOffline.installAsync(this,faberStatus::setText))
+                        .setNegativeButton("Cancelar",null).show();
+                });
+                addButton("▶ Testar voz Faber offline",()->FaberOffline.speak(this,
+                    "Olá! Eu sou o Home e esta é a voz Faber, funcionando diretamente no celular.",
+                    faberStatus::setText));
+                addButton("◉ Falar agora",()->HomeVoice.listen(this));
+                addButton("Diagnóstico da voz Faber",()->{
+                    String report=FaberOffline.diagnostic(this);
+                    new AlertDialog.Builder(this).setTitle("Diagnóstico • Faber")
+                        .setMessage(report)
+                        .setPositiveButton("Copiar",(dialog,which)->{
+                            ClipboardManager clipboard=(ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
+                            clipboard.setPrimaryClip(ClipData.newPlainText("Diagnóstico Faber",report));
+                            Toast.makeText(this,"Diagnóstico copiado",Toast.LENGTH_SHORT).show();
+                        }).setNegativeButton("Fechar",null).show();
+                });
+                status.setText("Mesma voz Faber no Home Windows e Android. A fala é offline e não usa Google TTS, servidor ou chave. O reconhecimento de voz ainda usa o serviço instalado no Android.");
                 break;
             case "interactions":
                 addButton("Ativar Notch",()->{
