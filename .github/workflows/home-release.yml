@@ -1,0 +1,210 @@
+name: HOME — release conjunta Windows e Android
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/home-release.yml'
+      - 'android/**'
+      - 'home.py'
+      - 'home_*.py'
+      - 'update_service.py'
+      - 'updater.py'
+      - 'requirements.txt'
+      - 'assets/**'
+      - 'tests/**'
+      - 'chrome-extension/**'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: home-unified-release
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      number: ${{ steps.next.outputs.number }}
+    steps:
+      - name: Definir mesma versão para PC e celular
+        id: next
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tags=$(gh release list --repo "$GITHUB_REPOSITORY" --limit 100 --json tagName --jq '.[].tagName')
+          previous=$(printf '%s\n' "$tags" | grep -E '^v0\.8\.[0-9]+$' | sed 's/^v0\.8\.//' | sort -n | tail -1 || true)
+          if [ -z "$previous" ]; then patch=0; else patch=$((previous+1)); fi
+          number="0.8.$patch"
+          echo "number=$number" >> "$GITHUB_OUTPUT"
+          echo "Versão compartilhada: $number"
+
+  windows:
+    needs: version
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Aplicar versão compartilhada no Windows
+        shell: pwsh
+        env:
+          HOME_RELEASE_VERSION: ${{ needs.version.outputs.number }}
+        run: |
+          $source = Get-Content update_service.py -Raw
+          $source = $source -replace "VERSION = '\d+\.\d+\.\d+'", "VERSION = '$env:HOME_RELEASE_VERSION'"
+          Set-Content update_service.py -Value $source -Encoding utf8
+          if (-not (Select-String -Path update_service.py -SimpleMatch "VERSION = '$env:HOME_RELEASE_VERSION'")) {
+            throw 'Versao Windows nao aplicada'
+          }
+      - name: Instalar dependências
+        run: python -m pip install --upgrade -r requirements.txt pyinstaller pillow
+      - name: Verificar sintaxe de todos os módulos Windows
+        run: python -m compileall -q home.py home_ui.py home_navigation.py home_assistant.py home_integrations.py home_voice.py home_faber.py home_groq.py home_emotions.py home_chat_store.py updater.py update_service.py
+      - name: Testar chat, credenciais, voz e Groq simulada
+        run: python -m unittest discover -s tests -v
+      - name: Testar interface Windows sem display físico
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          @'
+          from PySide6.QtWidgets import QApplication
+          from home import Home
+          app=QApplication([])
+          home=Home()
+          home.show()
+          home.toggle()
+          for section in ("assistant","voice","integrations","edit","updates","exit"):
+              home.navigate(section)
+              home.animation.setCurrentTime(300)
+              app.processEvents()
+              assert home.page == section
+              assert home.workspace.current is not None
+          home.navigate("assistant")
+          page=home.workspace.current
+          spoken=[]
+          home.voice.speak=lambda msg,force=False: spoken.append((msg,force))
+          page.entry.setText("teste de voz")
+          page.send()
+          assert spoken
+          home.navigate("hub")
+          home.shutdown()
+          '@ | Set-Content navigation_smoke.py -Encoding utf8
+          python navigation_smoke.py
+      - name: Gerar ícone Windows
+        shell: pwsh
+        run: |
+          @'
+          from PIL import Image
+          im=Image.open("assets/home_icon_approved.png").convert("RGBA")
+          im.save("assets/home_icon.ico",format="ICO",sizes=[(16,16),(32,32),(48,48),(64,64),(128,128)])
+          '@ | python
+      - name: Compilar Home e atualizador
+        shell: pwsh
+        run: |
+          pyinstaller --noconfirm --clean --onefile --windowed --collect-all vosk --collect-binaries sounddevice --hidden-import sounddevice --collect-all sherpa_onnx --collect-all keyring --add-data "assets/home_icon_approved.png;assets" --icon assets/home_icon.ico --name Home home.py
+          if ($LASTEXITCODE -ne 0) { throw "Compilação Windows falhou" }
+          pyinstaller --noconfirm --clean --onefile --windowed --name HomeUpdater updater.py
+          if ($LASTEXITCODE -ne 0) { throw "Atualizador Windows falhou" }
+      - name: Verificar dependência Vosk
+        shell: pwsh
+        run: |
+          $contents=(pyi-archive_viewer -l dist/Home.exe | Out-String)
+          if ($contents -notmatch 'libvosk[.]dll') { throw 'DLL Vosk ausente do Home.exe' }
+      - name: Preparar pacotes Windows
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release | Out-Null
+          Compress-Archive -Path dist/Home.exe,dist/HomeUpdater.exe -DestinationPath release/Home-Windows.zip -Force
+          Compress-Archive -Path chrome-extension/* -DestinationPath release/Home-Chrome-Extension.zip -Force
+          $hash=(Get-FileHash release/Home-Windows.zip -Algorithm SHA256).Hash.ToLower()
+          "$hash  Home-Windows.zip" | Set-Content release/SHA256SUMS.txt -Encoding ascii
+      - uses: actions/upload-artifact@v4
+        with:
+          name: home-windows
+          path: release/*
+          retention-days: 14
+
+  android:
+    needs: version
+    runs-on: ubuntu-latest
+    env:
+      HOME_RELEASE_VERSION: ${{ needs.version.outputs.number }}
+      HOME_KEYSTORE_PASSWORD: ${{ secrets.HOME_ANDROID_KEYSTORE_PASSWORD }}
+      HOME_KEY_ALIAS: ${{ secrets.HOME_ANDROID_KEY_ALIAS }}
+      HOME_KEY_PASSWORD: ${{ secrets.HOME_ANDROID_KEY_PASSWORD }}
+      KEYSTORE_BASE64: ${{ secrets.HOME_ANDROID_KEYSTORE_BASE64 }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Exigir certificado oficial para atualizações compatíveis
+        run: |
+          test -n "$KEYSTORE_BASE64"
+          test -n "$HOME_KEYSTORE_PASSWORD"
+          test -n "$HOME_KEY_ALIAS"
+          test -n "$HOME_KEY_PASSWORD"
+      - name: Restaurar certificado protegido
+        run: |
+          umask 077
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/home-android.keystore"
+          echo "HOME_KEYSTORE_PATH=$RUNNER_TEMP/home-android.keystore" >> "$GITHUB_ENV"
+      - name: Preparar motor de voz Faber para Android
+        run: bash android/prepare-sherpa.sh
+      - name: Compilar APK assinado na mesma versão
+        working-directory: android
+        run: gradle --no-daemon :app:assembleRelease
+      - name: Empacotar APK
+        run: |
+          mkdir -p release
+          cp android/app/build/outputs/apk/release/app-release.apk release/Home-Android.apk
+          cd release
+          sha256sum Home-Android.apk > Home-Android.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: home-android
+          path: release/*
+          retention-days: 14
+
+  publish:
+    needs: [version, windows, android]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: home-windows
+          path: dist/windows
+      - uses: actions/download-artifact@v4
+        with:
+          name: home-android
+          path: dist/android
+      - name: Publicar uma única versão com os dois aplicativos
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HOME_RELEASE_VERSION: ${{ needs.version.outputs.number }}
+        run: |
+          set -euo pipefail
+          test -s dist/windows/Home-Windows.zip
+          test -s dist/windows/SHA256SUMS.txt
+          test -s dist/android/Home-Android.apk
+          test -s dist/android/Home-Android.sha256
+          gh release create "v$HOME_RELEASE_VERSION" \
+            dist/windows/Home-Windows.zip \
+            dist/windows/Home-Chrome-Extension.zip \
+            dist/windows/SHA256SUMS.txt \
+            dist/android/Home-Android.apk \
+            dist/android/Home-Android.sha256 \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "HOME v$HOME_RELEASE_VERSION — Windows e Android" \
+            --notes "Atualização conjunta das versões Windows e Android, com o mesmo número. Cada aparelho instala sua atualização separadamente mediante confirmação." \
+            --target "$GITHUB_SHA"
