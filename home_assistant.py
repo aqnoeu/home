@@ -340,22 +340,27 @@ class AssistantPage(QWidget):
                  for role,text in self.home.assistant_history[:-1]
                  if role in ("user","home")][-8:]
         worker=GroqWorker(question,history,self.home)
+        worker.chat_id=self.home.chat_store.active()
         self.groq_worker=worker
         self.home.groq_worker=worker
         self.status.setText("Groq está pensando…")
         worker.emotional_answer.connect(lambda _text, emotion:self.home.set_ai_emotion(emotion))
-        worker.answered.connect(lambda answer:self.on_ai_reply(answer))
-        worker.failed.connect(lambda problem:self.on_ai_error(problem))
+        worker.answered.connect(lambda answer:self.on_ai_reply(worker,answer))
+        worker.failed.connect(lambda problem:self.on_ai_error(worker,problem))
         worker.start()
 
-    def on_ai_reply(self,answer):
-        self.record("home",answer)
-        self.status.setText("Groq respondeu. Faber reproduzindo…" if self.talk.isChecked() else "Resposta pronta.")
-        self.say(answer)
+    def on_ai_reply(self,worker,answer):
+        self.home.record_chat("home",answer,session=worker.chat_id)
+        if worker.chat_id == self.home.chat_store.active():
+            self.add_bubble("home",answer)
+            self.refresh_chat_selector()
+            self.status.setText("Groq respondeu.")
+            self.say(answer)
 
-    def on_ai_error(self,problem):
-        self.status.setText(problem)
-        self.record("home","Não consegui consultar a Groq: "+problem)
+    def on_ai_error(self,worker,problem):
+        if worker.chat_id == self.home.chat_store.active():
+            self.status.setText(problem)
+            self.add_bubble("home","Não consegui consultar a Groq: "+problem)
 
     def confirm(self,allowed):
         pending=self.pending
