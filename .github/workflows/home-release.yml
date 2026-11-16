@@ -139,20 +139,6 @@ jobs:
       KEYSTORE_BASE64: ${{ secrets.HOME_ANDROID_KEYSTORE_BASE64 }}
     steps:
       - uses: actions/checkout@v4
-      - name: Preparar APK intermediário menor que 150 MiB (somente atualizador)
-        # ONE-TIME BRIDGE: remove this step only AFTER owners install the bridge.
-        # The existing Android updater always selects the newest vX.Y.Z release.
-        # Do not publish the large full APK until the bridge has been installed.
-        shell: bash
-        run: |
-          set -euo pipefail
-          cp android/app/src/main/java/com/aqnoeu/home/UpdateHelper.java "$RUNNER_TEMP/UpdateHelper.java"
-          git fetch --depth=1 origin refs/tags/v2.0.5:refs/tags/v2.0.5
-          rm -rf android
-          git archive v2.0.5 android | tar -x
-          cp "$RUNNER_TEMP/UpdateHelper.java" android/app/src/main/java/com/aqnoeu/home/UpdateHelper.java
-          grep -F 'MAX_APK = 256L * 1024 * 1024' android/app/src/main/java/com/aqnoeu/home/UpdateHelper.java
-          echo "APK intermediário: base leve v2.0.5 + atualizador corrigido."
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -187,11 +173,6 @@ jobs:
           mkdir -p release
           cp android/app/build/outputs/apk/release/app-release.apk release/Home-Android.apk
           cd release
-          # Older installed HOME builds reject APKs larger than 150 MiB.
-          test "$(stat -c%s Home-Android.apk)" -lt 157286400 || {
-            echo "::error::APK ponte ficou grande demais para os atualizadores existentes"
-            exit 1
-          }
           sha256sum Home-Android.apk > Home-Android.sha256
       - uses: actions/upload-artifact@v4
         with:
@@ -258,7 +239,7 @@ jobs:
             dist/android/Home-Android.sha256 \
             --repo "$GITHUB_REPOSITORY" \
             --title "HOME v$HOME_RELEASE_VERSION — Windows e Android" \
-            --notes "ANDROID: atualização intermediária com instalador atualizado e APK menor que 150 MiB. Instale esta versão pelo próprio HOME antes da próxima versão completa com motor de voz. Windows: versão conjunta usual. SHA-256 e assinatura Android permanecem verificados." \
+            --notes "HOME completo para Windows e Android, com motor de voz offline e as funcionalidades recentes. No Android, instale primeiro a versão ponte 2.0.8 para atualizar o limite de tamanho; o APK completo conserva as verificações SHA-256 e assinatura." \
             --target "$GITHUB_SHA"
       - name: Publicar ponte de atualização para Android 0.1.x
         env:
