@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
 from update_service import UpdateWorker, launch_update, VERSION
 from home_ui import HomePanel
 from home_navigation import Workspace
-from home_integrations import load_preferences, save_preferences, ChromeBridge, IntegrationsDialog
+from home_integrations import load_preferences, save_preferences, ChromeBridge, IntegrationsDialog, cleanup_retired_voice
 from home_voice import VoiceManager, VoiceDialog
 
 
@@ -227,6 +227,7 @@ class Home(QWidget):
         self.worker = None
         self.available_update = None
         self.integration_prefs = load_preferences()
+        cleanup_retired_voice()
         self.chrome_bridge = ChromeBridge(self.integration_prefs)
         self.last_page = None
         self.assistant_history = []
@@ -616,9 +617,9 @@ class Home(QWidget):
             self.voice.worker.wait(2500)
         if self.voice.speaker and self.voice.speaker.isRunning():
             self.voice.speaker.wait(6000)
-        if self.voice.kokoro_download_worker and self.voice.kokoro_download_worker.isRunning():
-            self.voice.kokoro_download_worker.requestInterruption()
-            self.voice.kokoro_download_worker.wait(65000)
+        if self.voice.faber_download_worker and self.voice.faber_download_worker.isRunning():
+            self.voice.faber_download_worker.requestInterruption()
+            self.voice.faber_download_worker.wait(65000)
         for worker in list(self.voice.voice_list_workers):
             if worker.isRunning():
                 worker.wait(6000)
