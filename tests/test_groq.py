@@ -3,7 +3,7 @@ import json
 import unittest
 from unittest.mock import patch
 
-from home_groq import MODEL, API, ask_groq, save_key
+from home_groq import MODEL, API, ask_groq, save_key, get_key
 
 class _Reply:
     def __init__(self,payload):
@@ -41,6 +41,11 @@ class GroqTests(unittest.TestCase):
         self.assertEqual(seen["body"]["model"],MODEL)
         self.assertNotIn("gsk_test",json.dumps(seen["body"]))
         self.assertEqual(seen["body"]["messages"][-1]["content"],"Oi")
+
+    def test_saved_key_overrides_embedded_key(self):
+        with patch("home_groq.BUILTIN_GROQ_KEY","gsk_old_invalid"):
+            with patch("keyring.get_password",return_value="gsk_current_personal"):
+                self.assertEqual(get_key(),"gsk_current_personal")
 
     def test_key_validation(self):
         with self.assertRaises(ValueError):
