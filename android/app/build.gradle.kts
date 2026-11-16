@@ -7,8 +7,8 @@ android {
         applicationId = "com.aqnoeu.home"
         minSdk = 26
         targetSdk = 35
-        versionCode = 111
-        versionName = "0.1.11"
+        versionCode = 112
+        versionName = "0.1.12"
     }
     signingConfigs {
         create("releaseKey") {
