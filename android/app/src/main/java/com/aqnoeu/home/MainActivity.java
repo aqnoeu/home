@@ -581,23 +581,39 @@ public final class MainActivity extends Activity {
         if(chatPicker==null)return;
         chatPicker.removeAllViews();
         HomeChatStore store=HomeChatStore.get(this);
-        for(JSONObject c:store.conversations()){
-            String id=c.optString("id");
-            String name=c.optString("title","Conversa");
+        for(JSONObject entry:store.conversations()){
+            final String id=entry.optString("id");
+            String name=entry.optString("title","Conversa");
             String date=DateFormat.getDateTimeInstance(DateFormat.SHORT,DateFormat.SHORT)
-                .format(new Date(c.optLong("updated")));
-            LinearLayout item=column();
-            item.setPadding(dp(10),dp(9),dp(10),dp(9));
-            add(item,button(name+" · "+date,false,()->{
-                store.select(id);((View)chatPicker.getParent()).setVisibility(View.GONE);refreshChat();
-            }),0,5);
-            Button delete=button("Excluir conversa",false,()->requestInlineConfirm(
-                "Excluir conversa","Excluir permanentemente esta conversa apenas deste aparelho?",()->{
+                .format(new Date(entry.optLong("updated")));
+            LinearLayout item=new LinearLayout(this);
+            item.setOrientation(LinearLayout.HORIZONTAL);
+            item.setGravity(Gravity.CENTER_VERTICAL);
+            item.setPadding(dp(4),dp(4),dp(4),dp(4));
+            LinearLayout details=column();
+            TextView nameText=text(name,14,WHITE,true);
+            nameText.setMaxLines(1);
+            nameText.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            add(details,nameText,0,4);
+            add(details,note(date),0,0);
+            details.setPadding(dp(8),dp(9),dp(8),dp(9));
+            details.setOnClickListener(v->{
+                store.select(id);
+                ((View)chatPicker.getParent()).setVisibility(View.GONE);
+                refreshChat();
+            });
+            item.addView(details,new LinearLayout.LayoutParams(0,-2,1f));
+            Button delete=button("×",false,()->requestInlineConfirm(
+                "Excluir conversa","Deseja excluir esta conversa deste aparelho?",()->{
                     store.delete(id);renderChatList();refreshChat();
                 }));
-            delete.setTextColor(MUTED);
-            add(item,delete,0,4);
-            add(chatPicker,item,0,6);
+            delete.setTextSize(21);
+            delete.setContentDescription("Excluir "+name);
+            item.addView(delete,new LinearLayout.LayoutParams(dp(48),dp(48)));
+            add(chatPicker,item,0,4);
+            View divider=new View(this);
+            divider.setBackgroundColor(LINE);
+            chatPicker.addView(divider,new LinearLayout.LayoutParams(-1,dp(1)));
         }
     }
     private void askHome(String question,TextView response){
