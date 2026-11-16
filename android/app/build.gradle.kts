@@ -7,8 +7,8 @@ android {
         applicationId = "com.aqnoeu.home"
         minSdk = 26
         targetSdk = 35
-        versionCode = 115
-        versionName = "0.1.15"
+        versionCode = 116
+        versionName = "0.1.16"
         // Optional owner-provided credential injected by a private GitHub Actions Secret.
         // WARNING: an embedded client key can be extracted from a public APK.
         val groqKey = providers.environmentVariable("HOME_GROQ_API_KEY").orNull ?: ""
