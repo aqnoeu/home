@@ -73,6 +73,26 @@ public final class MainActivity extends Activity {
                 if(Settings.canDrawOverlays(this)) startService(new Intent(this,OverlayService.class));
             });
         }
+        root.addView(text("Posição do Notch • Xiaomi 13 Pro",17));
+        android.content.SharedPreferences prefs = getSharedPreferences("home",MODE_PRIVATE);
+        Switch edgeSwitch = new Switch(this);
+        edgeSwitch.setText("Tentar posicionar atrás da barra transparente");
+        edgeSwitch.setTextColor(Color.WHITE);
+        edgeSwitch.setChecked(prefs.getBoolean("edge_mode",true));
+        root.addView(edgeSwitch);
+        edgeSwitch.setOnCheckedChangeListener((v,checked)->{
+            prefs.edit().putBoolean("edge_mode",checked).apply();
+            refreshNotch();
+        });
+        addPositionControl("Horizontal • esquerda / direita", "offset_x", -180, 180, 100);
+        addPositionControl("Vertical • subir / descer", "offset_y", -60, 40, 0);
+        addButton("Restaurar posição para Xiaomi 13 Pro",()->{
+            prefs.edit().putInt("offset_x",100).putInt("offset_y",0)
+                .putBoolean("edge_mode",true).apply();
+            refreshNotch();
+            new AlertDialog.Builder(this).setMessage("Posição restaurada. Reabra a tela para atualizar os controles.")
+                .setPositiveButton("OK",null).show();
+        });
         root.addView(text("Notch",17));
         addButton("Ativar Notch",()->{
             if (!Settings.canDrawOverlays(this)) {
@@ -92,6 +112,32 @@ public final class MainActivity extends Activity {
         status=text("O Notch requer autorização para aparecer sobre outros aplicativos. Sua posição pode variar conforme o Android e a câmera frontal.",12);
         status.setTextColor(0xffb8bac0); root.addView(status);
         root.addView(text("Desenvolvido com @aqnoeu • v"+BuildConfig.VERSION_NAME,12));
+    }
+    private void refreshNotch() {
+        if (Settings.canDrawOverlays(this)) {
+            try { startService(new Intent(this,OverlayService.class)); }
+            catch (RuntimeException e) { showStatus("Não foi possível aplicar a posição: "+e.getMessage()); }
+        }
+    }
+    private void addPositionControl(String title,String key,int minimum,int maximum,int defaultValue) {
+        android.content.SharedPreferences prefs = getSharedPreferences("home",MODE_PRIVATE);
+        TextView label = text(title+": "+prefs.getInt(key,defaultValue)+" dp",13);
+        root.addView(label);
+        SeekBar slider = new SeekBar(this);
+        slider.setMax(maximum-minimum);
+        slider.setProgress(Math.max(0,Math.min(maximum-minimum,prefs.getInt(key,defaultValue)-minimum)));
+        root.addView(slider);
+        slider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar bar,int progress,boolean fromUser) {
+                if(!fromUser)return;
+                int value=minimum+progress;
+                label.setText(title+": "+value+" dp");
+                prefs.edit().putInt(key,value).apply();
+                refreshNotch();
+            }
+            @Override public void onStartTrackingTouch(SeekBar bar) {}
+            @Override public void onStopTrackingTouch(SeekBar bar) {}
+        });
     }
     private void showQR() {
         try {
