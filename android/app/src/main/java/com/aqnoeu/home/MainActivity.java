@@ -242,11 +242,14 @@ public final class MainActivity extends Activity {
         brand.setGravity(Gravity.CENTER_VERTICAL);
         // Use the same rounded, animated eyes as the notch and expression card.
         // The header has its own EyesView instance; it does not change the others.
-        EyesView brandEyes=new EyesView(this);
-        brandEyes.setContentDescription("Olhos oficiais do HOME");
-        LinearLayout.LayoutParams iconSize=new LinearLayout.LayoutParams(dp(72),dp(48));
-        iconSize.rightMargin=dp(6);
-        brand.addView(brandEyes,iconSize);
+        // Static official app icon; animated eyes belong only to the notch and expression card.
+        ImageView brandIcon=new ImageView(this);
+        brandIcon.setImageResource(R.drawable.home_icon_approved);
+        brandIcon.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        brandIcon.setContentDescription("Logomarca oficial HOME");
+        LinearLayout.LayoutParams iconSize=new LinearLayout.LayoutParams(dp(48),dp(48));
+        iconSize.rightMargin=dp(10);
+        brand.addView(brandIcon,iconSize);
         LinearLayout brandCopy=column();
         add(brandCopy,heading("HOME",21),0,4);
         add(brandCopy,note("Um assistente para você."),0,0);
