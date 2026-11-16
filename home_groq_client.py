@@ -39,6 +39,10 @@ def explain_http_error(error):
         return "Groq HTTP 401: a chave não foi autenticada."
     if status == 429:
         return "Groq HTTP 429: limite de utilização atingido."
+    if status == 403 and code == "model_permission_blocked_project":
+        return "Groq HTTP 403: modelo bloqueado pelo projeto. Verifique Project → Limits."
+    if status == 403 and code == "model_permission_blocked_org":
+        return "Groq HTTP 403: modelo bloqueado pela organização. Verifique Organization → Limits."
     prefix = "Groq HTTP %s" % status
     if isinstance(code, str) and code:
         clean_code = re.sub("[^A-Za-z0-9_-]", "", code)[:70]
