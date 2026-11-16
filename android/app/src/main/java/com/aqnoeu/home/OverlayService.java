@@ -37,9 +37,11 @@ public final class OverlayService extends Service {
         eyes.setMood(getSharedPreferences("home",MODE_PRIVATE).getInt("mood",0));
         eyes.setEyeGap(getSharedPreferences("home",MODE_PRIVATE).getInt("eye_gap",9));
         GradientDrawable bg = new GradientDrawable();
-        bg.setColor(Color.rgb(5,7,11));
+        // Opaque dark notch background avoids gray translucent edges.
+        bg.setColor(Color.rgb(11,17,26));
         bg.setCornerRadii(new float[]{0,0,0,0,dp(18),dp(18),dp(18),dp(18)});
         eyes.setBackground(bg);
+        eyes.setLayerType(View.LAYER_TYPE_SOFTWARE,null);
         eyes.setOnClickListener(v->startActivity(show));
         overlay = eyes;
         layoutParams = new WindowManager.LayoutParams(
