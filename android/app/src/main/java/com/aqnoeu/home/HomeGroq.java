@@ -146,7 +146,7 @@ public final class HomeGroq {
                 answer=spoken.length()>850?spoken.substring(0,850):spoken;
                 String tag=structured.optString("emocao","neutro");
                 emotion=("raiva".equals(tag)||"sonolento".equals(tag)||"tedio".equals(tag))?tag:"neutro";
-                if(session.equals(store.activeId()))store.add("assistant",answer);
+                store.addTo(session,"assistant",answer);
             }catch(Exception e){error=e.getMessage()==null?"Falha de conexão com Groq.":e.getMessage();}
             finally{if(connection!=null)connection.disconnect();BUSY.set(false);}
             final String result=answer,problem=error,mood=emotion;
