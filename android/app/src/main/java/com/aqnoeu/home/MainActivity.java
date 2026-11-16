@@ -57,7 +57,8 @@ public final class MainActivity extends Activity {
         TextView heading=text("Home",28); root.addView(heading);
         TextView sub=text("Notch animado • Android",13); sub.setTextColor(0xffa4a6aa); root.addView(sub);
         EyesView eyes = new EyesView(this);
-        eyes.setMood(getPreferences(MODE_PRIVATE).getInt("mood",0));
+        eyes.setMood(getSharedPreferences("home",MODE_PRIVATE).getInt("mood",0));
+        eyes.setEyeGap(getSharedPreferences("home",MODE_PRIVATE).getInt("eye_gap",9));
         eyes.setBackground(shape(Color.rgb(5,7,11),20));
         root.addView(eyes,new LinearLayout.LayoutParams(-1,dp(85)));
         root.addView(text("Expressão",17));
@@ -77,37 +78,89 @@ public final class MainActivity extends Activity {
                 if(Settings.canDrawOverlays(this)) startService(new Intent(this,OverlayService.class));
             });
         }
-        addButton("⤢ Modo edição • posição, tamanho e olhos",this::showEditor);
-        root.addView(text("Personalidade do Home",17));
-        TextView personalityNote = text("O Home já reage a interações simples, sem usar microfone nem enviar dados. A conversa por IA dependerá de um servidor seguro.",12);
-        personalityNote.setTextColor(0xffaaadb0);
-        root.addView(personalityNote);
-        addButton("✨ Me surpreenda", () -> localReaction("surprise"));
-        addButton("♡ Como você está?", () -> localReaction("mood"));
-        addButton("🎉 Comemorar!", () -> localReaction("celebrate"));
-        addButton("◉ Voz e microfone • Falar agora", () -> HomeVoice.listen(this));
-        addButton("💬 Conversar com Home (IA)", () -> HomeAi.chat(this));
-        addButton("Configurar servidor de IA", () -> HomeAi.configure(this));
-        root.addView(text("Notch",17));
-        addButton("Ativar Notch",()->{
-            if (!Settings.canDrawOverlays(this)) {
-                startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,Uri.parse("package:"+getPackageName())));
-                showStatus("Autorize a sobreposição e depois toque em Ativar Notch.");
-                return;
-            }
-            if(Build.VERSION.SDK_INT>=33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=android.content.pm.PackageManager.PERMISSION_GRANTED)
-                requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},1);
-            try { startForegroundService(new Intent(this,OverlayService.class)); showStatus("Notch ativado. Use a tela inicial para testar."); }
-            catch(Exception e) { showStatus("Não foi possível iniciar: "+e.getMessage()); }
-        });
-        addButton("Desativar Notch",()->{stopService(new Intent(this,OverlayService.class));showStatus("Notch desativado.");});
-        addButton("Verificar atualizações",()->UpdateHelper.check(this,status));
-        addButton("Baixar / compartilhar Home (QR Code)",this::showQR);
-        addButton("Abrir página de downloads",()->startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(DOWNLOAD))));
-        status=text("O Notch requer autorização para aparecer sobre outros aplicativos. Sua posição pode variar conforme o Android e a câmera frontal.",12);
+        root.addView(text("Hub • escolha uma função",16));
+        addHubRow(new String[]{"↻ Atualizações","⤢ Edição"},
+            new Runnable[]{()->showPage("updates"),this::showEditor});
+        addHubRow(new String[]{"✎ Assistente","◉ Voz"},
+            new Runnable[]{()->showPage("assistant"),()->showPage("voice")});
+        addHubRow(new String[]{"⌘ Interações","⏻ Encerrar"},
+            new Runnable[]{()->showPage("interactions"),()->showPage("exit")});
+        status=text("Home Android • Notch ativo mediante permissão. Configurações salvas neste aparelho.",12);
         status.setTextColor(0xffb8bac0); root.addView(status);
         root.addView(text("Desenvolvido com @aqnoeu • v"+BuildConfig.VERSION_NAME,12));
     }
+    private void addHubRow(String[] titles,Runnable[] actions) {
+        LinearLayout row=new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,dp(76));
+        rp.bottomMargin=dp(8);root.addView(row,rp);
+        for(int i=0;i<titles.length;i++){
+            final Runnable action=actions[i];
+            Button tile=new Button(this);
+            tile.setText(titles[i]);tile.setTextColor(Color.WHITE);tile.setAllCaps(false);
+            tile.setBackground(shape(card,13));
+            LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,-1,1);
+            p.setMargins(dp(3),0,dp(3),0);row.addView(tile,p);
+            tile.setOnClickListener(v->action.run());
+        }
+    }
+    private void showPage(String page) {
+        ScrollView scroll=new ScrollView(this);
+        scroll.setBackgroundColor(background);
+        root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding(dp(22),dp(24),dp(22),dp(24));
+        scroll.addView(root);setContentView(scroll);
+        addButton("← Voltar ao Hub",this::showHub);
+        String title=page.equals("updates")?"Atualizações":
+            page.equals("voice")?"Voz e microfone":
+            page.equals("assistant")?"Assistente":
+            page.equals("interactions")?"Interações":"Encerrar";
+        root.addView(text(title,23));
+        status=text("",12);root.addView(status);
+        switch(page){
+            case "assistant":
+                root.addView(text("Home • expressões e conversas",14));
+                addButton("✨ Me surpreenda",()->localReaction("surprise"));
+                addButton("♡ Como você está?",()->localReaction("mood"));
+                addButton("🎉 Comemorar!",()->localReaction("celebrate"));
+                addButton("💬 Conversar com Home (IA)",()->HomeAi.chat(this));
+                addButton("Configurar servidor seguro da IA",()->HomeAi.configure(this));
+                status.setText("As expressões são locais. A IA conversacional requer um endpoint HTTPS autenticado.");
+                break;
+            case "voice":
+                addButton("◉ Falar agora",()->HomeVoice.listen(this));
+                status.setText("A voz usa o reconhecimento e a síntese disponíveis no Android. Microfone apenas após comando.");
+                break;
+            case "interactions":
+                addButton("Ativar Notch",()->{
+                    if(!Settings.canDrawOverlays(this)){
+                        startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,Uri.parse("package:"+getPackageName())));
+                        showStatus("Autorize a sobreposição e toque novamente.");
+                        return;
+                    }
+                    if(Build.VERSION.SDK_INT>=33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=android.content.pm.PackageManager.PERMISSION_GRANTED)
+                        requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},1);
+                    try{startForegroundService(new Intent(this,OverlayService.class));showStatus("Notch ativado.");}
+                    catch(Exception e){showStatus("Falha: "+e.getMessage());}
+                });
+                addButton("Desativar Notch",()->{
+                    stopService(new Intent(this,OverlayService.class));showStatus("Notch desativado.");
+                });
+                break;
+            case "updates":
+                addButton("Verificar atualizações",()->UpdateHelper.check(this,status));
+                addButton("Compartilhar Home (QR Code)",this::showQR);
+                addButton("Abrir downloads oficiais",()->startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(DOWNLOAD))));
+                status.setText("Atualizações oficiais assinadas são instaladas com confirmação do Android.");
+                break;
+            default:
+                addButton("Recolher: voltar à tela inicial",this::finish);
+                addButton("Desativar Notch e fechar",()->{
+                    stopService(new Intent(this,OverlayService.class));finish();
+                });
+        }
+    }
+
     private void showEditor() {
         ScrollView scroller=new ScrollView(this);
         scroller.setBackgroundColor(background);
