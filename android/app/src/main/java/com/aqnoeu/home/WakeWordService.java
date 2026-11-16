@@ -66,7 +66,14 @@ public final class WakeWordService extends Service {
         if(!SpeechRecognizer.isRecognitionAvailable(this)) {
             state("Reconhecimento de voz não disponível no Android.");stopSelf();return START_NOT_STICKY;
         }
-        recognizer=SpeechRecognizer.createSpeechRecognizer(this);
+        // Prefer platform on-device speech recognition when available.
+        if(Build.VERSION.SDK_INT>=31 && SpeechRecognizer.isOnDeviceRecognitionAvailable(this)) {
+            recognizer=SpeechRecognizer.createOnDeviceSpeechRecognizer(this);
+            state("Reconhecimento local disponível. Aguardando Ei Home ou Ok Home.");
+        } else {
+            recognizer=SpeechRecognizer.createSpeechRecognizer(this);
+            state("Reconhecimento local indisponível; o Android pode utilizar a rede.");
+        }
         recognizer.setRecognitionListener(new RecognitionListener() {
             public void onReadyForSpeech(Bundle b) { state("Microfone pronto. Diga Ei, Home."); failures=0; }
             public void onBeginningOfSpeech() {}
@@ -78,7 +85,7 @@ public final class WakeWordService extends Service {
             public void onResults(Bundle b) {
                 listening=false;
                 if(!paused)detect(b);
-                schedule(2400);
+                schedule(4500);
             }
             public void onError(int error) {
                 listening=false;
@@ -145,7 +152,8 @@ public final class WakeWordService extends Service {
             Intent i=new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
             i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
             i.putExtra(RecognizerIntent.EXTRA_LANGUAGE,"pt-BR");
-            i.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS,true);
+            i.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS,false);
+            i.putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE,true);
             i.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS,3);
             listening=true;
             recognizer.startListening(i);
