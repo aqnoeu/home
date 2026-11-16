@@ -26,6 +26,24 @@ object AlexOffline {
     private const val MAX_UNPACKED = 680L * 1024 * 1024
     private val installing = AtomicBoolean(false)
     private val talking = AtomicBoolean(false)
+    @Volatile private var failure = ""
+    @Volatile private var stage = "Aguardando teste"
+
+    @JvmStatic fun report(context: Context): String {
+        val folder = modelDir(context)
+        val names = listOf("model.onnx","voices.bin","tokens.txt","espeak-ng-data")
+        val contents = names.joinToString("\n") { name ->
+            val file = File(folder,name)
+            name + ": " + if(file.isDirectory) "diretório presente" else if(file.isFile) file.length().toString() + " bytes" else "ausente"
+        }
+        return "Home Alex — diagnóstico\n" +
+            "Modelo instalado: " + isInstalled(context) + "\n" +
+            "Etapa: " + stage + "\n" +
+            "Erro: " + (if(failure.isBlank()) "nenhum registrado" else failure) + "\n" +
+            "Arquitetura: " + android.os.Build.SUPPORTED_ABIS.joinToString() + "\n" +
+            "Espaço livre: " + context.filesDir.usableSpace/1048576 + " MB\n" + contents
+    }
+
 
     fun interface Status {
         fun onStatus(message: String)
@@ -46,6 +64,7 @@ object AlexOffline {
         File(folder, "espeak-ng-data").isDirectory
 
     private fun notice(activity: Activity, callback: Status, text: String) {
+        stage = text
         activity.runOnUiThread { if (!activity.isFinishing) callback.onStatus(text) }
     }
 
@@ -63,6 +82,7 @@ object AlexOffline {
             callback.onStatus("A instalação de Alex já está em andamento.")
             return
         }
+        failure = ""
         val app = activity.applicationContext
         Thread {
             val archive = File(app.cacheDir, "alex-model-download.zip")
@@ -149,9 +169,10 @@ object AlexOffline {
                 if (!staged.renameTo(target))
                     error("Não foi possível concluir a instalação.")
                 notice(activity, callback, "✓ Alex instalada! Agora a voz é gerada no próprio celular, offline.")
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 Log.e("HomeAlex", "Falha na instalação local", e)
-                notice(activity, callback, "Alex não instalada: ${e.message ?: "erro desconhecido"}")
+                failure = ("Instalação — " + e.javaClass.simpleName + ": " + (e.message ?: "sem detalhes")).take(360)
+                notice(activity, callback, "Falha na instalação. Abra Diagnóstico da voz para descobrir a causa.")
             } finally {
                 archive.delete()
                 if (staged.exists()) staged.deleteRecursively()
@@ -170,11 +191,12 @@ object AlexOffline {
             callback.onStatus("Alex está falando. Aguarde o fim da frase.")
             return
         }
+        failure = ""
         val app = activity.applicationContext
         Thread {
             var engine: OfflineTts? = null
             try {
-                notice(activity, callback, "Alex está preparando a fala offline…")
+                notice(activity, callback, "Alex: carregando o modelo…")
                 val folder = modelDir(app)
                 val kokoro = OfflineTtsKokoroModelConfig(
                     model = File(folder, "model.onnx").absolutePath,
@@ -188,8 +210,10 @@ object AlexOffline {
                         model = OfflineTtsModelConfig(kokoro = kokoro, numThreads = 4)
                     )
                 )
+                notice(activity, callback, "Alex: verificando vozes…")
                 if (engine.numSpeakers() <= ALEX_SID)
                     error("O modelo não contém a voz pm_alex (43).")
+                notice(activity, callback, "Alex: sintetizando áudio…")
                 val generated = engine.generate(text.take(500), sid = ALEX_SID, speed = 1.0f)
                 val samples = generated.samples
                 if (samples.isEmpty()) error("O modelo não produziu áudio.")
@@ -244,7 +268,8 @@ object AlexOffline {
                 notice(activity, callback, "✓ Alex reproduzida offline.")
             } catch (e: Throwable) {
                 Log.e("HomeAlex", "Erro na síntese Kokoro local", e)
-                notice(activity, callback, "Falha na voz Alex local: ${e.message ?: "motor indisponível"}")
+                failure = (stage + " — " + e.javaClass.simpleName + ": " + (e.message ?: "sem detalhes")).take(360)
+                notice(activity, callback, "Falha ao falar. Abra Diagnóstico da voz para descobrir a causa.")
             } finally {
                 try { engine?.release() } catch (_: Throwable) {}
                 talking.set(false)
