@@ -213,6 +213,7 @@ public final class MainActivity extends Activity {
         if(requestCode==HomeVoice.REQUEST_SPEECH && resultCode==RESULT_OK && data!=null) {
             java.util.ArrayList<String> result=data.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS);
             if(result!=null && !result.isEmpty()) {
+                if(HomeAi.voiceReply(this,result.get(0)))return;
                 String message=HomeVoice.localResponse(result.get(0));
                 HomeVoice.speak(this,message);
                 if(!isFinishing())new AlertDialog.Builder(this).setTitle("Home ouviu você")
