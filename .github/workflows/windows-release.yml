@@ -35,11 +35,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $current = gh release view --repo "$env:GITHUB_REPOSITORY" --json tagName --jq .tagName 2>$null
-          if ($LASTEXITCODE -ne 0 -or -not $current) {
+          # Android e Windows publicam no mesmo repositorio; tags Android nao sao versoes Windows.
+          $tags = gh release list --repo "$env:GITHUB_REPOSITORY" --limit 100 --json tagName --jq '.[].tagName'
+          if ($LASTEXITCODE -ne 0) { throw 'Nao foi possivel consultar as Releases oficiais' }
+          $current = $tags | Where-Object { $_ -match '^v\d+\.\d+\.\d+$' } | Select-Object -First 1
+          if (-not $current) {
             $version = [version]'0.7.1'
           } else {
-            if ($current -notmatch '^v\d+\.\d+\.\d+$') { throw 'Tag de Release inesperada' }
             $version = [version]($current.Substring(1))
             $version = [version]::new($version.Major, $version.Minor, $version.Build + 1)
           }
