@@ -62,7 +62,7 @@ class HomePanel(QFrame):
             QPushButton#mood:checked { background: #2F6BFF; color: white; border-color: #2F6BFF; }
             QPushButton#mood:hover { background: #26384F; }
             QPushButton#more { background: transparent; color: #ddd; border: none; font-size: 15px; }
-            QPushButton#more:hover { color: white; }
+            QPushButton#more:hover { color: #FF6A00; }
         """)
         self.root = QVBoxLayout(self)
         self.root.setContentsMargins(17, 16, 17, 14)
@@ -73,12 +73,18 @@ class HomePanel(QFrame):
         h = QHBoxLayout(self.header)
         h.setContentsMargins(0,0,0,0)
         h.setSpacing(8)
-        self.smile = QLabel("HOME")
+        self.smile = QLabel()
         self.smile.setStyleSheet("color:#FFFFFF;font-size:12px;font-weight:700;background:transparent")
         icon_path = Path(getattr(sys, "_MEIPASS", Path(__file__).parent)) / "assets" / "home_icon_approved.png"
-        if icon_path.is_file():
-            self.smile.setPixmap(QPixmap(str(icon_path)).scaled(
-                36, 36, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        image = QPixmap(str(icon_path)) if icon_path.is_file() else QPixmap()
+        if not image.isNull():
+            self.smile.setFixedSize(44,44)
+            self.smile.setPixmap(image.scaled(
+                44, 44, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            self.smile.setAlignment(Qt.AlignCenter)
+        else:
+            self.smile.setText("HOME")
+            self.smile.setStyleSheet("color:#FFFFFF;font-size:15px;font-weight:700")
         self.smile.setToolTip("Símbolo oficial HOME")
         h.addWidget(self.smile)
         titles = QWidget()
@@ -89,6 +95,7 @@ class HomePanel(QFrame):
         title = QLabel("HOME  ·  Expressões")
         title.setObjectName("title")
         self.subtitle = QLabel("Um assistente para você.")
+        self.subtitle.setStyleSheet("color:#FF6A00;font-size:10px;font-weight:500")
         self.subtitle.setObjectName("sub")
         tl.addWidget(title)
         tl.addWidget(self.subtitle)
