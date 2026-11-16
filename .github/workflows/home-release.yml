@@ -212,3 +212,24 @@ jobs:
             --title "HOME v$HOME_RELEASE_VERSION — Windows e Android" \
             --notes "Atualização conjunta das versões Windows e Android, com o mesmo número. Cada aparelho instala sua atualização separadamente mediante confirmação." \
             --target "$GITHUB_SHA"
+      - name: Publicar ponte de atualização para Android 0.1.x
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HOME_RELEASE_VERSION: ${{ needs.version.outputs.number }}
+        run: |
+          set -euo pipefail
+          # Older Android APKs only recognize android-vX.Y.Z release tags.
+          # Publish the IDENTICAL signed APK under a legacy discovery tag.
+          # Its internal Android versionName/versionCode remain 2.0.x.
+          legacy_tag="android-v$HOME_RELEASE_VERSION"
+          if gh release view "$legacy_tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Ponte Android já existe: $legacy_tag"
+          else
+            gh release create "$legacy_tag" \
+              dist/android/Home-Android.apk \
+              dist/android/Home-Android.sha256 \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "HOME Android — ponte para v$HOME_RELEASE_VERSION" \
+              --notes "Canal de compatibilidade para atualizadores Android 0.1.x. Mesmo APK assinado da versão conjunta v$HOME_RELEASE_VERSION; não constitui uma versão diferente." \
+              --target "$GITHUB_SHA"
+          fi
