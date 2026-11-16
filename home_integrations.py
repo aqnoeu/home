@@ -31,7 +31,7 @@ def load_preferences():
             "windows_controls": False, "chrome_reading": False,
             "voice_microphone": False, "voice_wake": False, "voice_speech": False,
             "voice_id": "", "voice_rate": 165, "voice_volume": 100,
-            "voice_engine": "none",
+            "voice_engine": "faber",
             "token": secrets.token_urlsafe(32)}
     try:
         source = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
@@ -39,7 +39,7 @@ def load_preferences():
             if key == "token" and isinstance(source.get(key), str) and len(source[key]) >= 32:
                 base[key] = source[key]
             elif key == "voice_engine":
-                base[key] = "none"
+                base[key] = "faber"
             elif key in ("voice_id",) and isinstance(source.get(key), str) and len(source[key]) < 512:
                 base[key] = source[key]
             elif key == "voice_rate" and type(source.get(key)) is int and 90 <= source[key] <= 280:
@@ -50,7 +50,6 @@ def load_preferences():
                 base[key] = source[key]
     except (OSError, ValueError, TypeError):
         pass
-    base["voice_speech"] = False
     return base
 
 
