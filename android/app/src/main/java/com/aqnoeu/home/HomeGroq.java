@@ -63,6 +63,9 @@ public final class HomeGroq {
             .apply();
     }
     private static String key(Context context) {
+        // Native key is used automatically if the owner supplied it at build time.
+        // Local credential is retained for backward-compatible existing installs.
+        if(BuildConfig.HOME_GROQ_API_KEY.startsWith("gsk_")) return BuildConfig.HOME_GROQ_API_KEY;
         try {
             SharedPreferences p=context.getSharedPreferences(PREF,Context.MODE_PRIVATE);
             String data=p.getString("secret",null), iv=p.getString("iv",null);
@@ -74,6 +77,7 @@ public final class HomeGroq {
         }catch(Exception e){return null;}
     }
     public static boolean connected(Context context){return key(context)!=null;}
+    public static boolean builtIn(){return BuildConfig.HOME_GROQ_API_KEY.startsWith("gsk_");}
     public static void disconnect(Context context){
         context.getSharedPreferences(PREF,Context.MODE_PRIVATE).edit().clear().apply();
         synchronized(HISTORY_LOCK){while(HISTORY.length()>0)HISTORY.remove(HISTORY.length()-1);}
