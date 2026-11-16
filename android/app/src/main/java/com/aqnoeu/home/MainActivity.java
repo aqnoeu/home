@@ -40,6 +40,7 @@ public final class MainActivity extends Activity {
     private ScrollView scroll;
     private TextView status;
     private String currentPage = "hub";
+    private static final int WAKE_PERMISSION_REQUEST = 721;
 
     private int dp(float n) {return Math.round(n*getResources().getDisplayMetrics().density);}
     private boolean narrow(){return getResources().getConfiguration().screenWidthDp<440;}
@@ -129,6 +130,50 @@ public final class MainActivity extends Activity {
         super.onCreate(saved);
         VoiceCleanup.cleanup(this);
         showHub();
+        handleWakeIntent(getIntent());
+    }
+    @Override protected void onNewIntent(Intent intent){
+        super.onNewIntent(intent);setIntent(intent);handleWakeIntent(intent);
+    }
+    private void handleWakeIntent(Intent intent){
+        if(intent==null || !intent.hasExtra(WakeWordService.EXTRA_QUERY))return;
+        String query=intent.getStringExtra(WakeWordService.EXTRA_QUERY);
+        intent.removeExtra(WakeWordService.EXTRA_QUERY);
+        if(query==null)return;
+        showPage("assistant");
+        if(query.trim().isEmpty()){
+            statusMessage("Ei, Home! Pode falar.");
+            HomeVoice.listen(this);
+        } else {
+            statusMessage("Você: "+query+" · HOME está pensando…");
+            askHome(query,null);
+        }
+    }
+    private void startWake(){
+        if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){
+            requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},WAKE_PERMISSION_REQUEST);return;
+        }
+        if(!getSharedPreferences("home",MODE_PRIVATE).getBoolean("notch_active",false)){
+            statusMessage("Ative o Notch antes de ligar o Ei, Home.");return;
+        }
+        getSharedPreferences("home",MODE_PRIVATE).edit().putBoolean("wake_enabled",true).apply();
+        try{startForegroundService(new Intent(this,WakeWordService.class));
+            statusMessage("✓ Ei, Home ativado enquanto o Notch estiver ativo.");}
+        catch(RuntimeException e){statusMessage("Não foi possível iniciar o microfone: "+e.getMessage());}
+    }
+    private void resumeWakeLater(){
+        new Handler(Looper.getMainLooper()).postDelayed(()->{
+            if(WakeWordService.enabled(this))
+                try{startService(new Intent(this,WakeWordService.class).setAction(WakeWordService.RESUME));}
+                catch(RuntimeException ignored){}
+        },15000);
+    }
+    @Override public void onRequestPermissionsResult(int request,String[] permissions,int[] results){
+        super.onRequestPermissionsResult(request,permissions,results);
+        if(request==WAKE_PERMISSION_REQUEST){
+            if(results.length>0 && results[0]==PackageManager.PERMISSION_GRANTED)startWake();
+            else statusMessage("Microfone não autorizado. Ei, Home permanece desligado.");
+        }
     }
     private void initScreen(String page,String subtitle){
         currentPage=page;
@@ -326,11 +371,14 @@ public final class MainActivity extends Activity {
             @Override public void onEmotion(String emotion){HomeEmotion.fromGroq(emotion);}
             @Override public void onAnswer(String answer){
                 if(response!=null)response.setText(answer);
+                else statusMessage("HOME: "+answer);
+                resumeWakeLater();
                 if(FaberOffline.isInstalled(MainActivity.this))
                     HomeVoice.speak(MainActivity.this,answer);
                 else statusMessage("Resposta pronta em texto. Instale Faber em Voz para ouvir.");
             }
             @Override public void onError(String message){
+                resumeWakeLater();
                 if(response!=null)response.setText(message);
                 statusMessage(message);
             }
@@ -381,12 +429,28 @@ public final class MainActivity extends Activity {
             try{
                 startForegroundService(new Intent(this,OverlayService.class));
                 statusMessage("✓ Notch ativado.");
+                if(WakeWordService.enabled(this))startWake();
             }catch(Exception e){statusMessage("Não foi possível ativar: "+e.getMessage());}
         });
         action(box,"Desativar Notch",false,()->{
+            stopService(new Intent(this,WakeWordService.class));
             stopService(new Intent(this,OverlayService.class));statusMessage("Notch desativado.");
         });
         action(box,"Ajustar posição e tamanho",false,this::showEditor);
+        LinearLayout wake=card("Ativação por voz","Diga ‘Ei, Home’ enquanto o Notch estiver ativo. O Android poderá usar seu serviço de reconhecimento de fala, inclusive pela internet. O microfone fica indicado na notificação.");
+        Switch wakeToggle=new Switch(this);
+        wakeToggle.setText("Ativar ‘Ei, Home’");wakeToggle.setTextColor(WHITE);
+        wakeToggle.setChecked(WakeWordService.enabled(this));
+        add(wake,wakeToggle,0,10);
+        wakeToggle.setOnCheckedChangeListener((view,on)->{
+            if(on){ startWake();
+                if(!getSharedPreferences("home",MODE_PRIVATE).getBoolean("notch_active",false))wakeToggle.setChecked(false);
+            }else{
+                getSharedPreferences("home",MODE_PRIVATE).edit().putBoolean("wake_enabled",false).apply();
+                stopService(new Intent(this,WakeWordService.class));
+                statusMessage("Ei, Home desativado.");
+            }
+        });
     }
     private void updatesPage(){
         LinearLayout box=card("Atualizações oficiais","O aplicativo verifica os lançamentos assinados do HOME.");
@@ -497,23 +561,26 @@ public final class MainActivity extends Activity {
         if(request==HomeVoice.REQUEST_SPEECH && resultCode==RESULT_OK && data!=null){
             java.util.ArrayList<String> results=data.getStringArrayListExtra(
                 android.speech.RecognizerIntent.EXTRA_RESULTS);
-            if(results==null||results.isEmpty())return;
+            if(results==null||results.isEmpty()){resumeWakeLater();return;}
             String question=results.get(0);
             if(!"assistant".equals(currentPage)&&!"voice".equals(currentPage))showPage("assistant");
             statusMessage("Você: "+question+"  ·  HOME está pensando…");
             if(!HomeGroq.connected(this)){
                 statusMessage("Conecte a Groq no Assistente para receber respostas por voz.");
+                resumeWakeLater();
                 return;
             }
             HomeGroq.ask(this,question,new HomeGroq.Callback(){
                 @Override public void onEmotion(String emotion){HomeEmotion.fromGroq(emotion);}
                 @Override public void onAnswer(String answer){
+                    resumeWakeLater();
                     statusMessage("HOME: "+answer);
                     if(FaberOffline.isInstalled(MainActivity.this))
                         HomeVoice.speak(MainActivity.this,answer);
                     else statusMessage("HOME: "+answer+"\nInstale a voz Faber para ouvir.");
                 }
                 @Override public void onError(String reason){
+                    resumeWakeLater();
                     statusMessage(reason);
                 }
             });
