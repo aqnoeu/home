@@ -158,6 +158,8 @@ public final class MainActivity extends Activity {
             statusMessage("Estou ouvindo. Pode falar.");
             HomeVoice.listen(this);
         }else{
+            // Wake-word commands use the same offline command catalog as typed chat.
+            if(handleLocalCommand(query,true))return;
             statusMessage("Você: "+query+" · HOME está pensando…");
             askHome(query,null);
         }
@@ -568,13 +570,15 @@ public final class MainActivity extends Activity {
         int plug=state.getIntExtra(BatteryManager.EXTRA_PLUGGED,0);
         return "Bateria em "+percent+"%"+(plug!=0?" · carregando.":".");
     }
-    private boolean handleLocalCommand(String query){
+    private boolean handleLocalCommand(String query){return handleLocalCommand(query,false);}
+    private boolean handleLocalCommand(String query,boolean speak){
         String q=query==null?"":query.trim().toLowerCase(java.util.Locale.ROOT);
         String normalized=java.text.Normalizer.normalize(q,java.text.Normalizer.Form.NFD)
             .replaceAll("\\p{M}+","");
         String answer=null;
         String setting=null;
-        if(normalized.matches(".*\\b(que horas|qual a hora|qual e a hora|horario atual)\\b.*")){
+        if(normalized.matches(".*\\b(que horas|quantas horas|qual a hora|qual e a hora|horario atual|qual o horario|me diga as horas|me diz as horas|me fale as horas|diga as horas|sao que horas)\\b.*")
+            || normalized.matches("^(horas|hora|horario|as horas|me diga a hora|me diz a hora|me fale a hora)[?!. ]*$")){
             answer="Agora são "+new java.text.SimpleDateFormat("HH:mm",
                 new java.util.Locale("pt","BR")).format(new Date())+".";
         }else if(normalized.matches(".*\\b(que dia e hoje|qual a data|data de hoje|dia de hoje)\\b.*")){
@@ -595,8 +599,14 @@ public final class MainActivity extends Activity {
             store.add("assistant",answer);
             refreshChat();
             if(setting!=null)openDeviceSettings(setting);
+            // A spoken request must get a spoken answer; text-only requests stay silent.
+            if(speak)speakAnswer(answer);
             return true;
-        }catch(Exception ex){statusMessage("Não consegui salvar a resposta local.");return true;}
+        }catch(Exception ex){
+            statusMessage("Não consegui salvar a resposta local.");
+            if(speak)resumeWake();
+            return true;
+        }
     }
 
     private void settingsVoice(){
@@ -1128,7 +1138,7 @@ public final class MainActivity extends Activity {
             if(results==null||results.isEmpty()){resumeWake();return;}
             String question=results.get(0);
             if(!"assistant".equals(currentPage))showPage("assistant");
-            if(handleLocalCommand(question)){resumeWake();return;}
+            if(handleLocalCommand(question,true))return;
             statusMessage("Você: "+question+"  ·  HOME está pensando…");
             if(!HomeGroq.connected(this)){
                 statusMessage("Conecte a Groq no Assistente para receber respostas por voz.");

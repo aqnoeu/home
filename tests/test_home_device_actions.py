@@ -16,7 +16,13 @@ class DeviceActionsTest(unittest.TestCase):
     def test_android_offline_commands_before_groq(self):
         main=MAIN.split('private void sendChatMessage(){',1)[1].split('private void bubble(',1)[0]
         self.assertLess(main.index('handleLocalCommand(q)'),main.index('HomeGroq.connected(this)'))
-        self.assertIn('if(handleLocalCommand(question)){resumeWake();return;}',MAIN)
+        self.assertIn('if(handleLocalCommand(question,true))return;',MAIN)
+        wake=MAIN.split('private void handleWakeIntent(Intent intent){',1)[1].split('private void startWake(){',1)[0]
+        self.assertLess(wake.index('handleLocalCommand(query,true)'),wake.index('askHome(query,null)'))
+        self.assertIn('if(speak)speakAnswer(answer);',MAIN)
+        self.assertIn('if(speak)resumeWake();',MAIN)
+        self.assertIn('quantas horas',MAIN)
+        self.assertIn('qual o horario',MAIN)
         self.assertIn('BatteryManager.EXTRA_LEVEL',MAIN)
         self.assertIn('Settings.ACTION_WIFI_SETTINGS',MAIN)
         self.assertIn('Settings.ACTION_BLUETOOTH_SETTINGS',MAIN)
