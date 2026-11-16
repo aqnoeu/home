@@ -30,7 +30,8 @@ public final class HomeAi {
         EditText endpoint=new EditText(activity);
         endpoint.setHint("https://seu-servidor/ai");
         endpoint.setSingleLine(true);
-        endpoint.setText(p.getString("endpoint",""));
+        String currentEndpoint=p.getString("endpoint","");
+        endpoint.setText(currentEndpoint.isEmpty() ? "https://home-ai.aqnoeu-home.workers.dev/ai" : currentEndpoint);
         fields.addView(endpoint);
         EditText token=new EditText(activity);
         token.setHint("Código de acesso do seu servidor");

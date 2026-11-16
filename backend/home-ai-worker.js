@@ -12,10 +12,10 @@
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    if (url.pathname !== "/ai" || request.method !== "POST") {
+    if (request.method !== "POST" || !["/ai", "/tts"].includes(url.pathname)) {
       return new Response("Not found", { status: 404 });
     }
-    if (!env.GROQ_API_KEY || !env.HOME_ACCESS_TOKEN) {
+    if (!env.HOME_ACCESS_TOKEN) {
       return new Response(JSON.stringify({ error: "Servidor não configurado" }),
         { status: 503, headers: { "Content-Type": "application/json" } });
     }
@@ -32,6 +32,38 @@ export default {
       data = await request.json();
     } catch {
       return new Response("JSON inválido", { status: 400 });
+    }
+    if (url.pathname === "/tts") {
+      if (!env.KOKORO_TTS_ORIGIN || !env.HOME_TTS_INTERNAL_TOKEN) {
+        return new Response(JSON.stringify({ error: "Voz Alex ainda não configurada no servidor" }),
+          { status: 503, headers: { "Content-Type": "application/json" } });
+      }
+      if (!env.KOKORO_TTS_ORIGIN.startsWith("https://")) {
+        return new Response("Origem HTTPS obrigatória", { status: 503 });
+      }
+      const voiceText = typeof data?.text === "string" ? data.text.trim() : "";
+      if (!voiceText || voiceText.length > 500) return new Response("Texto inválido", { status: 400 });
+      const rate = Number.isInteger(data?.rate) ? Math.max(90, Math.min(280, data.rate)) : 165;
+      try {
+        const origin = new URL(env.KOKORO_TTS_ORIGIN);
+        const response = await fetch(new URL("/tts", origin), {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Home-TTS-Token": env.HOME_TTS_INTERNAL_TOKEN },
+          body: JSON.stringify({ text: voiceText, rate })
+        });
+        if (!response.ok) return new Response("Servidor da voz Alex indisponível", { status: 503 });
+        const audio = await response.arrayBuffer();
+        if (audio.byteLength > 6000000) return new Response("Áudio excessivo", { status: 502 });
+        return new Response(audio, { status: 200, headers: {
+          "Content-Type": "audio/wav", "Cache-Control": "no-store", "X-Home-Voice": "pm_alex"
+        }});
+      } catch {
+        return new Response("Falha ao consultar voz Alex", { status: 503 });
+      }
+    }
+    if (!env.GROQ_API_KEY) {
+      return new Response(JSON.stringify({ error: "Chave de IA não configurada no servidor" }),
+        { status: 503, headers: { "Content-Type": "application/json" } });
     }
     const message = typeof data?.message === "string" ? data.message.trim() : "";
     if (!message || message.length > 500) return new Response("Mensagem inválida", { status: 400 });

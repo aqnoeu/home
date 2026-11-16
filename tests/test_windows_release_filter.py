@@ -14,7 +14,7 @@ class WindowsReleaseFilterTests(unittest.TestCase):
                 {"name":"SHA256SUMS.txt","browser_download_url":"https://github.com/aqnoeu/home/releases/download/v0.7.22/SHA256SUMS.txt"}
             ]}
         ]
-        with patch("update_service.fetch",return_value=json.dumps(releases).encode()):
+        with patch("update_service.VERSION","0.7.1"), patch("update_service.fetch",return_value=json.dumps(releases).encode()):
             data=update_service.release_info()
         self.assertEqual(data["version"],"v0.7.22")
 

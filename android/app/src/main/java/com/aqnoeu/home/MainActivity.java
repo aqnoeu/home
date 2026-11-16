@@ -128,8 +128,11 @@ public final class MainActivity extends Activity {
                 status.setText("As expressões são locais. A IA conversacional requer um endpoint HTTPS autenticado.");
                 break;
             case "voice":
+                root.addView(text("Voz escolhida: Alex • Kokoro pm_alex",16));
+                addButton("▶ Testar voz Alex",()->HomeVoice.speak(this,"Olá! Eu sou o Home. Esta é a voz Alex, em português brasileiro."));
                 addButton("◉ Falar agora",()->HomeVoice.listen(this));
-                status.setText("A voz usa o reconhecimento e a síntese disponíveis no Android. Microfone apenas após comando.");
+                addButton("Configurar conexão da IA e da voz",()->HomeAi.configure(this));
+                status.setText("A mesma Alex do Windows usa um servidor Kokoro seguro. Se não estiver conectado, o Home informa e utiliza temporariamente a voz do Android.");
                 break;
             case "interactions":
                 addButton("Ativar Notch",()->{
