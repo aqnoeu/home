@@ -34,6 +34,7 @@ public final class OverlayService extends Service {
         manager = (WindowManager)getSystemService(WINDOW_SERVICE);
         EyesView eyes = new EyesView(this);
         eyes.setMood(getSharedPreferences("home",MODE_PRIVATE).getInt("mood",0));
+        eyes.setEyeGap(getSharedPreferences("home",MODE_PRIVATE).getInt("eye_gap",9));
         GradientDrawable bg = new GradientDrawable();
         bg.setColor(Color.rgb(5,7,11));
         bg.setCornerRadii(new float[]{0,0,0,0,dp(18),dp(18),dp(18),dp(18)});
@@ -114,8 +115,17 @@ public final class OverlayService extends Service {
         int statusBar = 0;
         int dimension = getResources().getIdentifier("status_bar_height","dimen","android");
         if (dimension > 0) statusBar = getResources().getDimensionPixelSize(dimension);
-        layoutParams.x = dp(Math.max(-180,Math.min(180,offsetX)));
-        layoutParams.y = (edge ? -statusBar : 0) + dp(Math.max(-60,Math.min(40,offsetY)));
+        android.util.DisplayMetrics metrics = new android.util.DisplayMetrics();
+        manager.getDefaultDisplay().getRealMetrics(metrics);
+        int screenWidthDp = Math.round(metrics.widthPixels / getResources().getDisplayMetrics().density);
+        int requestedWidth = prefs.getInt("notch_width",116);
+        int maxWidth = Math.max(116,screenWidthDp - 8);
+        layoutParams.width = dp(Math.min(maxWidth,Math.max(90,requestedWidth)));
+        layoutParams.height = dp(Math.max(24,Math.min(100,prefs.getInt("notch_height",34))));
+        // In full-width mode stay centered to avoid clipping at either edge.
+        layoutParams.x = layoutParams.width >= metrics.widthPixels - dp(20)
+            ? 0 : dp(Math.max(-180,Math.min(180,offsetX)));
+        layoutParams.y = (edge ? -statusBar : 0) + dp(Math.max(-60,Math.min(160,offsetY)));
         if (apply && overlay != null && manager != null) {
             try { manager.updateViewLayout(overlay,layoutParams); }
             catch (RuntimeException ignored) { /* May be blocked by system UI. */ }
@@ -123,7 +133,10 @@ public final class OverlayService extends Service {
     }
     @Override public int onStartCommand(Intent intent,int flags,int startId) {
         if (intent != null && STOP.equals(intent.getAction())) { stopSelf(); return START_NOT_STICKY; }
-        if (overlay instanceof EyesView) ((EyesView)overlay).setMood(getSharedPreferences("home",MODE_PRIVATE).getInt("mood",0));
+        if (overlay instanceof EyesView) {
+            ((EyesView)overlay).setMood(getSharedPreferences("home",MODE_PRIVATE).getInt("mood",0));
+            ((EyesView)overlay).setEyeGap(getSharedPreferences("home",MODE_PRIVATE).getInt("eye_gap",9));
+        }
         updatePosition(true);
         repositionHandle();
         return START_STICKY;
