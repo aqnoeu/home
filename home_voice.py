@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from home_integrations import execute_windows_action, save_preferences
+from home_device import local_query
 from home_faber import FaberDownloadWorker, FaberSpeechWorker, installed as faber_installed, PREVIEW_TEXT
 from home_groq import GroqWorker, get_key
 
@@ -64,6 +65,21 @@ def interpret(sentence):
         return ("taskmgr", "Abrindo o Gerenciador de Tarefas.")
     if request_to_open and any(word in s for word in ("painel de controle", "control panel")):
         return ("control_panel", "Abrindo o Painel de Controle.")
+    panels = (
+        ("bluetooth", "bluetooth_settings", "Abrindo ajustes de Bluetooth."),
+        ("wi-fi", "wifi_settings", "Abrindo ajustes de Wi-Fi."),
+        ("wifi", "wifi_settings", "Abrindo ajustes de Wi-Fi."),
+        ("configuracoes de som", "sound_settings", "Abrindo ajustes de som."),
+        ("alarme", "clock_app", "Abrindo o aplicativo de relógio."),
+        ("relogio", "clock_app", "Abrindo o aplicativo de relógio."),
+        ("armazenamento", "storage_settings", "Abrindo o armazenamento."),
+        ("calendario", "calendar_settings", "Abrindo ajustes de data."),
+        ("notificacoes", "notifications_panel", "Abrindo notificações do Windows."),
+    )
+    if request_to_open:
+        for term, action_key, reply in panels:
+            if term in s:
+                return (action_key, reply)
     if any(word in s for word in ("aumentar volume", "aumente o volume", "volume mais", "mais volume")):
         return ("volume_up", "Aumentando o volume.")
     if any(word in s for word in ("diminuir volume", "diminua o volume", "abaixar volume", "menos volume")):
@@ -398,6 +414,12 @@ class VoiceManager(QObject):
         self.command.emit(phrase)
         action = interpret(phrase)
         if action is None:
+            local = local_query(phrase)
+            if local is not None:
+                self.home.record_chat("user",phrase)
+                self.home.record_chat("home",local)
+                self.speak(local)
+                return
             if not get_key():
                 self.set_state("Conecte a Groq uma vez no Assistente para receber respostas por voz.")
                 return

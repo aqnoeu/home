@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
 
 from home_voice import interpret
 from home_integrations import execute_windows_action
+from home_device import local_query
 from home_groq import GroqWorker, get_key, save_key, clear_key
 
 
@@ -28,6 +29,9 @@ def typed_response(text, now=None):
     if "qual é a data" in s or "que dia é hoje" in s or "data de hoje" in s:
         time = now or datetime.now()
         return (f"Hoje é {time:%d/%m/%Y}.", None)
+    local = local_query(message)
+    if local is not None:
+        return (local, None)
     action = interpret(message)
     if action is not None:
         return (action[1], action[0])

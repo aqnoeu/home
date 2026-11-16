@@ -9,6 +9,7 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from PySide6.QtCore import QObject, Signal
+from home_device import overview, open_panel, SYSTEM_PANELS
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QCheckBox,
     QTextEdit, QMessageBox, QApplication
@@ -79,6 +80,15 @@ def cleanup_retired_voice():
 def execute_windows_action(action):
     if sys.platform != "win32":
         raise RuntimeError("Controles disponíveis somente no Windows.")
+    if action in SYSTEM_PANELS:
+        open_panel(action)
+        return
+    if action == "notifications_panel":
+        # Win+N opens notification center on Windows 11, without reading content.
+        user32 = ctypes.windll.user32
+        for vk, flags in ((0x5B,0),(0x4E,0),(0x4E,2),(0x5B,2)):
+            user32.keybd_event(vk,0,flags,0)
+        return
     if action in COMMANDS:
         subprocess.Popen(COMMANDS[action][1], shell=False)
         return
@@ -219,6 +229,33 @@ class IntegrationsDialog(QDialog):
             media.addWidget(button)
         layout.addLayout(media)
 
+        layout.addWidget(QLabel("Conexões do notebook — consultas locais e atalhos do sistema"))
+        self.device_status = QLabel("Clique para consultar. Não enviamos dados à IA.")
+        self.device_status.setWordWrap(True)
+        layout.addWidget(self.device_status)
+        inspect = QPushButton("Consultar bateria, rede, RAM e disco")
+        inspect.clicked.connect(lambda: self.device_status.setText(overview()))
+        layout.addWidget(inspect)
+        for entries in (
+            (("wifi_settings","Wi-Fi"),("bluetooth_settings","Bluetooth"),
+             ("sound_settings","Áudio")),
+            (("storage_settings","Armazenamento"),("clock_app","Alarmes"),
+             ("calendar_settings","Data e agenda")),
+        ):
+            line = QHBoxLayout()
+            for key, label in entries:
+                button = QPushButton(label)
+                button.clicked.connect(lambda checked=False,a=key:self.act(a))
+                line.addWidget(button)
+            layout.addLayout(line)
+        more = QHBoxLayout()
+        note_button = QPushButton("Notificações do Windows")
+        note_button.clicked.connect(lambda: self.act("notifications_panel"))
+        more.addWidget(note_button)
+        clip_button = QPushButton("Ver texto copiado (agora)")
+        clip_button.clicked.connect(self.inspect_clipboard)
+        more.addWidget(clip_button)
+        layout.addLayout(more)
         layout.addWidget(QLabel("Chrome — clique na extensão para compartilhar a aba atual"))
         token = QPushButton("Copiar código de conexão para a extensão")
         token.clicked.connect(lambda: QApplication.clipboard().setText(self.prefs["token"]))
@@ -236,6 +273,14 @@ class IntegrationsDialog(QDialog):
         end = QPushButton("Concluir")
         end.clicked.connect(self.accept)
         layout.addWidget(end)
+
+    def inspect_clipboard(self):
+        # Qt clipboard is inspected ONLY from an explicit button click.
+        text = QApplication.clipboard().text().strip()
+        if not text:
+            self.device_status.setText("Área de transferência sem texto.")
+        else:
+            self.device_status.setText("Texto copiado (prévia local): "+text[:700])
 
     def changed(self, key, value):
         self.prefs[key] = bool(value)
