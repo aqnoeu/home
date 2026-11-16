@@ -11,6 +11,8 @@ on:
       - 'home_integrations.py'
       - 'home_voice.py'
       - 'home_kokoro.py'
+      - 'home_ai.py'
+      - 'assets/**'
       - 'tests/**'
       - 'chrome-extension/**'
       - 'update_service.py'
@@ -57,7 +59,7 @@ jobs:
       - name: Instalar dependencias
         run: python -m pip install --upgrade -r requirements.txt pyinstaller
       - name: Verificar sintaxe
-        run: python -m py_compile home.py home_ui.py home_navigation.py home_assistant.py home_integrations.py home_voice.py home_kokoro.py updater.py update_service.py
+        run: python -m py_compile home.py home_ui.py home_navigation.py home_assistant.py home_integrations.py home_voice.py home_kokoro.py home_ai.py updater.py update_service.py
       - name: Testar comandos de voz e wake word
         run: python -m unittest discover -s tests -v
       - name: Testar navegacao interna sem popups
@@ -109,8 +111,18 @@ jobs:
           print('Navegacao integrada verificada.')
           '@ | Set-Content navigation_smoke.py -Encoding utf8
           python navigation_smoke.py
+      - name: Preparar ícone aprovado do Home
+        shell: pwsh
+        run: |
+          python -m pip install pillow
+          @'
+          from PIL import Image
+          img = Image.open("assets/home_icon_approved.png").convert("RGBA")
+          img.save("assets/home_icon.ico", format="ICO",
+                   sizes=[(16,16),(32,32),(48,48),(64,64),(128,128)])
+          '@ | python
       - name: Compilar Home
-        run: pyinstaller --noconfirm --clean --onefile --windowed --collect-all vosk --collect-binaries sounddevice --hidden-import sounddevice --hidden-import pyttsx3 --hidden-import pythoncom --hidden-import pyttsx3.drivers.sapi5 --collect-all kokoro_onnx --collect-all onnxruntime --collect-all espeakng_loader --name Home home.py
+        run: pyinstaller --noconfirm --clean --onefile --windowed --collect-all vosk --collect-binaries sounddevice --hidden-import sounddevice --hidden-import pyttsx3 --hidden-import pythoncom --hidden-import pyttsx3.drivers.sapi5 --collect-all kokoro_onnx --collect-all onnxruntime --collect-all espeakng_loader --icon assets/home_icon.ico --name Home home.py
       - name: Verificar biblioteca nativa Vosk no Home.exe
         shell: pwsh
         run: |
