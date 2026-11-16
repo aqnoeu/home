@@ -135,7 +135,7 @@ jobs:
                    sizes=[(16,16),(32,32),(48,48),(64,64),(128,128)])
           '@ | python
       - name: Compilar Home
-        run: pyinstaller --noconfirm --clean --onefile --windowed --collect-all vosk --collect-binaries sounddevice --hidden-import sounddevice --collect-all sherpa_onnx --collect-all keyring --icon assets/home_icon.ico --name Home home.py
+        run: pyinstaller --noconfirm --clean --onefile --windowed --collect-all vosk --collect-binaries sounddevice --hidden-import sounddevice --collect-all sherpa_onnx --collect-all keyring --add-data "assets/home_icon_approved.png;assets" --icon assets/home_icon.ico --name Home home.py
       - name: Verificar biblioteca nativa Vosk no Home.exe
         shell: pwsh
         run: |
