@@ -5,6 +5,7 @@ Windows Credential Manager through keyring (never in a JSON config or GitHub).
 The assistant's generated text is sent to the local Faber Piper speech engine.
 """
 import json
+import re
 import urllib.error
 import urllib.request
 from home_emotions import normalize_emotion
@@ -80,8 +81,9 @@ def explain_groq_http_error(exc):
             details={}
         code=details.get("code","")
         kind=details.get("type","")
+        remote_message=details.get("message","")
     except (OSError, ValueError, TypeError, AttributeError):
-        code=kind=""
+        code=kind=remote_message=""
     if exc.code == 401:
         return "Groq HTTP 401: credencial recusada. Troque a chave salva no HOME."
     if exc.code == 403:
@@ -96,8 +98,21 @@ def explain_groq_http_error(exc):
             safe_code="".join(ch for ch in str(code) if ch.isascii() and
                               (ch.isalnum() or ch in "_-"))[:70]
             return "Groq HTTP 403: permissão negada (código %s)." % safe_code
-        return ("Groq HTTP 403: requisição proibida. A chave pode estar válida, "
-                "mas o projeto, organização ou acesso ao modelo precisa ser verificado.")
+        # Preserve the provider's reason for otherwise opaque 403 responses.
+        # Never reveal a secret from a server error message.
+        if isinstance(remote_message, str) and remote_message.strip():
+            safe = re.sub(r"gsk_[A-Za-z0-9_-]+", "[chave oculta]", remote_message)
+            safe = re.sub(r"https?://\\S+", "[link]", safe)
+            safe = " ".join(safe.split())[:160]
+            if safe:
+                return "Groq HTTP 403: " + safe
+        if kind:
+            safe_kind = "".join(ch for ch in str(kind) if ch.isascii() and
+                                (ch.isalnum() or ch in "_-"))[:45]
+            if safe_kind:
+                return "Groq HTTP 403: acesso negado (tipo %s)." % safe_kind
+        return ("Groq HTTP 403: acesso negado sem detalhes pela Groq. "
+                "Confira permissões da organização e do projeto.")
     if exc.code == 429:
         return "Groq HTTP 429: limite de requisições atingido."
     if exc.code == 400:
