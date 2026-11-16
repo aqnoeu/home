@@ -7,15 +7,13 @@ android {
         applicationId = "com.aqnoeu.home"
         minSdk = 26
         targetSdk = 35
-        versionCode = 118
-        versionName = "0.1.18"
-        // Optional owner-provided credential injected by a private GitHub Actions Secret.
-        // WARNING: an embedded client key can be extracted from a public APK.
-        val groqKey = providers.environmentVariable("HOME_GROQ_API_KEY").orNull ?: ""
-        require(groqKey.isEmpty() || groqKey.matches(Regex("gsk_[A-Za-z0-9_-]{20,200}"))) {
-            "HOME_GROQ_API_KEY must be a valid Groq API key without whitespace"
-        }
-        buildConfigField("String", "HOME_GROQ_API_KEY", "\"${groqKey}\"")
+        // Both desktop and Android receive the same version from one release pipeline.
+        val homeVersion = providers.environmentVariable("HOME_RELEASE_VERSION").orNull ?: "0.8.0"
+        val parts = homeVersion.split(".").map { it.toInt() }
+        require(parts.size == 3 && parts.all { it >= 0 } && parts[1] < 100 && parts[2] < 100)
+        versionCode = parts[0] * 10000 + parts[1] * 100 + parts[2]
+        versionName = homeVersion
+
     }
     signingConfigs {
         create("releaseKey") {
