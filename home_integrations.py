@@ -1,6 +1,7 @@
 """Integrações locais do Home: controles Windows e ponte de leitura opt-in do Chrome."""
 import ctypes
 import json
+import shutil
 import secrets
 import subprocess
 import sys
@@ -30,15 +31,15 @@ def load_preferences():
             "windows_controls": False, "chrome_reading": False,
             "voice_microphone": False, "voice_wake": False, "voice_speech": False,
             "voice_id": "", "voice_rate": 165, "voice_volume": 100,
-            "voice_engine": "kokoro",
+            "voice_engine": "none",
             "token": secrets.token_urlsafe(32)}
     try:
         source = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
         for key in base:
             if key == "token" and isinstance(source.get(key), str) and len(source[key]) >= 32:
                 base[key] = source[key]
-            elif key == "voice_engine" and source.get(key) in ("kokoro", "sapi5"):
-                base[key] = source[key]
+            elif key == "voice_engine":
+                base[key] = "none"
             elif key in ("voice_id",) and isinstance(source.get(key), str) and len(source[key]) < 512:
                 base[key] = source[key]
             elif key == "voice_rate" and type(source.get(key)) is int and 90 <= source[key] <= 280:
@@ -49,11 +50,29 @@ def load_preferences():
                 base[key] = source[key]
     except (OSError, ValueError, TypeError):
         pass
+    base["voice_speech"] = False
     return base
 
 
 def save_preferences(prefs):
     CONFIG_PATH.write_text(json.dumps(prefs, indent=2), encoding="utf-8")
+
+
+def cleanup_retired_voice():
+    """One-time removal of only the retired Alex model; leave Vosk and other data."""
+    import os
+    root = Path(os.environ.get("LOCALAPPDATA") or (Path.home() / ".local" / "share")) / "Home" / "models"
+    target = root / "kokoro-v1.0"
+    marker = root / ".alex_cleanup_v1"
+    if marker.exists():
+        return
+    try:
+        if target.is_dir():
+            shutil.rmtree(target)
+        root.mkdir(parents=True, exist_ok=True)
+        marker.write_text("retired", encoding="utf-8")
+    except OSError:
+        pass
 
 
 def execute_windows_action(action):
