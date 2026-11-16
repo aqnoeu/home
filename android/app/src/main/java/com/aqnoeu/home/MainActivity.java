@@ -241,9 +241,11 @@ public final class MainActivity extends Activity {
             root.addView(back,p);
         }else add(root,note("ASSISTENTE PESSOAL"),12,7);
         if(subtitle!=null&&!subtitle.isEmpty())add(root,note(subtitle),0,18);
-        inlineHost=column();root.addView(inlineHost,new LinearLayout.LayoutParams(-1,-2));
         status=note("");status.setVisibility(View.GONE);
-        add(root,status,6,8);
+        status.setBackground(bg(RAISED,12));
+        status.setPadding(dp(12),dp(10),dp(12),dp(10));
+        add(root,status,8,10);
+        inlineHost=column();root.addView(inlineHost,new LinearLayout.LayoutParams(-1,-2));
     }
     private void statusMessage(String message){
         status.setVisibility(View.VISIBLE);showStatus(message);
@@ -540,7 +542,10 @@ public final class MainActivity extends Activity {
             else{stopService(new Intent(this,WakeWordService.class));statusMessage("Ei, Home desligado.");}
         });
         action(wake,"Testar o microfone agora",false,()->HomeVoice.listen(this));
-        add(wake,note("Se ‘Ei, Home’ não responder, teste primeiro o microfone. O reconhecimento contínuo pelo Android pode ser interrompido pelo sistema."),3,0);
+        TextView diag=note("Status: "+getSharedPreferences("home",MODE_PRIVATE).getString("wake_status","Ainda não iniciado."));
+        add(wake,diag,6,8);
+        action(wake,"Verificar estado da escuta",false,()->diag.setText("Status: "+getSharedPreferences("home",MODE_PRIVATE).getString("wake_status","Ainda não iniciado.")));
+        add(wake,note("O Android pode interromper o reconhecimento contínuo. Se o sistema bloquear, o teste manual permanece disponível."),3,0);
     }
     private void updatesPage(){
         LinearLayout box=card("Atualizações oficiais","O aplicativo verifica os lançamentos assinados do HOME.");
