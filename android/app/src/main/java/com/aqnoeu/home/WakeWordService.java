@@ -41,12 +41,12 @@ public final class WakeWordService extends Service {
             || checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED) {
             stopSelf(); return START_NOT_STICKY;
         }
-        if(intent!=null && PAUSE.equals(intent.getAction()) && running) {
+        if(intent!=null && PAUSE.equals(intent.getAction())) {
             paused=true;
             handler.removeCallbacks(restart);
             if(recognizer!=null){recognizer.cancel();listening=false;}
             state("Em pausa durante a conversa.");
-            return START_NOT_STICKY;
+            if(running)return START_NOT_STICKY;
         }
         if(intent!=null && RESUME.equals(intent.getAction()) && running) {
             paused=false; failures=0; listening=false; schedule(1700); return START_NOT_STICKY;
@@ -93,7 +93,7 @@ public final class WakeWordService extends Service {
             }
             public void onEvent(int event,Bundle params) {}
         });
-        schedule(300);
+        if(!paused)schedule(300);
         return START_NOT_STICKY;
     }
     private String normalize(String s) {
