@@ -21,3 +21,49 @@ O exemplo usa o modelo `openai/gpt-oss-20b`; verifique os limites e as tarifas e
 
 ## Aviso importante
 Até configurar e publicar esse servidor, a IA conversacional **não está ativa**: as reações locais funcionam, mas respostas geradas por modelo não. Não substitua a chave de assinatura Android pelos segredos de IA.
+
+
+## Home IA — implantação Cloudflare e voz Alex
+
+O Worker `home-ai` foi criado na conta Cloudflare associada ao projeto, com URL
+`https://home-ai.aqnoeu-home.workers.dev/ai`. Os aplicativos Windows e Android
+pré-preenchem este endpoint. A publicação do código não configura automaticamente
+os secrets do usuário.
+
+No painel **Cloudflare → Workers & Pages → home-ai → Settings / Variables and Secrets**,
+configure:
+- `HOME_ACCESS_TOKEN`: token privado de acesso do Home, usado igualmente no app Windows e Android.
+- `GROQ_API_KEY`: **chave Groq NOVA**, nunca a anteriormente exposta em conversa.
+
+Sem estes dois segredos, o endpoint de IA não responde às conversas.
+O token de acesso **não** deve ser incorporado no repositório nem no APK.
+
+### Mesma voz de Windows e Android — Kokoro Alex
+
+O Windows já sintetiza localmente em `pm_alex`. Para o Android usar **a mesma voz**, o Worker expõe `POST /tts` e repassa a um serviço privado `backend/home-voice-server.py`, com o mesmo Kokoro ONNX e pacote de vozes do Windows.
+
+Esse servidor **exige hospedagem HTTPS permanente, modelo Kokoro instalado e os secrets**
+`HOME_TTS_INTERNAL_TOKEN` (mesmo segredo em Worker e servidor, pelo menos 32 caracteres),
+`KOKORO_TTS_ORIGIN` (somente Worker: URL HTTPS do servidor) e
+`HOME_KOKORO_MODEL_DIR` (somente servidor: diretório dos dois arquivos do modelo).
+
+Exemplo de execução, **após configurar os secrets no host**, sem expor a porta diretamente na Internet:
+```bash
+python -m pip install -r backend/requirements-voice.txt
+uvicorn backend.home-voice-server:app --host 127.0.0.1 --port 8765
+```
+O nome do arquivo contém hífen; para usar Python `-m uvicorn`, execute:
+```bash
+cd backend
+uvicorn home_voice_server:app --host 127.0.0.1 --port 8765
+```
+Se a implementação ficar em `home-voice-server.py`, renomeie para `home_voice_server.py` ou carregue via `importlib`.
+Configure um proxy HTTPS com autenticação e não exponha a porta 8765 diretamente.
+
+Enquanto o servidor Kokoro não estiver hospedado e acessível, o Android informa
+a indisponibilidade e usa temporariamente sua voz TTS local; **não se deve anunciar
+que a voz Alex está funcional no mobile antes de testar o endpoint**.
+
+A Groq oferece chat/geração de texto, mas não disponibiliza a voz personalizada
+Kokoro `pm_alex` como TTS. Assim, as duas integrações são separadas para preservar
+a identidade vocal.
