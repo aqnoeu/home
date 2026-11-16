@@ -375,7 +375,7 @@ class VoiceManager(QObject):
         self.command.emit(phrase)
         action = interpret(phrase)
         if action is None:
-            self.speak("Não reconheci esse comando.")
+            self.speak("Esta pergunta precisa de uma IA conversacional, que ainda não está conectada. Posso executar comandos locais.")
             return
         key, response = action
         if not self.prefs.get("windows_controls"):
