@@ -8,6 +8,7 @@ import os
 import shutil
 import tarfile
 import tempfile
+import threading
 import urllib.request
 from pathlib import Path
 
@@ -21,6 +22,11 @@ EXTRACT_MAX = 130_000_000
 MODEL_ROOT = Path(os.environ.get("LOCALAPPDATA") or Path.home() / ".local" / "share") / "Home" / "models" / MODEL_NAME
 PREVIEW_TEXT = "Olá! Eu sou o Home, com a voz Faber. Agora posso falar com você sem internet."
 VOICE = "pt_BR-faber-medium"
+
+# Load ONNX and the phonemizer only once per application process.
+_ENGINE_LOCK = threading.Lock()
+_ENGINE = None
+_ENGINE_ROOT = None
 
 
 def installed(root=MODEL_ROOT):
@@ -39,24 +45,28 @@ def installed(root=MODEL_ROOT):
 def synthesize(message, rate=165, root=MODEL_ROOT):
     if not installed(root):
         raise FileNotFoundError("Instale a voz Faber na página Voz.")
+    global _ENGINE, _ENGINE_ROOT
     import sherpa_onnx
     root = Path(root)
-    config = sherpa_onnx.OfflineTtsConfig(
-        model=sherpa_onnx.OfflineTtsModelConfig(
-            vits=sherpa_onnx.OfflineTtsVitsModelConfig(
-                model=str(root / "pt_BR-faber-medium.onnx"),
-                tokens=str(root / "tokens.txt"),
-                data_dir=str(root / "espeak-ng-data"),
-            ),
-            num_threads=2,
-            debug=True,
-        )
-    )
-    if not config.validate():
-        raise RuntimeError("Modelo Faber incompleto ou configuração inválida.")
-    engine = sherpa_onnx.OfflineTts(config)
     speed = max(0.8, min(1.25, 1.0 + (int(rate)-165)/250.0))
-    audio = engine.generate(message[:500], sid=0, speed=speed)
+    with _ENGINE_LOCK:
+        if _ENGINE is None or _ENGINE_ROOT != root:
+            config = sherpa_onnx.OfflineTtsConfig(
+                model=sherpa_onnx.OfflineTtsModelConfig(
+                    vits=sherpa_onnx.OfflineTtsVitsModelConfig(
+                        model=str(root / "pt_BR-faber-medium.onnx"),
+                        tokens=str(root / "tokens.txt"),
+                        data_dir=str(root / "espeak-ng-data"),
+                    ),
+                    num_threads=2,
+                    debug=False,
+                )
+            )
+            if not config.validate():
+                raise RuntimeError("Modelo Faber incompleto ou configuração inválida.")
+            _ENGINE = sherpa_onnx.OfflineTts(config)
+            _ENGINE_ROOT = root
+        audio = _ENGINE.generate(message[:500], sid=0, speed=speed)
     if not len(audio.samples) or audio.sample_rate <= 0:
         raise RuntimeError("Faber produziu áudio vazio. Verifique o motor e os recursos do fonemizador.")
     return audio.samples, audio.sample_rate
