@@ -30,7 +30,9 @@ def installed(root=MODEL_ROOT):
         and (root / "pt_BR-faber-medium.onnx").stat().st_size > 40_000_000
         and (root / "tokens.txt").is_file()
         and (root / "tokens.txt").stat().st_size > 100
-        and (root / "espeak-ng-data").is_dir()
+        and all((root / "espeak-ng-data" / name).is_file() for name in (
+            "phontab", "phonindex", "phondata", "intonations"
+        ))
     )
 
 
@@ -47,6 +49,7 @@ def synthesize(message, rate=165, root=MODEL_ROOT):
                 data_dir=str(root / "espeak-ng-data"),
             ),
             num_threads=2,
+            debug=True,
         )
     )
     if not config.validate():
@@ -54,6 +57,8 @@ def synthesize(message, rate=165, root=MODEL_ROOT):
     engine = sherpa_onnx.OfflineTts(config)
     speed = max(0.8, min(1.25, 1.0 + (int(rate)-165)/250.0))
     audio = engine.generate(message[:500], sid=0, speed=speed)
+    if not len(audio.samples) or audio.sample_rate <= 0:
+        raise RuntimeError("Faber produziu áudio vazio. Verifique o motor e os recursos do fonemizador.")
     return audio.samples, audio.sample_rate
 
 
