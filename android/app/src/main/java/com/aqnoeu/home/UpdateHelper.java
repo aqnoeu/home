@@ -143,7 +143,7 @@ public final class UpdateHelper {
     private static int versionCodeForTag(String tag) {
         try {
             String[] v = tag.substring(1).split("\\.");
-            return Integer.parseInt(v[0]) * 10000 + Integer.parseInt(v[1]) * 100 + Integer.parseInt(v[2]);
+            return Integer.parseInt(v[0]) * 1000000 + Integer.parseInt(v[1]) * 10000 + Integer.parseInt(v[2]);
         } catch (Exception e) { return -1; }
     }
     private static boolean validReleaseUrl(String url) {
