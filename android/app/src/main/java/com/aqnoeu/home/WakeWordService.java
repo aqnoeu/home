@@ -136,7 +136,7 @@ public final class WakeWordService extends Service implements RecognitionListene
         try{text=normalize(new JSONObject(hypothesis).optString("text",""));}
         catch(Exception ignored){return;}
         if(text.isEmpty())return;
-        String[] triggers={"ei home","ok home","hey home","oi home"};
+        String[] triggers={"ei home","ok home","hey home","oi home","ei romi","ei rome","ok romi","ok rome","o que home"};
         int end=-1;
         for(String trigger:triggers){
             if(text.equals(trigger) || text.startsWith(trigger+" ")){end=trigger.length();break;}
