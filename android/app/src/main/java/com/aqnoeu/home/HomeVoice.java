@@ -2,7 +2,6 @@ package com.aqnoeu.home;
 
 import android.app.Activity;
 import android.content.Intent;
-import android.widget.Toast;
 import android.speech.RecognizerIntent;
 import java.util.Locale;
 
@@ -17,12 +16,12 @@ public final class HomeVoice {
         intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE,"pt-BR");
         intent.putExtra(RecognizerIntent.EXTRA_PROMPT,"Fale com o Home");
         try { activity.startActivityForResult(intent,REQUEST_SPEECH); }
-        catch(Exception e) {Toast.makeText(activity,"Reconhecimento de voz indisponível neste aparelho.",Toast.LENGTH_LONG).show();}
+        catch(Exception e) {if(activity instanceof MainActivity)((MainActivity)activity).reportVoiceStatus("Reconhecimento de voz indisponível no aparelho.");}
     }
 
     public static void speak(Activity activity,String message) {
         FaberOffline.speak(activity,message,status ->
-            Toast.makeText(activity,status,Toast.LENGTH_SHORT).show());
+            { if(activity instanceof MainActivity) ((MainActivity)activity).reportVoiceStatus(status); });
     }
 
     public static String localResponse(String phrase) {
