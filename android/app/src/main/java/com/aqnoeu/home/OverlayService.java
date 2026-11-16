@@ -22,6 +22,7 @@ public final class OverlayService extends Service {
 
     @Override public void onCreate() {
         super.onCreate();
+        getSharedPreferences("home",MODE_PRIVATE).edit().putBoolean("notch_active",true).apply();
         NotificationManager nm = getSystemService(NotificationManager.class);
         nm.createNotificationChannel(new NotificationChannel("home_notch","Home — Notch",NotificationManager.IMPORTANCE_LOW));
         Intent show = new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_SINGLE_TOP);
@@ -144,6 +145,8 @@ public final class OverlayService extends Service {
     @Override public void onDestroy() {
         if (touchHandle != null && manager != null) {try {manager.removeView(touchHandle);} catch(Exception ignored){} touchHandle = null; }
         if (overlay != null && manager != null) { try {manager.removeView(overlay);} catch(Exception ignored){} overlay = null; }
+        getSharedPreferences("home",MODE_PRIVATE).edit().putBoolean("notch_active",false).apply();
+        stopService(new Intent(this,WakeWordService.class));
         super.onDestroy();
     }
     @Override public IBinder onBind(Intent intent) { return null; }
