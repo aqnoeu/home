@@ -48,7 +48,8 @@ public final class MainActivity extends Activity {
     private android.widget.EditText chatInput;
     private final Handler wakeHandler=new Handler(Looper.getMainLooper());
     private TextView chatTitle;
-    private String currentPage = "hub";
+    private String currentPage = "assistant";
+    private String settingsTab = "Geral";
     private static final int WAKE_PERMISSION_REQUEST = 721;
     private boolean wakeBusy = false;
 
@@ -139,7 +140,7 @@ public final class MainActivity extends Activity {
     @Override public void onCreate(Bundle saved){
         super.onCreate(saved);
         VoiceCleanup.cleanup(this);
-        showHub();
+        showPage("assistant");
         handleWakeIntent(getIntent());
     }
     @Override protected void onNewIntent(Intent intent){
@@ -184,6 +185,9 @@ public final class MainActivity extends Activity {
         }
     }
     private void speakAnswer(String answer){
+        if(!getSharedPreferences("home",MODE_PRIVATE).getBoolean("voice_replies",true)){
+            resumeWake();return;
+        }
         if(FaberOffline.isInstalled(this)){
             FaberOffline.speak(this,answer,message->{
                 if(message.startsWith("✓ Faber reproduzida") || message.startsWith("Falha") || message.startsWith("Instale"))resumeWake();
@@ -257,8 +261,11 @@ public final class MainActivity extends Activity {
         add(root,brand,0,16);
         View line=new View(this);line.setBackgroundColor(LINE);
         root.addView(line,new LinearLayout.LayoutParams(-1,dp(1)));
-        if(!"hub".equals(page)){
-            Button back=button("‹  Voltar",false,this::showHub);
+        if(!"hub".equals(page) && !"history".equals(page) && !"settings".equals(page)){
+            Button back=button("‹  Voltar",false,()->{
+                if("editor".equals(currentPage))showSettings("Aparência");
+                else showPage("assistant");
+            });
             LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(dp(125),dp(44));
             p.topMargin=dp(12);p.bottomMargin=dp(14);
             root.addView(back,p);
@@ -343,20 +350,239 @@ public final class MainActivity extends Activity {
 
         add(root,note("HOME · v"+BuildConfig.VERSION_NAME+" · @aqnoeu"),17,0);
     }
+    /** Three primary destinations: conversation, history and settings. */
     private void showPage(String page){
-        String title=page.equals("assistant")?"Assistente":
-            page.equals("voice")?"Voz e microfone":
-            page.equals("interactions")?"Interações":
-            page.equals("updates")?"Atualizações":"Encerrar";
-        initScreen(page,null);
-        add(root,heading(title,narrow()?22:24),0,12);
-        switch(page){
-            case "assistant": assistantPage();break;
-            case "voice": voicePage();break;
-            case "interactions": interactionPage();break;
-            case "updates": updatesPage();break;
-            default: exitPage();
+        if("assistant".equals(page)){
+            initScreen("assistant",null);
+            assistantPage();
+        } else if("history".equals(page)){
+            showHistory();
+        } else if("settings".equals(page)){
+            showSettings(settingsTab);
+        } else if("editor".equals(page)){
+            showEditor();
+        } else {
+            showSettings("Geral");
         }
+    }
+
+    private LinearLayout bottomNavigation(String active){
+        LinearLayout tabs=new LinearLayout(this);
+        tabs.setOrientation(LinearLayout.HORIZONTAL);
+        tabs.setGravity(Gravity.CENTER_VERTICAL);
+        tabs.setBackground(bg(SURFACE,16));
+        tabs.setPadding(dp(4),dp(4),dp(4),dp(4));
+        String[] names={"Conversar","Histórico","Ajustes"};
+        String[] routes={"assistant","history","settings"};
+        for(int i=0;i<names.length;i++){
+            final String route=routes[i];
+            Button b=button(names[i],active.equals(route),()->showPage(route));
+            b.setTextSize(12);
+            b.setSingleLine(true);
+            b.setBackground(bg(active.equals(route)?BLUE:SURFACE,12));
+            LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(48),1);
+            p.leftMargin=dp(2);p.rightMargin=dp(2);
+            tabs.addView(b,p);
+        }
+        return tabs;
+    }
+
+    private void showHistory(){
+        initScreen("history",null);
+        add(root,heading("Histórico",24),18,6);
+        add(root,note("Suas conversas ficam salvas neste aparelho."),0,16);
+        action(root,"+ Nova conversa",true,()->{
+            HomeChatStore.get(this).newChat();
+            showPage("assistant");
+        });
+        chatPicker=column();
+        add(root,chatPicker,5,16);
+        renderChatList();
+        add(root,bottomNavigation("history"),8,12);
+    }
+
+    private Switch settingSwitch(LinearLayout host,String name,String description,
+                                 boolean enabled,android.widget.CompoundButton.OnCheckedChangeListener change){
+        LinearLayout item=new LinearLayout(this);
+        item.setOrientation(LinearLayout.HORIZONTAL);
+        item.setGravity(Gravity.CENTER_VERTICAL);
+        item.setPadding(dp(14),dp(11),dp(10),dp(11));
+        item.setBackground(bg(RAISED,14));
+        LinearLayout copy=column();
+        add(copy,text(name,14,WHITE,true),0,5);
+        add(copy,note(description),0,0);
+        item.addView(copy,new LinearLayout.LayoutParams(0,-2,1));
+        Switch control=new Switch(this);
+        control.setChecked(enabled);
+        control.setThumbTintList(android.content.res.ColorStateList.valueOf(WHITE));
+        control.setTrackTintList(android.content.res.ColorStateList.valueOf(enabled?BLUE:LINE));
+        control.setContentDescription(name);
+        item.addView(control,new LinearLayout.LayoutParams(dp(64),dp(48)));
+        control.setOnCheckedChangeListener((button,on)->{
+            control.setTrackTintList(android.content.res.ColorStateList.valueOf(on?BLUE:LINE));
+            change.onCheckedChanged(button,on);
+        });
+        add(host,item,4,8);
+        return control;
+    }
+
+    /** Tabs change the content of the same settings page; they are not new destinations. */
+    private void showSettings(String tab){
+        settingsTab=tab;
+        initScreen("settings",null);
+        add(root,heading("Configurações",24),16,5);
+        add(root,note("Ajuste o HOME sem percorrer várias telas."),0,13);
+        LinearLayout tabs=new LinearLayout(this);
+        tabs.setOrientation(LinearLayout.HORIZONTAL);
+        String[] names={"Geral","Voz / IA","Aparência"};
+        for(String name:names){
+            Button b=button(name,name.equals(tab),()->showSettings(name));
+            b.setSingleLine(true);
+            b.setTextSize(12);
+            b.setBackground(bg(name.equals(tab)?BLUE:RAISED,12));
+            LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(48),1);
+            p.leftMargin=dp(3);p.rightMargin=dp(3);
+            tabs.addView(b,p);
+        }
+        add(root,tabs,0,14);
+        switch(tab){
+            case "Voz / IA": settingsVoice();break;
+            case "Aparência": settingsAppearance();break;
+            default: settingsGeneral();break;
+        }
+        add(root,bottomNavigation("settings"),10,10);
+    }
+
+    private void settingsGeneral(){
+        android.content.SharedPreferences prefs=getSharedPreferences("home",MODE_PRIVATE);
+        LinearLayout controls=card("Notch e ativação",null);
+        settingSwitch(controls,"Mostrar notch","Olhos na borda superior do celular.",
+            prefs.getBoolean("notch_active",false),(view,on)->{
+                if(on){
+                    if(!Settings.canDrawOverlays(this)){
+                        view.setChecked(false);
+                        statusMessage("Autorize a sobreposição nas configurações do Android.");
+                        startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            Uri.parse("package:"+getPackageName())));
+                        return;
+                    }
+                    try{
+                        startForegroundService(new Intent(this,OverlayService.class));
+                        if(WakeWordService.enabled(this))
+                            new Handler(Looper.getMainLooper()).postDelayed(this::startWake,700);
+                        statusMessage("Notch ativado.");
+                    }catch(Exception ex){
+                        view.setChecked(false);
+                        statusMessage("Falha no notch: "+ex.getMessage());
+                    }
+                }else{
+                    stopService(new Intent(this,WakeWordService.class));
+                    stopService(new Intent(this,OverlayService.class));
+                    statusMessage("Notch desativado.");
+                }
+            });
+        settingSwitch(controls,"Ouvir ‘Ei, Home’","O Android indica quando o microfone está em uso.",
+            WakeWordService.enabled(this),(view,on)->{
+                prefs.edit().putBoolean("wake_enabled",on).apply();
+                if(on)startWake();
+                else{
+                    stopService(new Intent(this,WakeWordService.class));
+                    statusMessage("Ativação por voz desligada.");
+                }
+            });
+        settingSwitch(controls,"Mostrar aba de toque","Atalho para abrir o HOME pelo notch.",
+            prefs.getBoolean("touch_tab",true),(view,on)->{
+                prefs.edit().putBoolean("touch_tab",on).apply();refreshNotch();
+            });
+        settingSwitch(controls,"Integrar à barra superior","Ajustar a sobreposição ao topo do Android.",
+            prefs.getBoolean("edge_mode",true),(view,on)->{
+                prefs.edit().putBoolean("edge_mode",on).apply();refreshNotch();
+            });
+        action(controls,"Ajustar tamanho e posição  ›",false,this::showEditor);
+        LinearLayout about=card("Sobre e ferramentas",null);
+        add(about,note("HOME · v"+BuildConfig.VERSION_NAME+" · @aqnoeu"),0,12);
+        action(about,"↻ Verificar atualizações",false,()->{
+            status.setVisibility(View.VISIBLE);
+            UpdateHelper.check(this,status);
+        });
+        action(about,"Downloads oficiais",false,
+            ()->startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(DOWNLOAD))));
+        action(about,"Recolher HOME",false,this::finish);
+    }
+
+    private void settingsVoice(){
+        android.content.SharedPreferences prefs=getSharedPreferences("home",MODE_PRIVATE);
+        LinearLayout response=card("Voz e microfone","A conversa continua funcionando em texto.");
+        settingSwitch(response,"Responder com voz","Usar Faber quando instalada.",
+            prefs.getBoolean("voice_replies",true),(view,on)->
+                prefs.edit().putBoolean("voice_replies",on).apply());
+        TextView voiceState=note(FaberOffline.isInstalled(this)?
+            "✓ Faber instalada":"Voz offline ainda não instalada.");
+        add(response,voiceState,0,8);
+        action(response,FaberOffline.isInstalled(this)?"Testar voz Faber":"Instalar Faber",false,()->{
+            if(FaberOffline.isInstalled(this)){
+                FaberOffline.speak(this,"Olá! Eu sou o HOME.",voiceState::setText);
+            }else requestInlineConfirm("Instalar Faber",
+                "O download inicial requer aproximadamente 67 MB.",()->{
+                    FaberOffline.installAsync(this,voiceState::setText);
+                });
+        });
+        action(response,"Testar microfone",false,()->{pauseWake();HomeVoice.listen(this);});
+        LinearLayout ia=card("Inteligência artificial",null);
+        TextView groq=note(HomeGroq.connected(this)?
+            "● Groq conectada":"● Groq desconectada");
+        groq.setTextColor(HomeGroq.connected(this)?GREEN:MUTED);
+        add(ia,groq,0,8);
+        action(ia,"Gerenciar chave Groq",false,()->showConnectionSettings(groq));
+        LinearLayout diagnostics=card("Diagnóstico de voz",null);
+        TextView report=note("Verifique a instalação e o estado da Faber.");
+        add(diagnostics,report,0,9);
+        action(diagnostics,"Ver diagnóstico",false,()->
+            report.setText(FaberOffline.diagnostic(this)));
+        action(diagnostics,"Copiar diagnóstico",false,()->{
+            String value=FaberOffline.diagnostic(this);
+            ((ClipboardManager)getSystemService(CLIPBOARD_SERVICE))
+                .setPrimaryClip(ClipData.newPlainText("Diagnóstico HOME",value));
+            statusMessage("Diagnóstico copiado.");
+        });
+    }
+
+    private void settingsAppearance(){
+        android.content.SharedPreferences prefs=getSharedPreferences("home",MODE_PRIVATE);
+        LinearLayout face=card("Expressões oficiais","Normal, Feliz, Sonolento e Bravo.");
+        EyesView eyes=new EyesView(this);
+        eyes.setMood(prefs.getInt("mood",0));
+        eyes.setEyeGap(prefs.getInt("eye_gap",9));
+        eyes.setBackground(bg(BG,18));
+        LinearLayout.LayoutParams preview=new LinearLayout.LayoutParams(-1,dp(84));
+        preview.bottomMargin=dp(10);
+        face.addView(eyes,preview);
+        HorizontalScrollView hscroll=new HorizontalScrollView(this);
+        hscroll.setHorizontalScrollBarEnabled(false);
+        LinearLayout moods=new LinearLayout(this);
+        moods.setOrientation(LinearLayout.HORIZONTAL);
+        String[] labels={"Normal","Feliz","Sonolento","Bravo"};
+        for(int i=0;i<labels.length;i++){
+            final int index=i;
+            Button mood=button(labels[i],false,()->{
+                prefs.edit().putInt("mood",index).apply();
+                eyes.setMood(index);
+                for(int j=0;j<moods.getChildCount();j++)
+                    moods.getChildAt(j).setBackground(bg(j==index?BLUE:RAISED,12));
+                refreshNotch();
+            });
+            mood.setSingleLine(true);mood.setTextSize(12);
+            mood.setBackground(bg(index==prefs.getInt("mood",0)?BLUE:RAISED,12));
+            LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(
+                dp(labels[i].equals("Sonolento")?110:94),dp(48));
+            p.rightMargin=dp(8);
+            moods.addView(mood,p);
+        }
+        hscroll.addView(moods);
+        face.addView(hscroll);
+        LinearLayout setup=card("Posição e aparência",null);
+        action(setup,"Ajustar notch e distância dos olhos  ›",false,this::showEditor);
+        add(setup,note("A identidade dos olhos é preservada conforme o Manual de Marca HOME."),6,0);
     }
     /** A real chat layout: independent message scroll and a fixed input dock. */
     private void assistantPage(){
@@ -382,9 +608,12 @@ public final class MainActivity extends Activity {
         LinearLayout top=new LinearLayout(this);
         top.setOrientation(LinearLayout.HORIZONTAL);
         top.setGravity(Gravity.CENTER_VERTICAL);
-        Button back=button("‹",false,this::showHub);
-        back.setTextSize(22);
-        top.addView(back,new LinearLayout.LayoutParams(dp(48),dp(48)));
+        ImageView logo=new ImageView(this);
+        logo.setImageResource(R.drawable.home_header_eyes);
+        logo.setBackground(null);
+        logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        logo.setContentDescription("Olhos oficiais do HOME");
+        top.addView(logo,new LinearLayout.LayoutParams(dp(46),dp(44)));
         LinearLayout titleBox=column();
         TextView label=heading("HOME",19);
         add(titleBox,label,0,3);
@@ -397,12 +626,21 @@ public final class MainActivity extends Activity {
         Button newChat=button("+",false,()->{
             HomeChatStore.get(this).newChat();
             refreshChat();
-            if(chatPicker!=null && chatPicker.getParent()!=null)
-                ((View)chatPicker.getParent()).setVisibility(View.GONE);
         });
         newChat.setContentDescription("Nova conversa");
         newChat.setTextSize(23);
-        top.addView(newChat,new LinearLayout.LayoutParams(dp(48),dp(48)));
+        Button refresh=button("↻",false,()->{
+            status.setVisibility(View.VISIBLE);
+            UpdateHelper.check(this,status);
+        });
+        refresh.setTextSize(23);
+        refresh.setContentDescription("Verificar atualizações");
+        top.addView(refresh,new LinearLayout.LayoutParams(dp(44),dp(48)));
+        Button settings=button("⚙",false,()->showSettings("Geral"));
+        settings.setTextSize(21);
+        settings.setContentDescription("Configurações");
+        top.addView(settings,new LinearLayout.LayoutParams(dp(44),dp(48)));
+        top.addView(newChat,new LinearLayout.LayoutParams(dp(44),dp(48)));
         shell.addView(top,new LinearLayout.LayoutParams(-1,-2));
 
         LinearLayout infoRow=new LinearLayout(this);
@@ -413,30 +651,10 @@ public final class MainActivity extends Activity {
         chatTitle.setEllipsize(android.text.TextUtils.TruncateAt.END);
         infoRow.addView(chatTitle,new LinearLayout.LayoutParams(0,dp(44),1));
         chatTitle.setGravity(Gravity.CENTER_VERTICAL);
-        Button history=button("Conversas ▾",false,()->{
-            if(chatPicker.getVisibility()==View.VISIBLE) chatPicker.setVisibility(View.GONE);
-            else { renderChatList(); chatPicker.setVisibility(View.VISIBLE); }
-        });
+        Button history=button("Histórico ›",false,()->showPage("history"));
         history.setTextSize(12);
         infoRow.addView(history,new LinearLayout.LayoutParams(dp(126),dp(44)));
         shell.addView(infoRow,new LinearLayout.LayoutParams(-1,-2));
-
-        ScrollView pickerScroll=new ScrollView(this);
-        pickerScroll.setFillViewport(false);
-        pickerScroll.setBackground(bg(SURFACE,14));
-        pickerScroll.setVerticalScrollBarEnabled(true);
-        chatPicker=column();
-        chatPicker.setPadding(dp(8),dp(8),dp(8),dp(8));
-        pickerScroll.addView(chatPicker,new ScrollView.LayoutParams(-1,-2));
-        pickerScroll.setVisibility(View.GONE);
-        // Keep the list from growing beyond the available screen.
-        shell.addView(pickerScroll,new LinearLayout.LayoutParams(-1,dp(190)));
-        pickerScroll.setVisibility(View.GONE);
-        // The button is connected to the bounded ScrollView instead of the unbounded list.
-        history.setOnClickListener(v->{
-            if(pickerScroll.getVisibility()==View.VISIBLE)pickerScroll.setVisibility(View.GONE);
-            else{renderChatList();pickerScroll.setVisibility(View.VISIBLE);}
-        });
 
         View rule=new View(this);
         rule.setBackgroundColor(LINE);
@@ -504,6 +722,10 @@ public final class MainActivity extends Activity {
 
         inlineHost=column();
         shell.addView(inlineHost,new LinearLayout.LayoutParams(-1,-2));
+        LinearLayout footer=bottomNavigation("assistant");
+        LinearLayout.LayoutParams footerParams=new LinearLayout.LayoutParams(-1,dp(56));
+        footerParams.topMargin=dp(6);
+        shell.addView(footer,footerParams);
         refreshChat();
         shell.requestFocus();
 
@@ -610,8 +832,7 @@ public final class MainActivity extends Activity {
             details.setPadding(dp(8),dp(9),dp(8),dp(9));
             details.setOnClickListener(v->{
                 store.select(id);
-                ((View)chatPicker.getParent()).setVisibility(View.GONE);
-                refreshChat();
+                showPage("assistant");
             });
             item.addView(details,new LinearLayout.LayoutParams(0,-2,1f));
             Button delete=button("×",false,()->requestInlineConfirm(
