@@ -1,5 +1,8 @@
 """Navegação interna do Home: páginas incorporadas ao entalhe expandido."""
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QPixmap
+from pathlib import Path
+import sys
 from update_service import VERSION
 from PySide6.QtWidgets import (
     QWidget, QLabel, QPushButton, QHBoxLayout, QVBoxLayout, QGridLayout,
@@ -87,6 +90,13 @@ class Workspace(QWidget):
         outer.setContentsMargins(16,16,16,14)
         outer.setSpacing(10)
         title=QHBoxLayout()
+        title.setSpacing(10)
+        icon = QLabel()
+        asset = Path(getattr(sys, "_MEIPASS", Path(__file__).parent)) / "assets" / "home_icon_approved.png"
+        if asset.is_file():
+            icon.setPixmap(QPixmap(str(asset)).scaled(30,30,Qt.KeepAspectRatio,Qt.SmoothTransformation))
+            icon.setToolTip("Símbolo oficial HOME")
+            title.addWidget(icon)
         self.heading=QLabel("HOME")
         self.heading.setStyleSheet("font-size:17px;font-weight:600")
         title.addWidget(self.heading)
