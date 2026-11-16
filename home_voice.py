@@ -16,7 +16,7 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-from PySide6.QtCore import QThread, Signal, QObject, Qt
+from PySide6.QtCore import QThread, Signal, QObject, Qt, QTimer
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QCheckBox, QMessageBox, QGroupBox, QWidget, QComboBox, QSlider
@@ -302,6 +302,21 @@ class VoiceManager(QObject):
         self.faber_download_worker = None
         self.ai_worker = None
 
+    def _resume_wake_after_turn(self):
+        """Match Android: pause listening while answering, resume after audio or failure."""
+        if not (self.restart_wake and self.prefs.get("voice_wake")
+                and self.prefs.get("voice_microphone")):
+            return
+        if self.ai_worker is not None or (self.speaker and self.speaker.isRunning()):
+            return
+        def resume():
+            if not (self.restart_wake and self.prefs.get("voice_wake")
+                    and self.prefs.get("voice_microphone")):
+                return
+            if not self.worker or not self.worker.isRunning():
+                self.start("wake")
+        QTimer.singleShot(650, resume)
+
     def set_state(self, state):
         self.state.emit(state)
         self.home.eyes.voice_state = state if state in ("listening", "thinking", "speaking") else ""
@@ -421,6 +436,7 @@ class VoiceManager(QObject):
             return
         self.ai_worker = None
         self.set_state("Falha na Groq: "+problem[:150])
+        self._resume_wake_after_turn()
 
     def decide_pending(self, approved):
         pending = self.pending_action
@@ -448,14 +464,11 @@ class VoiceManager(QObject):
             return
         if not force and not self.prefs.get("voice_speech"):
             self.set_state(message)
-            if self.restart_wake and (not self.worker or not self.worker.isRunning()):
-                self.mode = "wake"
-                self.start("wake")
-            elif self.restart_wake:
-                self.mode = "wake"
+            self._resume_wake_after_turn()
             return
         if not faber_installed():
             self.set_state("Faber não instalada. Abra Voz e instale o modelo local gratuito.")
+            self._resume_wake_after_turn()
             return
         self.set_state("speaking")
         self.speaker = FaberSpeechWorker(
@@ -476,10 +489,7 @@ class VoiceManager(QObject):
         # Sempre encerrar visualmente a fala antes de tentar reativar o microfone.
         # start("wake") pode sair cedo se o worker anterior ainda estiver ativo.
         self.set_state("")
-        if self.restart_wake and self.prefs.get("voice_wake") and self.prefs.get("voice_microphone"):
-            self.mode = "wake"
-            if not self.worker or not self.worker.isRunning():
-                self.start("wake")
+        self._resume_wake_after_turn()
 
 
 
