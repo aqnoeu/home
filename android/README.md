@@ -51,3 +51,16 @@ Gere e guarde o keystore fora do repositório, com backup seguro. Use a **mesma 
 **Migração do APK debug 0.1.0/0.1.1 para a primeira versão assinada:** será necessário desinstalar o debug e instalar o `Home-Android.apk` uma única vez, pois as assinaturas são distintas. Depois, novas versões oficiais podem ser instaladas pelo botão interno preservando as configurações.
 
 A compilação de debug continua no workflow `android-build.yml`, apenas para testes e sem promessas de atualização por cima da versão anterior.
+
+## Home Android v0.1.3 — Hub, edição, toque e voz
+
+- Hub grafite de seis funções, como no Home para Windows: Atualizações, Edição, Assistente, Voz, Interações e Encerrar.
+- **Edição** concentra posição horizontal/vertical, largura (até quase a largura física da tela), altura, afastamento independente entre os dois olhos, posição da aba de toque e restauração do preset Xiaomi 13 Pro. Valores são salvos em SharedPreferences.
+- O Notch visual continua próximo à barra transparente. A **aba de toque opcional** aparece abaixo da área protegida do sistema para abrir a Activity em tela cheia; isso evita depender de toques interceptados pelo HyperOS.
+- **Voz Android**: botão *Falar agora* aciona reconhecimento do Android (requer serviço de reconhecimento instalado), com síntese de fala do sistema, usando pt-BR. Não utiliza as DLLs Windows nem promete escuta contínua offline.
+- **IA**: Android e Windows usam o mesmo contrato opt-in de servidor HTTPS autenticado: POST JSON `{"message":"olá", "mood":0}`, cabeçalho `Authorization: Bearer <token-do-servidor-Home>`; resposta `{"reply":"Olá!", "mood":1}`. Sem servidor configurado, ficam disponíveis interações locais; nenhuma chave Groq é embutida. Nas duas plataformas, o texto e a voz podem usar esse contrato quando houver servidor conectado.
+- **Atualização**: versões oficiais assinadas (mesmo keystore) são detectadas pelo aplicativo Android e instaladas com confirmação, preservando preferências. APKs debug de teste não têm compatibilidade de assinatura com as releases.
+- **Ícone**: recurso vetorial com identidade visual dos olhos brancos sobre fundo preto, como referência Home Writer. A incorporação do arquivo binário original `icons/logo-original.png` depende de disponibilizar esse arquivo-fonte no repositório ou como anexo verificável; não afirmar que o vetor é cópia pixel a pixel.
+
+### Limitações de paridade
+O Windows mantém Vosk/Kokoro/SAPI5 locais; Android utiliza as APIs de voz do próprio aparelho. As funções de interface têm nomes semelhantes, mas a qualidade de voz e o suporte a wake-word podem variar. IA remota depende de um backend existente, autenticado e com chave do provedor configurada **somente no servidor**. O SDK Android não garante interação por toque dentro da barra de status.

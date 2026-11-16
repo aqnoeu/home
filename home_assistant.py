@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
 )
 
 from home_voice import interpret
+from home_ai import AiWorker, load_ai_settings, save_ai_settings
 from home_integrations import execute_windows_action
 
 
@@ -38,6 +39,8 @@ class AssistantPage(QWidget):
         super().__init__(parent)
         self.home = home
         self.pending = None
+        self.ai_worker = None
+        self.ai_settings = load_ai_settings()
         self.setStyleSheet("""
             QWidget#assistantPage {background:transparent;color:#ececec}
             QLineEdit {background:#292b30;color:#fff;border:1px solid #53555a;border-radius:10px;padding:11px}
@@ -54,6 +57,24 @@ class AssistantPage(QWidget):
         intro.setWordWrap(True)
         intro.setStyleSheet("color:#a5a7ab;font-size:11px")
         layout.addWidget(intro)
+        ai_intro=QLabel("IA compartilhada com Home Android • servidor HTTPS do Home (opcional)")
+        ai_intro.setWordWrap(True)
+        ai_intro.setStyleSheet("color:#a5a7ab;font-size:11px")
+        layout.addWidget(ai_intro)
+        self.ai_endpoint=QLineEdit()
+        self.ai_endpoint.setPlaceholderText("https://seu-servidor/ai")
+        self.ai_endpoint.setText(self.ai_settings["endpoint"])
+        layout.addWidget(self.ai_endpoint)
+        ai_row=QHBoxLayout()
+        self.ai_token=QLineEdit()
+        self.ai_token.setPlaceholderText("Token do servidor Home (não use chave Groq)")
+        self.ai_token.setEchoMode(QLineEdit.Password)
+        self.ai_token.setText(self.ai_settings["token"])
+        ai_row.addWidget(self.ai_token,1)
+        save_ai=QPushButton("Salvar IA")
+        save_ai.clicked.connect(self.save_ai)
+        ai_row.addWidget(save_ai)
+        layout.addLayout(ai_row)
 
         self.messages=QScrollArea()
         self.messages.setObjectName("messagesArea")
@@ -140,6 +161,23 @@ class AssistantPage(QWidget):
         if self.talk.isChecked():
             self.home.voice.speak(message, force=True)
 
+    def save_ai(self):
+        try:
+            save_ai_settings(self.ai_endpoint.text(), self.ai_token.text())
+            self.ai_settings = load_ai_settings()
+            self.status.setText("Conexão de IA salva para este computador. O token deve ser do seu proxy Home, nunca da Groq diretamente.")
+        except (OSError, ValueError) as exc:
+            self.status.setText("Não foi possível salvar IA: " + str(exc))
+
+    def on_ai_reply(self, message, mood):
+        self.record("home", message)
+        self.say(message)
+        self.status.setText("Resposta recebida da IA do Home.")
+
+    def on_ai_failed(self, error):
+        self.record("home", "Não consegui conversar com a IA: " + error)
+        self.status.setText("Servidor de IA indisponível.")
+
     def send(self):
         message=self.entry.text().strip()
         if not message:
@@ -160,6 +198,19 @@ class AssistantPage(QWidget):
             self.confirm_label.setText("Autoriza executar: "+message+"?")
             self.confirm_box.show()
             self.record("home","Confirme a execução do comando no painel abaixo.")
+            return
+        # Mantém os comandos locais seguros. Conversa aberta usa o mesmo
+        # contrato HTTPS do Android somente quando explicitamente configurado.
+        if response.startswith("Ainda não tenho IA conectada.") and self.ai_settings.get("endpoint") and self.ai_settings.get("token"):
+            self.status.setText("Consultando IA do Home...")
+            if not hasattr(self.home, "_ai_workers"):
+                self.home._ai_workers = []
+            worker = AiWorker(message, 0, self.ai_settings["endpoint"], self.ai_settings["token"], self.home)
+            self.home._ai_workers.append(worker)
+            worker.replied.connect(self.on_ai_reply)
+            worker.failed.connect(self.on_ai_failed)
+            worker.finished.connect(lambda w=worker: self.home._ai_workers.remove(w) if w in self.home._ai_workers else None)
+            worker.start()
             return
         self.record("home",response)
         self.say(response)
