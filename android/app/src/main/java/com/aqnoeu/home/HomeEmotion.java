@@ -15,9 +15,19 @@ public final class HomeEmotion {
     private static volatile long conversationUntil=0L;
     private static volatile String conversational="neutro";
     private static volatile String manual="neutro";
+    private static volatile String activePage="";
+    private static volatile long pageSince=SystemClock.elapsedRealtime();
     private HomeEmotion(){}
 
     public static void touch(){LAST_TOUCH.set(SystemClock.elapsedRealtime());}
+    public static void pageChanged(String page){
+        if(page==null)page="";
+        if(!page.equals(activePage)){
+            activePage=page;
+            pageSince=SystemClock.elapsedRealtime();
+            touch();
+        }
+    }
     public static void manual(String emotion){
         manual=normalize(emotion);
         conversationUntil=0;
@@ -48,6 +58,8 @@ public final class HomeEmotion {
         if(now<conversationUntil)return conversational;
         if(charging(context))return "carregando";
         if(now-LAST_TOUCH.get()>=5*60*1000L)return "sonolento";
+        // Without Accessibility permission, observe only the HOME screen itself.
+        if(now-pageSince>=12*60*1000L)return "tedio";
         return manual;
     }
 }
