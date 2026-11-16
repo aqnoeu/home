@@ -240,13 +240,13 @@ public final class MainActivity extends Activity {
         LinearLayout brand=new LinearLayout(this);
         brand.setOrientation(LinearLayout.HORIZONTAL);
         brand.setGravity(Gravity.CENTER_VERTICAL);
-        ImageView icon=new ImageView(this);
-        icon.setImageResource(R.drawable.home_icon_approved);
-        icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        icon.setContentDescription("Logomarca oficial HOME, arte original do manual de marca");
-        LinearLayout.LayoutParams iconSize=new LinearLayout.LayoutParams(dp(48),dp(48));
-        iconSize.rightMargin=dp(10);
-        brand.addView(icon,iconSize);
+        // Use the same rounded, animated eyes as the notch and expression card.
+        // The header has its own EyesView instance; it does not change the others.
+        EyesView brandEyes=new EyesView(this);
+        brandEyes.setContentDescription("Olhos oficiais do HOME");
+        LinearLayout.LayoutParams iconSize=new LinearLayout.LayoutParams(dp(72),dp(48));
+        iconSize.rightMargin=dp(6);
+        brand.addView(brandEyes,iconSize);
         LinearLayout brandCopy=column();
         add(brandCopy,heading("HOME",21),0,4);
         add(brandCopy,note("Um assistente para você."),0,0);
