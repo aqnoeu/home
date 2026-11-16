@@ -111,6 +111,8 @@ public final class MainActivity extends Activity {
         addButton("✨ Me surpreenda", () -> localReaction("surprise"));
         addButton("♡ Como você está?", () -> localReaction("mood"));
         addButton("🎉 Comemorar!", () -> localReaction("celebrate"));
+        addButton("💬 Conversar com Home (IA)", () -> HomeAi.chat(this));
+        addButton("Configurar servidor de IA", () -> HomeAi.configure(this));
         root.addView(text("Notch",17));
         addButton("Ativar Notch",()->{
             if (!Settings.canDrawOverlays(this)) {
