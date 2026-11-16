@@ -2,9 +2,9 @@
 # Download the pinned, official sherpa-onnx Android AAR; do not commit binaries.
 set -euo pipefail
 mkdir -p android/app/libs
-url="https://github.com/k2-fsa/sherpa-onnx/releases/download/v2.0.1/sherpa-onnx-2.0.1.aar"
+url="https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-1.13.8.aar"
 dest="android/app/libs/sherpa-onnx.aar"
-expected="a8d09d1d32f3eb8520482c6d3d43fae674681c5b050385967c70a3c2c9bf0ee7"
+expected="633c24321e06b1fe79feafa03ea16cbc0f8a286641e2da3559bac91bdb13bd96"
 if [[ -f "$dest" ]] && echo "$expected  $dest" | sha256sum -c - >/dev/null 2>&1; then
   echo "sherpa-onnx Android AAR já validado"; exit 0
 fi
