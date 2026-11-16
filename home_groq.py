@@ -7,7 +7,6 @@ The assistant's generated text is sent to the local Faber Piper speech engine.
 import json
 import urllib.error
 import urllib.request
-from home_groq_builtin import BUILTIN_GROQ_KEY
 from home_emotions import normalize_emotion
 
 from PySide6.QtCore import QThread, Signal
@@ -43,7 +42,8 @@ def get_key():
 
 
 def has_native_key():
-    return BUILTIN_GROQ_KEY.startswith("gsk_")
+    """Legacy compatibility: releases no longer bundle personal API keys."""
+    return False
 
 
 def save_key(value):
