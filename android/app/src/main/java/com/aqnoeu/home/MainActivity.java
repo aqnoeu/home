@@ -1315,6 +1315,13 @@ public final class MainActivity extends Activity {
         action(box,"Voltar às configurações",false,()->showSettings("Geral"));
         add(box,note("A captura do exercício usa o serviço de reconhecimento de fala instalado no Android, com preferência offline. O Android pode usar rede conforme o serviço escolhido. O detector normal do Home permanece Vosk local."),6,0);
     }
+    private String enrollmentOfflineResult(int step){
+        java.util.Locale pt=new java.util.Locale("pt","BR");
+        if(step==3)return "Agora são "+new java.text.SimpleDateFormat("HH:mm",pt).format(new java.util.Date())+".";
+        if(step==4)return "Hoje é "+new java.text.SimpleDateFormat("dd/MM/yyyy",pt).format(new java.util.Date())+".";
+        if(step==5)return DeviceHub.battery(this);
+        return "";
+    }
     private void finishEnrollmentCapture(int resultCode,Intent data){
         resumeWake();
         if(resultCode!=RESULT_OK||data==null){
@@ -1331,7 +1338,7 @@ public final class MainActivity extends Activity {
         for(String alternative:found)if(VoiceEnrollment.matches(step,alternative)){heard=alternative;matched=true;break;}
         if(matched){
             VoiceEnrollment.accept(this,heard,false);
-            showVoiceEnrollment();statusMessage("✓ Reconhecido: "+heard);return;
+            showVoiceEnrollment();statusMessage("✓ Reconhecido: "+heard+(step>=3?"\nFunção offline executada: "+enrollmentOfflineResult(step):""));return;
         }
         final String captured=heard;
         showVoiceEnrollment();
@@ -1347,7 +1354,7 @@ public final class MainActivity extends Activity {
             }
             VoiceEnrollment.accept(this,captured,true);
             showVoiceEnrollment();
-            statusMessage("Correção confirmada. O detector poderá aceitar a variante, mas não foi treinado acusticamente.");
+            statusMessage("Correção confirmada."+(step>=3?"\nFunção offline executada: "+enrollmentOfflineResult(step):" O detector poderá aceitar a variante; o modelo acústico não foi treinado."));
         },"Não, repetir",this::showVoiceEnrollment);
         add(inlineHost,correction,0,12);
     }
