@@ -23,7 +23,22 @@ public final class EyesView extends View {
     private float eyeHeight=1f,eyeWidth=1f,colorR=242,colorG=248,colorB=255;
     private String previousState="neutro";
     private int mood=0;
+    private final android.content.SharedPreferences.OnSharedPreferenceChangeListener updateListener=
+        (prefs,key)->{
+            if(key!=null && key.startsWith("update_eyes_"))postInvalidateOnAnimation();
+        };
     public EyesView(Context context){super(context);setLayerType(View.LAYER_TYPE_SOFTWARE,null);}
+    @Override protected void onAttachedToWindow(){
+        super.onAttachedToWindow();
+        getContext().getSharedPreferences("home",Context.MODE_PRIVATE)
+            .registerOnSharedPreferenceChangeListener(updateListener);
+        postInvalidateOnAnimation();
+    }
+    @Override protected void onDetachedFromWindow(){
+        getContext().getSharedPreferences("home",Context.MODE_PRIVATE)
+            .unregisterOnSharedPreferenceChangeListener(updateListener);
+        super.onDetachedFromWindow();
+    }
     public void setEyeGap(float gap){eyeGapDp=Math.max(0,Math.min(600,gap));invalidate();}
     public void setMood(int index){
         mood=Math.max(0,Math.min(3,index));
@@ -49,7 +64,7 @@ public final class EyesView extends View {
         long updateChangedAt=updatePrefs.getLong("update_eyes_changed_at",0L);
         long updateElapsed=System.currentTimeMillis()-updateChangedAt;
         boolean updateDownloading="downloading".equals(updateState) && updateElapsed>=0 && updateElapsed<3600000L;
-        boolean updateComplete="complete".equals(updateState) && updateElapsed>=0 && updateElapsed<1500L;
+        boolean updateComplete="complete".equals(updateState) && updateElapsed>=0 && updateElapsed<2600L;
         boolean updateActive=updateDownloading||updateComplete;
         float updateFraction=updateComplete?1f:
             Math.max(0f,Math.min(1f,updatePrefs.getInt("update_eyes_percent",0)/100f));
@@ -121,8 +136,8 @@ public final class EyesView extends View {
                 (float)Math.sin(now/44.0)*dp(.65f):0f;
             float y=(height-eh)/2f+shake;
             // At 100% only the RIGHT eye winks once, and the ordinary emotion returns.
-            if(updateComplete && i==1 && updateElapsed>=210 && updateElapsed<610){
-                float phase=(updateElapsed-210f)/400f;
+            if(updateComplete && i==1 && updateElapsed>=700 && updateElapsed<1150){
+                float phase=(updateElapsed-700f)/450f;
                 float wink=animated?Math.max(.09f,1f-(float)Math.sin(Math.PI*phase)*.91f):.12f;
                 y+=(eh-eh*wink)/2f;
                 float winkHeight=eh*wink;
