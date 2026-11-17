@@ -29,6 +29,8 @@ public final class WakeWordService extends Service implements RecognitionListene
     private SpeechService audio;
     private boolean running,paused,loading;
     private long lastWakeAt;
+    private long audioGeneration;
+    private int consecutiveAudioErrors;
     private String partialCandidate="";
     private int partialCount;
     private long partialSince;
@@ -69,6 +71,7 @@ public final class WakeWordService extends Service implements RecognitionListene
         }
         if(intent!=null && RESUME.equals(intent.getAction()) && running){
             main.removeCallbacks(pendingNotificationRecovery);
+            consecutiveAudioErrors=0;
             paused=false;
             clearPartial();
             beginListening();
@@ -121,7 +124,15 @@ public final class WakeWordService extends Service implements RecognitionListene
         try{
             recognizer=new Recognizer(model,16000.0f);
             audio=new SpeechService(recognizer,16000.0f);
-            if(!audio.startListening(this))throw new IllegalStateException("Não foi possível iniciar a escuta.");
+            final long generation=++audioGeneration;
+            RecognitionListener sessionListener=new RecognitionListener(){
+                @Override public void onResult(String text){if(generation==audioGeneration)detect(text,false);}
+                @Override public void onPartialResult(String text){if(generation==audioGeneration)detect(text,true);}
+                @Override public void onFinalResult(String text){if(generation==audioGeneration)detect(text,false);}
+                @Override public void onError(Exception e){if(generation==audioGeneration)WakeWordService.this.onError(e);}
+                @Override public void onTimeout(){if(generation==audioGeneration)WakeWordService.this.onTimeout();}
+            };
+            if(!audio.startListening(sessionListener))throw new IllegalStateException("Não foi possível iniciar a escuta.");
             state("Detector offline ouvindo. Diga Ei Home, Ok Home ou Home.");
         }catch(Exception ex){
             state("Falha no microfone offline: "+ex.getClass().getSimpleName());
@@ -129,6 +140,7 @@ public final class WakeWordService extends Service implements RecognitionListene
         }
     }
     private void closeAudio(){
+        audioGeneration++; // invalida resultados e erros atrasados da sessão encerrada
         SpeechService current=audio;
         audio=null;
         if(current!=null){
@@ -236,8 +248,20 @@ public final class WakeWordService extends Service implements RecognitionListene
     @Override public void onFinalResult(String hypothesis){detect(hypothesis,false);}
     @Override public void onError(Exception error){
         if(!running || paused)return;
-        state("Detector local interrompido: "+error.getClass().getSimpleName()+". Reative no HOME.");
-        stopSelf(); // sem laços de reinicialização automática
+        if(consecutiveAudioErrors>=1){
+            state("Detector local indisponível após nova tentativa: "+error.getClass().getSimpleName());
+            stopSelf();
+            return;
+        }
+        consecutiveAudioErrors++;
+        state("Microfone interrompido. Tentando restabelecer a escuta uma vez.");
+        main.post(()->{
+            if(!running || paused)return;
+            closeAudio();
+            main.postDelayed(()->{
+                if(running && !paused)beginListening();
+            },1400L);
+        });
     }
     @Override public void onTimeout(){} // modo sem timeout
     @Override public void onDestroy(){
