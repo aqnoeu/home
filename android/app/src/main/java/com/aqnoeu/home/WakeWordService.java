@@ -149,11 +149,13 @@ public final class WakeWordService extends Service implements RecognitionListene
     public static void showCommandListening(Context context){
         context.getSharedPreferences("home",MODE_PRIVATE).edit()
             .putString("wake_visual_state","aguardando_comando")
+            .putBoolean("wake_command_active",true)
             .putLong("wake_visual_at",System.currentTimeMillis()).apply();
     }
     public static void showProcessing(Context context){
         context.getSharedPreferences("home",MODE_PRIVATE).edit()
             .putString("wake_visual_state","processando")
+            .putBoolean("wake_command_active",false)
             .putLong("wake_visual_at",System.currentTimeMillis()).apply();
     }
     private void state(String value) {
@@ -176,7 +178,8 @@ public final class WakeWordService extends Service implements RecognitionListene
             resetBackgroundState();
             main.removeCallbacks(pendingNotificationRecovery);
             paused=true;
-            visualState("pausado");
+            visualState(getSharedPreferences("home",MODE_PRIVATE)
+                .getBoolean("wake_command_active",false)?"aguardando_comando":"pausado");
             closeAudio();
             state("Detecção pausada durante a conversa.");
             if(running)return START_NOT_STICKY;
@@ -185,6 +188,8 @@ public final class WakeWordService extends Service implements RecognitionListene
             if(backgroundSpeaking)return START_NOT_STICKY;
             resetBackgroundState();
             main.removeCallbacks(pendingNotificationRecovery);
+            getSharedPreferences("home",MODE_PRIVATE).edit()
+                .putBoolean("wake_command_active",false).apply();
             consecutiveAudioErrors=0;
             paused=false;
             clearPartial();
@@ -399,6 +404,8 @@ public final class WakeWordService extends Service implements RecognitionListene
         main.removeCallbacks(visualHeartbeat);
         resetBackgroundState();
         running=false;paused=true;
+        getSharedPreferences("home",MODE_PRIVATE).edit()
+            .putBoolean("wake_command_active",false).apply();
         visualState("desligado");
         closeAudio();
         if(model!=null){try{model.close();}catch(Exception ignored){}model=null;}
