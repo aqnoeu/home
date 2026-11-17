@@ -179,7 +179,7 @@ public final class EyesView extends View {
                 paint.setColor(Color.rgb(11,17,26));
                 canvas.drawPath(lid,paint);
                 paint.setColor(eyeColor);
-            }else if(!(updateComplete && i==1 && updateElapsed>=210 && updateElapsed<610) &&
+            }else if(!(updateComplete && i==1 && updateElapsed>=700 && updateElapsed<1150) &&
                 ((updateActive || listening || commandListening) || (mood==1&&"neutro".equals(state)))&&eh>=dp(9)){
                 paint.setColor(Color.rgb(11,17,26));
                 canvas.drawOval(new RectF(x-ew*.15f,y+eh*.54f,x+ew*1.16f,y+eh*1.36f),paint);
