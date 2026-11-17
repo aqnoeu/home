@@ -1333,7 +1333,19 @@ public final class MainActivity extends Activity {
             android.content.SharedPreferences wakePrefs=getSharedPreferences("home",MODE_PRIVATE);
             long last=wakePrefs.getLong("wake_last_recognized",0);
             String detected=last>0?new java.text.SimpleDateFormat("dd/MM HH:mm:ss",new java.util.Locale("pt","BR")).format(new java.util.Date(last)):"nenhuma ativação reconhecida";
-            diag.setText("Status: "+wakePrefs.getString("wake_status","Ainda não iniciado.")+"\\nÚltima ativação: "+detected);
+            String sample=wakePrefs.getString("wake_last_hypothesis","nenhuma frase captada");
+            String sampleType=wakePrefs.getString("wake_last_hypothesis_type","-");
+            long sampleAt=wakePrefs.getLong("wake_last_hypothesis_at",0L);
+            String time=sampleAt>0?new java.text.SimpleDateFormat("HH:mm:ss",new java.util.Locale("pt","BR")).format(new java.util.Date(sampleAt)):"-";
+            diag.setText("Estado: "+wakePrefs.getString("wake_status","Ainda não iniciado.")
+                +"\\nÚltima ativação: "+detected
+                +"\\nReconhecimento local ("+sampleType+", "+time+"): "+sample
+                +"\\nSe aparecer outra palavra, o microfone está captando, mas o modelo não reconheceu a frase.");
+        });
+        action(wake,"Reiniciar detector de ativação",false,()->{
+            stopService(new Intent(this,WakeWordService.class));
+            getSharedPreferences("home",MODE_PRIVATE).edit().putString("wake_status","Reiniciando detector...").apply();
+            wakeHandler.postDelayed(this::startWake,750L);
         });
         action(wake,"Testar abertura da escuta",false,()->{
             statusMessage("Teste de conversa: vou abrir o reconhecimento de voz.");
