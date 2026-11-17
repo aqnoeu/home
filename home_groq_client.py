@@ -18,9 +18,14 @@ SYSTEM = (
     "Você é HOME. Fale naturalmente em português brasileiro, de forma breve, "
     "sem markdown ou emojis. Não invente fatos ou execute ações. "
     "Responda estritamente em JSON com duas chaves: resposta (texto curto) "
-    "e emocao (neutro, raiva, sonolento, tedio)."
+    "e emocao (neutro, raiva, sonolento, tedio, piscadela, lovabow, "
+    "pensando, surpreso, desconfiado, timido, confuso, travesso)."
 )
-EMOTIONS = {"neutro", "raiva", "sonolento", "tedio"}
+EMOTIONS = {
+    "neutro", "raiva", "sonolento", "tedio",
+    "piscadela", "lovabow", "pensando", "surpreso",
+    "desconfiado", "timido", "confuso", "travesso",
+}
 
 
 def explain_http_error(error):
