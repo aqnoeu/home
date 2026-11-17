@@ -26,7 +26,7 @@ class AndroidWakeSleepTest(unittest.TestCase):
         self.assertIn("new Model(WakeModelInstaller.folder(this).getAbsolutePath())", wake)
         self.assertIn("new SpeechService(recognizer,16000.0f)", wake)
         self.assertIn("audio.startListening(this)", wake)
-        self.assertIn('String[] triggers={"ei home","ok home","hey home","oi home"', wake)
+        self.assertIn('String[] prefix={"ei home","ok home","hey home","oi home"', wake)
         self.assertIn("onPartialResult(String hypothesis){detect(hypothesis,true);}", wake)
         self.assertIn("partialCount<3", wake)
         self.assertIn("now-partialSince<200", wake)
