@@ -58,6 +58,7 @@ public final class MainActivity extends Activity {
     private static final int WAKE_PERMISSION_REQUEST = 721;
     private static final int WAKE_NOTIFICATION_PERMISSION_REQUEST = 722;
     private boolean wakeBusy = false;
+    private static final int VOICE_ENROLL_REQUEST = 815;
 
     private int dp(float n) {return Math.round(n*getResources().getDisplayMetrics().density);}
     private boolean narrow(){return getResources().getConfiguration().screenWidthDp<440;}
@@ -1281,6 +1282,75 @@ public final class MainActivity extends Activity {
                 report.setText("Diagnóstico copiado.");
             });
     }
+    /** Two phases: three wake calls, then three wake + offline-function examples. */
+    private void showVoiceEnrollment(){
+        initScreen("voice_enrollment","Cadastro de frases de ativação e testes de chamada + função.");
+        LinearLayout box=card("Personalizar reconhecimento","As frases reconhecidas e suas correções ficam salvas neste aparelho. O treinamento não cria uma identificação biométrica de locutor.");
+        TextView info=note(VoiceEnrollment.summary(this));
+        add(box,info,0,12);
+        int step=VoiceEnrollment.step(this);
+        if(step<VoiceEnrollment.count()){
+            add(box,heading("Diga: \\""+VoiceEnrollment.prompt(step)+"\\"",19),0,12);
+            action(box,"Gravar e verificar frase",true,()->{
+                pauseWake();
+                Intent recognition=new Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+                recognition.putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                    android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+                recognition.putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE,"pt-BR");
+                recognition.putExtra(android.speech.RecognizerIntent.EXTRA_PREFER_OFFLINE,true);
+                recognition.putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT,VoiceEnrollment.prompt(VoiceEnrollment.step(this)));
+                try{startActivityForResult(recognition,VOICE_ENROLL_REQUEST);}
+                catch(Exception ex){resumeWake();statusMessage("Reconhecimento indisponível no aparelho. Instale um serviço de fala compatível.");}
+            });
+        }else{
+            add(box,note("✓ Todos os seis testes foram confirmados. A ativação offline continua sendo feita pelo detector Vosk."),0,12);
+        }
+        settingSwitch(box,"Aprendizado por correções",
+            "Guardar transcrições corrigidas para ajustar variantes de ativação. Não treina um modelo acústico automaticamente.",
+            VoiceEnrollment.corrections(this),(view,on)->VoiceEnrollment.setCorrections(this,on));
+        action(box,"Reiniciar cadastro e apagar correções",false,()->requestInlineConfirm(
+            "Apagar cadastro de voz","Isso excluirá os testes e as variantes corrigidas armazenadas neste aparelho.",()->{
+                VoiceEnrollment.reset(this);showVoiceEnrollment();
+            }));
+        action(box,"Voltar às configurações",false,()->showSettings("Geral"));
+        add(box,note("A captura do exercício usa o serviço de reconhecimento de fala instalado no Android, com preferência offline. O Android pode usar rede conforme o serviço escolhido. O detector normal do Home permanece Vosk local."),6,0);
+    }
+    private void finishEnrollmentCapture(int resultCode,Intent data){
+        resumeWake();
+        if(resultCode!=RESULT_OK||data==null){
+            showVoiceEnrollment();statusMessage("Gravação cancelada. Nenhum teste foi registrado.");return;
+        }
+        java.util.ArrayList<String> found=data.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS);
+        if(found==null||found.isEmpty()){
+            showVoiceEnrollment();statusMessage("Nenhuma frase reconhecida. Tente novamente.");return;
+        }
+        int step=VoiceEnrollment.step(this);
+        if(step>=VoiceEnrollment.count()){showVoiceEnrollment();return;}
+        String heard=found.get(0);
+        boolean matched=false;
+        for(String alternative:found)if(VoiceEnrollment.matches(step,alternative)){heard=alternative;matched=true;break;}
+        if(matched){
+            VoiceEnrollment.accept(this,heard,false);
+            showVoiceEnrollment();statusMessage("✓ Reconhecido: "+heard);return;
+        }
+        final String captured=heard;
+        showVoiceEnrollment();
+        LinearLayout correction=column();
+        correction.setPadding(dp(14),dp(14),dp(14),dp(14));
+        correction.setBackground(bg(RAISED,13));
+        add(correction,heading("Conferir reconhecimento",16),0,8);
+        add(correction,note("O aparelho entendeu: \\""+captured+"\\""),0,6);
+        add(correction,note("Você realmente falou: \\""+VoiceEnrollment.prompt(step)+"\\"?"),0,12);
+        actions(correction,"Sim, corrigir",()->{
+            if(!VoiceEnrollment.corrections(this)){
+                statusMessage("Ative o aprendizado por correções para registrar esta amostra.");return;
+            }
+            VoiceEnrollment.accept(this,captured,true);
+            showVoiceEnrollment();
+            statusMessage("Correção confirmada. O detector poderá aceitar a variante, mas não foi treinado acusticamente.");
+        },"Não, repetir",this::showVoiceEnrollment);
+        add(inlineHost,correction,0,12);
+    }
     private void interactionPage(){
         LinearLayout box=card("Notch do HOME","Controle a sobreposição com ações claras e estados visíveis.");
         action(box,"Ativar Notch",true,()->{
@@ -1326,6 +1396,7 @@ public final class MainActivity extends Activity {
                 getSharedPreferences("home",MODE_PRIVATE).edit().putBoolean("wake_background_audio",on).apply();
                 statusMessage(on?"Resposta por voz em segundo plano ativada.":"Resposta por voz em segundo plano desativada.");
             });
+        action(wake,"Cadastrar minha voz · chamadas e funções",true,this::showVoiceEnrollment);
         action(wake,"Testar o microfone agora",false,()->{openVoiceListening();});
         TextView diag=note("Status: "+getSharedPreferences("home",MODE_PRIVATE).getString("wake_status","Ainda não iniciado."));
         add(wake,diag,6,8);
@@ -1444,6 +1515,7 @@ public final class MainActivity extends Activity {
     }
     @Override protected void onActivityResult(int request,int resultCode,Intent data){
         super.onActivityResult(request,resultCode,data);
+        if(request==VOICE_ENROLL_REQUEST){finishEnrollmentCapture(resultCode,data);return;}
         if(request==HomeVoice.REQUEST_SPEECH && (resultCode!=RESULT_OK || data==null)){
             resumeWake();return;
         }
