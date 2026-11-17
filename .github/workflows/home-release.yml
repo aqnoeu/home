@@ -83,6 +83,14 @@ jobs:
               app.processEvents()
               assert home.page == section
               assert home.workspace.current is not None
+          home.navigate("expressions")
+          gallery=home.workspace.current
+          from home_expression_gallery import EXPRESSIONS
+          assert len(EXPRESSIONS)==12
+          gallery.change_page(1)
+          assert gallery.page==1
+          gallery.select(5)
+          assert gallery.preview.current_expression()=="lovabow"
           home.navigate("assistant")
           page=home.workspace.current
           spoken=[]
@@ -239,7 +247,7 @@ jobs:
             dist/android/Home-Android.sha256 \
             --repo "$GITHUB_REPOSITORY" \
             --title "HOME v$HOME_RELEASE_VERSION — Versão corrigida (Windows e Android)" \
-            --notes "Versão corrigida: cadastro de voz em Configurações > Voz / IA; testes de chamada e função; sincronização opcional pela Conta HOME; correção dos olhos no download e da piscada; regressões de Windows e Android. APK completo assinado, SHA-256 verificado e atualização instalada por cima da versão anterior. Código-fonte: $GITHUB_SHA." \
+            --notes "Versão corrigida: catálogo de 12 expressões reais sem boca no Android e Windows; seletor em duas linhas, duas páginas e prévia; Lovabow e sonolento aprimorado; testes de regressão, voz e atualizações. APK assinado com o certificado oficial e SHA-256 publicado. Código-fonte: $GITHUB_SHA." \
             --target "$GITHUB_SHA"
       - name: Publicar ponte de atualização para Android 0.1.x
         env:
