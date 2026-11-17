@@ -51,7 +51,10 @@ class AndroidWakeSleepTest(unittest.TestCase):
         self.assertIn('paint.setColor(Color.WHITE)',eyes)
         self.assertIn('mask.addRoundRect(eyeBounds',eyes)
         self.assertIn('if(updateComplete && i==1',eyes)
-        self.assertIn('updateElapsed<1500L',eyes)
+        self.assertIn('updateElapsed<2600L',eyes)
+        self.assertIn('registerOnSharedPreferenceChangeListener(updateListener)',eyes)
+        self.assertIn('updateElapsed>=700 && updateElapsed<1150',eyes)
+        self.assertNotIn('updateElapsed>=210 && updateElapsed<610',eyes)
 
     def test_background_faber_opt_in_and_recovery(self):
         wake=(SRC/"WakeWordService.java").read_text(encoding="utf-8")
