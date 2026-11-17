@@ -2,7 +2,7 @@
 
 **Atualização:** 17/11/2026  
 **Fonte de verdade:** `home_eyes.py`, `home_emotions.py`, `home_groq_client.py`, `home.py`.  
-**Alcance:** renderizador Windows em PySide6. Android exige implementação/teste próprio.
+**Alcance:** renderizadores Windows (PySide6) e Android (Canvas nativo). As duas implementações devem manter os mesmos identificadores. A compilação e a validação visual em aparelhos ainda precisam ser confirmadas.
 
 ## Identidade visual
 
@@ -62,3 +62,16 @@ O **sonolento foi aprimorado** com risquinhos laterais discretos abaixo dos olho
 ## Verificação para próximas alterações
 
 Executar `python -m unittest discover -s tests` e validar a interface Windows com zoom de 100% e 125%, notch recolhido e expandido, os oito estados do seletor, prioridade bateria/conversa, voz, piscadas, transições e ausência de boca.
+
+
+## Seletor de expressões no Android — atualização de 17/11/2026
+
+- A tela inicial (**Hub**) e **Configurações → Aparência** reutilizam o mesmo seletor em `MainActivity.addExpressionPicker()`.
+- A prévia utiliza o `EyesView` real do aplicativo (não um desenho externo). O modo `setExpressionPreview(true)` força a expressão selecionada apenas nessa prévia, mesmo com bateria carregando, escuta ativa ou indicador de download.
+- Grade fixa de **duas linhas por três colunas**, seis botões por página, **duas páginas** e navegação por setas; sem lista horizontal.
+- As 12 opções disponíveis são: Normal, Feliz, Sonolento, Bravo, Piscadela, Lovabow, Pensando, Surpreso, Desconfiado, Tímido, Confuso e Travesso.
+- O índice salvo `home/mood` preserva os quatro primeiros valores anteriores (0–3) e adiciona as oito expressões seguintes (4–11). A seleção é encaminhada ao notch pelo fluxo existente.
+- `HomeEmotion.normalize()` reconhece as emoções novas e `HomeGroq` pode retorná-las em seu JSON.
+- A seleção no painel é uma escolha manual, mas estados operacionais prioritários (bateria/carregamento, voz e atualizações) ainda podem substituir temporariamente a aparência no notch real.
+- O visual continua estritamente **sem boca**, com detalhes gráficos opcionais laterais/abaixo dos olhos.
+- Verificar em aparelho físico: navegação de páginas, seleção persistente, retorno à tela, notch real, atualizações e voz, além de fontes e telas estreitas.
