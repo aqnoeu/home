@@ -516,6 +516,15 @@ public final class MainActivity extends Activity {
                 catch(Exception e){runOnUiThread(()->state.setText("Falha ao salvar: "+e.getMessage()));}
             },"home-account-save").start();
         });
+        action(prefs,"Enviar histórico local para a conta HOME",false,()->{
+            if(!account.connected()){state.setText("Entre na conta HOME.");return;}
+            state.setText("Sincronizando conversas autorizadas...");
+            new Thread(()->{
+                try{int n=account.uploadLocalChats(HomeChatStore.get(this));
+                    runOnUiThread(()->state.setText("Histórico enviado com sucesso: "+n+" mensagens."));}
+                catch(Exception e){runOnUiThread(()->state.setText("Sincronização interrompida: "+e.getMessage()));}
+            },"home-account-upload").start();
+        });
         LinearLayout history=card("Conversas no Home Hub","Leia o histórico compartilhado. Conversas locais permanecem salvas somente no celular.");
         final LinearLayout list=column();add(history,list,0,8);
         action(history,"Consultar conversas do Hub",false,()->{
