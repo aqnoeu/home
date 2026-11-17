@@ -91,7 +91,10 @@ public final class EyesView extends View {
         }
         float width=getWidth(),height=getHeight();
         float ew=Math.min(dp(13),width*.12f)*eyeWidth;
-        float eh=Math.max(dp(3),Math.min(dp(21),height*.68f)*eyeHeight*blink);
+        // Só durante a resposta falada: pulso suave dos olhos brancos.
+        float speakingPulse=speaking&&animated
+            ?(0.91f+0.09f*(float)Math.sin(now/210.0)):1f;
+        float eh=Math.max(dp(3),Math.min(dp(21),height*.68f)*eyeHeight*blink*speakingPulse);
         float gap=Math.min(dp(eyeGapDp),Math.max(0,width-2*ew-dp(8)));
         float left=(width-2*ew-gap)/2f+gaze*dp(6);
         int eyeColor=Color.rgb(Math.min(255,(int)colorR),Math.min(255,(int)colorG),Math.min(255,(int)colorB));
@@ -122,7 +125,19 @@ public final class EyesView extends View {
                 paint.setColor(eyeColor);
             }
         }
-        // Sem pontinhos/indicadores: o sorriso verde-neon é o próprio estado de escuta.
+        // Pontinhos acompanham exclusivamente a fala, nunca a escuta verde-neon.
+        if(speaking){
+            paint.setColor(Color.WHITE);
+            paint.setAlpha(255);
+            float center=width/2f;
+            float baseline=Math.min(height-dp(2.0f),height/2f+eh/2f+dp(3.0f));
+            float radius=dp(1.3f);
+            for(int i=0;i<3;i++){
+                float phase=(float)(now/205.0-i*0.85);
+                float lift=animated?dp(1.6f)*Math.max(0f,(float)Math.sin(phase)):0f;
+                canvas.drawCircle(center+(i-1)*dp(4f),baseline-lift,radius,paint);
+            }
+        }
         // Scale sleepy marks to the compact notch too.
         if(!listening && !commandListening && !speaking && "sonolento".equals(state)&&height>=dp(20)){
             paint.setColor(Color.rgb(142,175,207));
