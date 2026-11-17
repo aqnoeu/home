@@ -34,6 +34,23 @@ public final class WakeWordService extends Service implements RecognitionListene
     private String partialCandidate="";
     private int partialCount;
     private long partialSince;
+    private String pendingWakePhrase="";
+    private final Runnable pendingWakeConfirmation=()->{
+        if(!running || paused || backgroundWaiting || pendingWakePhrase.isEmpty())return;
+        String phrase=pendingWakePhrase;
+        pendingWakePhrase="";
+        String command=activationSuffix(phrase,true);
+        if(command!=null && SystemClock.elapsedRealtime()-lastWakeAt>=3500L){
+            clearPartial();
+            activate(command);
+        }
+    };
+    private void rememberHypothesis(String hypothesis,boolean partial){
+        getSharedPreferences("home",MODE_PRIVATE).edit()
+            .putString("wake_last_hypothesis",hypothesis.length()>95?hypothesis.substring(0,95):hypothesis)
+            .putString("wake_last_hypothesis_type",partial?"parcial":"final")
+            .putLong("wake_last_hypothesis_at",System.currentTimeMillis()).apply();
+    }
     private final Runnable visualHeartbeat=new Runnable(){
         @Override public void run(){
             if(!running)return;
@@ -286,6 +303,7 @@ public final class WakeWordService extends Service implements RecognitionListene
         }
     }
     private void closeAudio(){
+        clearPartial();
         audioGeneration++; // invalida resultados e erros atrasados da sessão encerrada
         SpeechService current=audio;
         audio=null;
@@ -306,7 +324,9 @@ public final class WakeWordService extends Service implements RecognitionListene
     static String activationSuffix(String phrase,boolean finalOnly){
         String text=phrase.trim();
         String[] prefix={"ei home","ok home","hey home","oi home","ei romi","ei rome",
-            "ok romi","ok rome","o que home","home ok home","home ei home","home","home home"};
+            "ok romi","ok rome","o que home","home ok home","home ei home","home","home home",
+            "ei homem","oi homem","ok homem","ei rhome","ok rhome","ei rom","ok rom",
+            "o que rome","oque home","okay home","ok roume"};
         for(String value:prefix){
             if(value.equals("home") && !finalOnly)continue; // "Home" isolado exige resultado final
             if(text.equals(value))return "";
@@ -318,6 +338,8 @@ public final class WakeWordService extends Service implements RecognitionListene
         partialCandidate="";
         partialCount=0;
         partialSince=0;
+        pendingWakePhrase="";
+        main.removeCallbacks(pendingWakeConfirmation);
     }
     private void detect(String hypothesis,boolean partial){
         if(!running || paused || hypothesis==null)return;
@@ -325,32 +347,29 @@ public final class WakeWordService extends Service implements RecognitionListene
         try{text=normalize(new JSONObject(hypothesis).optString(partial?"partial":"text",""));}
         catch(Exception ignored){return;}
         if(text.isEmpty())return;
+        rememberHypothesis(text,partial);
         if(backgroundWaiting){
             captureBackgroundCommand(text,partial);
             return;
         }
         String suffix=activationSuffix(text,!partial);
-        if(suffix==null){if(!partial)clearPartial();return;}
-        long now=SystemClock.elapsedRealtime();
-        if(now-lastWakeAt<4000)return;
-        if(partial){
-            // Requer 3 confirmações estáveis em pelo menos 200 ms; nunca usa texto incompleto como comando.
-            String matched=text.contains("home ok home")?"home ok home":
-                text.contains("home ei home")?"home ei home":
-                text.startsWith("ei home")?"ei home":
-                text.startsWith("ok home")?"ok home":
-                text.startsWith("hey home")?"hey home":
-                text.startsWith("oi home")?"oi home":
-                text.startsWith("o que home")?"o que home":text.startsWith("ei rom")?"ei rome":
-                text.startsWith("ok rom")?"ok rome":null;
-            if(matched==null)return;
-            if(!matched.equals(partialCandidate)){partialCandidate=matched;partialCount=1;partialSince=now;return;}
-            partialCount++;
-            if(partialCount<3 || now-partialSince<200)return;
-            suffix=""; // abrir reconhecimento completo, não reaproveitar hipótese parcial
+        if(suffix==null){
+            clearPartial();
+            return;
         }
-        clearPartial();
-        activate(suffix);
+        long now=SystemClock.elapsedRealtime();
+        if(now-lastWakeAt<3500L)return;
+        if(!partial){
+            clearPartial();
+            activate(suffix);
+            return;
+        }
+        // A short wake phrase may produce only a single partial and no timely final result.
+        // A later unrelated hypothesis cancels the confirmation.
+        if(text.equals(pendingWakePhrase))return;
+        pendingWakePhrase=text;
+        main.removeCallbacks(pendingWakeConfirmation);
+        main.postDelayed(pendingWakeConfirmation,750L);
     }
     private void activate(String command){
         lastWakeAt=SystemClock.elapsedRealtime();
