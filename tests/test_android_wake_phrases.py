@@ -73,7 +73,7 @@ class AndroidWakePhrasesTest(unittest.TestCase):
             harness = out / "WakeHarness.java"
             harness.write_text(HARNESS, encoding="utf-8")
             build = subprocess.run(
-                ["javac", "-d", str(out), str(SRC / "WakePhrases.java"), str(harness)],
+                ["javac", "-encoding", "UTF-8", "-d", str(out), str(SRC / "WakePhrases.java"), str(harness)],
                 capture_output=True, text=True)
             self.assertEqual(build.returncode, 0, build.stderr)
             run = subprocess.run(["java", "-cp", str(out), "com.aqnoeu.home.WakeHarness"],
