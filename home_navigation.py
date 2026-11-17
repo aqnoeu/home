@@ -63,7 +63,7 @@ class Workspace(QWidget):
 
     SECTIONS = (
         ("hub","⌂ Hub"),("assistant","✎ Assistente"),("voice","◉ Voz"),
-        ("integrations","⌘ Interações"),("account","♙ Conta HOME"),("edit","⤢ Edição"),
+        ("integrations","⌘ Interações"),("focus","◷ Foco"),("account","♙ Conta HOME"),("edit","⤢ Edição"),
         ("updates","↻ Atualizações"),("exit","⏻ Encerrar"),
     )
 
@@ -157,7 +157,7 @@ class Workspace(QWidget):
         for name,button in self.navbuttons.items():
             button.setChecked(section==name)
         titles={"assistant":"Assistente — Digite e ouça","voice":"Voz e microfone","integrations":"Interações com Windows e Chrome",
-                "account":"Conta HOME e sincronização","edit":"Modo edição","updates":"Atualizações","exit":"Encerrar o Home"}
+                "account":"Conta HOME e sincronização","focus":"Modo Foco","edit":"Modo edição","updates":"Atualizações","exit":"Encerrar o Home"}
         self.heading.setText(titles.get(section,"HOME"))
         if section=="assistant":
             from home_assistant import AssistantPage
@@ -168,6 +168,9 @@ class Workspace(QWidget):
         elif section=="integrations":
             from home_integrations import IntegrationsDialog
             page=IntegrationsDialog(self.home)
+        elif section=="focus":
+            from home_focus import FocusPage
+            page=FocusPage(self.home)
         elif section=="account":
             from home_account import AccountPage
             page=AccountPage(self.home)
