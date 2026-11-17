@@ -119,26 +119,7 @@ public final class WakeWordService extends Service implements RecognitionListene
         if(!cmd.isEmpty())captureBackgroundCommand(cmd,true);
     }
     private String offlineAnswer(String question){
-        String q=normalize(question);
-        Locale brazil=new Locale("pt","BR");
-        java.util.Date now=new java.util.Date();
-        if(q.matches(".*\\b(hora|horas|horario)\\b.*"))
-            return "Agora são "+new java.text.SimpleDateFormat("HH:mm",brazil).format(now)+".";
-        if(q.matches(".*\\b(data|dia de hoje|que dia e hoje|hoje e que dia)\\b.*"))
-            return "Hoje é "+new java.text.SimpleDateFormat("dd 'de' MMMM 'de' yyyy",brazil).format(now)+".";
-        if(q.matches(".*\\b(bateria|carga do celular|porcentagem)\\b.*"))
-            return DeviceHub.battery(this);
-        if(q.matches(".*\\b(wifi|wi fi|internet|rede)\\b.*"))
-            return DeviceHub.network(this);
-        if(q.matches(".*\\b(bluetooth)\\b.*"))
-            return DeviceHub.bluetooth(this);
-        if(q.matches(".*\\b(memoria|ram)\\b.*"))
-            return DeviceHub.memory(this);
-        if(q.matches(".*\\b(armazenamento|espaco livre)\\b.*"))
-            return DeviceHub.storage();
-        if(q.matches(".*\\b(ola|oi|bom dia|boa tarde|boa noite|tudo bem)\\b.*"))
-            return "Olá! Estou ouvindo. Pode me chamar novamente.";
-        return "Esse comando ainda precisa do chat do HOME. Você pode abrir o aplicativo para continuar.";
+        return HomeOfflineReplies.answer(this,question);
     }
     private void notifyBackgroundAnswer(String command,String answer){
         NotificationManager manager=getSystemService(NotificationManager.class);
