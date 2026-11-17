@@ -148,7 +148,7 @@ public final class HomeHubAccount {
         settings.put("android",local);
         postRest("home_voice_profiles?on_conflict=user_id",new JSONObject()
             .put("user_id",userId).put("sync_enabled",true)
-            .put("settings",settings).put("reviewed_aliases",new JSONObject())
+            .put("settings",settings).put("reviewed_aliases",stored.optJSONObject("reviewed_aliases")==null?new JSONObject():stored.getJSONObject("reviewed_aliases"))
             .put("updated_at",new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX",
                 java.util.Locale.US).format(new java.util.Date())),true);
     }
