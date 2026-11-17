@@ -31,6 +31,10 @@ import java.util.Date;
  */
 public final class MainActivity extends Activity {
     private static final String DOWNLOAD = "https://github.com/aqnoeu/home/releases";
+    private static volatile boolean inForeground=false;
+    public static boolean isInForeground(){return inForeground;}
+    @Override protected void onResume(){super.onResume();inForeground=true;}
+    @Override protected void onPause(){inForeground=false;super.onPause();}
     private static final int BG = Color.rgb(11,17,26);           // #0B111A
     private static final int SURFACE = Color.rgb(20,29,42);
     private static final int RAISED = Color.rgb(29,40,56);
@@ -1273,7 +1277,17 @@ public final class MainActivity extends Activity {
         action(wake,"Testar o microfone agora",false,()->{pauseWake();HomeVoice.listen(this);});
         TextView diag=note("Status: "+getSharedPreferences("home",MODE_PRIVATE).getString("wake_status","Ainda não iniciado."));
         add(wake,diag,6,8);
-        action(wake,"Verificar estado da escuta",false,()->diag.setText("Status: "+getSharedPreferences("home",MODE_PRIVATE).getString("wake_status","Ainda não iniciado.")));
+        action(wake,"Verificar estado da escuta",false,()->{
+            android.content.SharedPreferences wakePrefs=getSharedPreferences("home",MODE_PRIVATE);
+            long last=wakePrefs.getLong("wake_last_recognized",0);
+            String detected=last>0?new java.text.SimpleDateFormat("dd/MM HH:mm:ss",new java.util.Locale("pt","BR")).format(new java.util.Date(last)):"nenhuma ativação reconhecida";
+            diag.setText("Status: "+wakePrefs.getString("wake_status","Ainda não iniciado.")+"\\nÚltima ativação: "+detected);
+        });
+        action(wake,"Testar abertura da escuta",false,()->{
+            pauseWake();
+            statusMessage("Teste de conversa: vou abrir o reconhecimento de voz.");
+            HomeVoice.listen(this);
+        });
         add(wake,note("A ativação usa o modelo português offline. Enquanto ligada, a detecção mantém o microfone em uso, sem enviar áudio. O reconhecimento completo só abre após a frase. Ao desativar, a captura é encerrada."),3,0);
     }
     private void updatesPage(){
