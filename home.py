@@ -78,7 +78,7 @@ class Home(QWidget):
         self.workspace.hide()
         self.workspace.requested.connect(self.navigate)
         self.panel.mood_changed.connect(self.set_mood)
-        self.panel.more.clicked.connect(self.next_mood)
+        self.panel.more.clicked.connect(lambda: self.navigate("expressions"))
         self.update_btn = self.panel.update_btn
         self.edit_btn = self.panel.edit_btn
         self.quit_btn = self.panel.quit_btn
