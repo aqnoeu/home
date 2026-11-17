@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from home_integrations import execute_windows_action, save_preferences
+import home_voice_profile
 from home_device import local_query
 from home_faber import FaberDownloadWorker, FaberSpeechWorker, installed as faber_installed, PREVIEW_TEXT
 from home_groq import GroqWorker, get_key
@@ -98,7 +99,12 @@ def interpret(sentence):
 def wake_command(sentence):
     s = normalize(sentence)
     match = re.search(r"\b(?:ei|hey)[\s,]+(?:home|rome|romi)\b", s)
-    return None if not match else s[match.end():].strip(" ,.!?")
+    if match:return s[match.end():].strip(" ,.!?")
+    text = home_voice_profile.normalize(sentence)
+    for phrase in ("ok home", "okay home", "home"):
+        if text == phrase:return ""
+        if text.startswith(phrase+" "):return text[len(phrase):].strip()
+    return home_voice_profile.wake_suffix(sentence)
 
 
 class ModelDownloader(QThread):
@@ -519,6 +525,101 @@ class VoiceManager(QObject):
 
 
 
+class VoiceEnrollmentDialog(QDialog):
+    """Training uses independent on-demand captures; never opens a second continuous mic."""
+    def __init__(self, home):
+        super().__init__(home)
+        self.home = home
+        self.worker = None
+        self.last_heard = ""
+        self.setWindowTitle("HOME — Cadastro de voz")
+        self.setMinimumWidth(390)
+        self.setStyleSheet("QDialog{background:#0B111A;color:white}QLabel,QCheckBox{color:#FFFFFF}QPushButton{background:#223957;color:white;padding:10px;border-radius:8px}")
+        layout = QVBoxLayout(self)
+        self.title = QLabel("")
+        self.title.setWordWrap(True)
+        layout.addWidget(self.title)
+        self.detail = QLabel("O cadastro é local. Correções de texto não treinam biometria vocal.")
+        self.detail.setWordWrap(True)
+        layout.addWidget(self.detail)
+        self.allow = QCheckBox("Aprendizado por correções ativado")
+        self.allow.setChecked(home_voice_profile.load()["corrections"])
+        self.allow.toggled.connect(self.toggle_corrections)
+        layout.addWidget(self.allow)
+        self.listen = QPushButton("Gravar e conferir frase")
+        self.listen.clicked.connect(self.record)
+        layout.addWidget(self.listen)
+        self.correct = QPushButton("Eu disse a frase solicitada — registrar correção")
+        self.correct.clicked.connect(self.confirm_correction)
+        self.correct.hide()
+        layout.addWidget(self.correct)
+        self.repeat = QPushButton("Repetir teste")
+        self.repeat.clicked.connect(self.repeat_test)
+        self.repeat.hide()
+        layout.addWidget(self.repeat)
+        reset = QPushButton("Apagar cadastro e reiniciar")
+        reset.clicked.connect(self.reset_profile)
+        layout.addWidget(reset)
+        self.refresh()
+    def toggle_corrections(self, enabled):
+        data=home_voice_profile.load()
+        data["corrections"]=enabled
+        home_voice_profile.save(data)
+    def refresh(self):
+        step=home_voice_profile.load()["step"]
+        self.correct.hide()
+        self.repeat.hide()
+        self.listen.setEnabled(step<len(home_voice_profile.PROMPTS))
+        if step==len(home_voice_profile.PROMPTS):
+            self.title.setText("✓ Seis testes concluídos")
+            self.detail.setText("As variantes confirmadas ficam neste Windows. Nenhum áudio foi enviado.")
+        else:
+            kind="chamada isolada" if step<3 else "chamada + função"
+            self.title.setText(f"Teste {step+1} de 6 — {kind}\\nDiga: {home_voice_profile.PROMPTS[step]}")
+            self.detail.setText("Teste a frase naturalmente e confira o texto reconhecido.")
+    def record(self):
+        if self.worker and self.worker.isRunning():return
+        if not model_is_complete():
+            self.detail.setText("Instale primeiro o modelo de português Vosk na página Voz.")
+            return
+        if not self.home.integration_prefs.get("voice_microphone"):
+            self.detail.setText("Ative a permissão de microfone na página Voz.")
+            return
+        if self.home.voice.worker and self.home.voice.worker.isRunning():
+            self.detail.setText("Pare a escuta contínua antes de cadastrar a voz, evitando dois microfones.")
+            return
+        self.listen.setEnabled(False)
+        self.detail.setText("Ouvindo a frase do teste...")
+        self.worker=ListeningWorker("push")
+        self.worker.heard.connect(self.heard)
+        self.worker.error.connect(lambda e:self.detail.setText("Falha de captura: "+e))
+        self.worker.finished.connect(lambda:self.listen.setEnabled(True))
+        self.worker.start()
+    def heard(self, phrase):
+        step=home_voice_profile.load()["step"]
+        if step>=len(home_voice_profile.PROMPTS):return
+        self.last_heard=phrase
+        if home_voice_profile.matches(step,phrase):
+            home_voice_profile.accept(phrase)
+            self.refresh()
+            self.detail.setText("✓ Reconhecido: "+phrase+("\\nFunção reconhecida no teste; execução não solicitada." if step>=3 else ""))
+        else:
+            self.detail.setText("O Windows entendeu: "+phrase+"\\nVocê disse: "+home_voice_profile.PROMPTS[step]+"?")
+            self.correct.setVisible(self.allow.isChecked())
+            self.repeat.show()
+    def confirm_correction(self):
+        if not self.allow.isChecked() or not self.last_heard:return
+        home_voice_profile.accept(self.last_heard, corrected=True)
+        self.refresh()
+        self.detail.setText("Correção registrada localmente. A variante textual poderá ser aceita.")
+    def repeat_test(self):
+        self.last_heard=""
+        self.refresh()
+    def reset_profile(self):
+        home_voice_profile.reset()
+        self.allow.setChecked(True)
+        self.refresh()
+
 class VoiceDialog(QDialog):
     def __init__(self, home):
         super().__init__(home)
@@ -576,6 +677,9 @@ class VoiceDialog(QDialog):
         self.push_btn=QPushButton("🎙  Falar agora / parar")
         self.push_btn.clicked.connect(self.manager.toggle_push)
         outer.addWidget(self.push_btn)
+        self.enroll_btn=QPushButton("Cadastrar minha voz — chamadas e funções")
+        self.enroll_btn.clicked.connect(lambda:VoiceEnrollmentDialog(self.home).exec())
+        outer.addWidget(self.enroll_btn)
         outer.addWidget(QLabel("Comandos: calculadora, bloco de notas, arquivos, volume e música."))
         self.state_label=QLabel(
             "Microfone pronto. Clique em Falar agora." if self.prefs.get("voice_microphone")
