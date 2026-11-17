@@ -9,8 +9,8 @@ import java.util.Set;
  * (testável com javac puro).
  *
  * O modelo Vosk pt-BR não conhece "home" nem "ok" e costuma transcrever "rome", "homem",
- * "oquei", "o k"... Estas variantes só valem no INÍCIO da frase (até duas palavras de ruído
- * antes), para não disparar com conversas comuns.
+ * "oquei", "o k"... Estas variantes só valem no INÍCIO da frase (aceita apenas um "e" solto
+ * antes), para não disparar no meio de conversas comuns. Mesma regra do Windows.
  */
 final class WakePhrases {
     private static final Set<String> CALL=new HashSet<>(Arrays.asList(
@@ -30,7 +30,7 @@ final class WakePhrases {
     static String suffix(String text){
         if(text==null || text.isEmpty())return null;
         String[] words=text.split(" ");
-        int limit=Math.min(3,words.length);
+        int limit=words.length>1 && "e".equals(words[0])?2:1;
         for(int i=0;i<limit;i++){
             int next=-1;
             if(JOINED.contains(words[i]))next=i+1;

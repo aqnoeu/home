@@ -29,6 +29,8 @@ public class WakeHarness {
         eq("e ok home","");
         eq("okey home que horas sao","que horas sao");
         eq("ok home abra a calculadora","abra a calculadora");
+        eq("quero dizer ok home",null);
+        eq("eu disse ei home",null);
         eq("o homem chegou",null);
         eq("ok vamos embora",null);
         eq("quero ir para roma",null);
