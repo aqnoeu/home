@@ -57,18 +57,20 @@ public final class EyesView extends View {
         int rgb=Color.rgb(242,248,255);
         float targetH=1f,targetW=1f;
         if(listening || commandListening){
-            rgb=Color.rgb(182,214,255);targetH=1.13f;targetW=1.02f;
+            rgb=Color.rgb(45,255,90);targetH=1.13f;targetW=1.02f; // verde-neon, expressão feliz
         }else if(speaking){
-            rgb=Color.rgb(255,196,136);targetH=.91f;
+            rgb=Color.WHITE;targetH=1f;targetW=1f; // fala da Faber: olhos brancos
         }else if("raiva".equals(state)){rgb=Color.rgb(255,106,0);targetH=.83f;}
         else if("sonolento".equals(state)){rgb=Color.rgb(142,175,207);targetH=.38f;}
         else if("tedio".equals(state)){rgb=Color.rgb(139,149,164);targetH=.78f;targetW=.78f;}
         else if("carregando".equals(state)){rgb=Color.rgb(0,196,106);}
         else if("bateria_baixa".equals(state)){rgb=Color.rgb(242,164,68);targetH=.86f;}
         else if("economia".equals(state)){rgb=Color.rgb(147,184,219);targetH=.72f;}
-        colorR=lerp(colorR,Color.red(rgb),smoothing);
-        colorG=lerp(colorG,Color.green(rgb),smoothing);
-        colorB=lerp(colorB,Color.blue(rgb),smoothing);
+        // Escuta/fala são sinais imediatos, não transições suaves.
+        float voiceSmoothing=(listening || commandListening || speaking)?1f:smoothing;
+        colorR=lerp(colorR,Color.red(rgb),voiceSmoothing);
+        colorG=lerp(colorG,Color.green(rgb),voiceSmoothing);
+        colorB=lerp(colorB,Color.blue(rgb),voiceSmoothing);
         eyeHeight=lerp(eyeHeight,targetH,smoothing);
         eyeWidth=lerp(eyeWidth,targetW,smoothing);
         if(listening || commandListening){
@@ -89,11 +91,7 @@ public final class EyesView extends View {
         }
         float width=getWidth(),height=getHeight();
         float ew=Math.min(dp(13),width*.12f)*eyeWidth;
-        float voicePulse=(animated&&(listening||commandListening))
-            ?(.89f+.11f*(float)Math.sin(now/185.0)):1f;
-        float speechPulse=(animated&&speaking)
-            ?(.91f+.09f*(float)Math.sin(now/235.0)):1f;
-        float eh=Math.max(dp(3),Math.min(dp(21),height*.68f)*eyeHeight*blink*voicePulse*speechPulse);
+        float eh=Math.max(dp(3),Math.min(dp(21),height*.68f)*eyeHeight*blink);
         float gap=Math.min(dp(eyeGapDp),Math.max(0,width-2*ew-dp(8)));
         float left=(width-2*ew-gap)/2f+gaze*dp(6);
         int eyeColor=Color.rgb(Math.min(255,(int)colorR),Math.min(255,(int)colorG),Math.min(255,(int)colorB));
@@ -118,32 +116,15 @@ public final class EyesView extends View {
                 paint.setColor(Color.rgb(11,17,26));
                 canvas.drawPath(lid,paint);
                 paint.setColor(eyeColor);
-            }else if(mood==1&&"neutro".equals(state)&&eh>=dp(9)){
+            }else if(((listening || commandListening) || (mood==1&&"neutro".equals(state)))&&eh>=dp(9)){
                 paint.setColor(Color.rgb(11,17,26));
                 canvas.drawOval(new RectF(x-ew*.15f,y+eh*.54f,x+ew*1.16f,y+eh*1.36f),paint);
                 paint.setColor(eyeColor);
             }
         }
-        // Two gently oscillating indicators distinguish active listening from idle.
-        if(listening || commandListening){
-            paint.setAlpha(255);
-            paint.setColor(commandListening?Color.rgb(255,177,91):Color.rgb(47,107,255));
-            float wave=animated?(float)Math.sin(now/230.0):0f;
-            float dot=dp(commandListening?2.1f:1.6f);
-            float cy=Math.min(height-dp(3.1f),(height+eh)/2f+dp(3.3f));
-            float spread=dp(2.6f)+dp(1.6f)*Math.abs(wave);
-            canvas.drawCircle(width/2f-spread,cy-dot*.4f,dot,paint);
-            canvas.drawCircle(width/2f+spread,cy+dot*.4f,dot,paint);
-            paint.setAlpha(255);
-        }else if(speaking){
-            paint.setAlpha(255);
-            paint.setColor(Color.rgb(255,106,0));
-            float amplitude=animated?(.6f+.4f*Math.abs((float)Math.sin(now/195.0))):1f;
-            canvas.drawRoundRect(new RectF(width/2f-dp(1.8f),height-dp(6)*amplitude,
-                width/2f+dp(1.8f),height-dp(2)),dp(1.7f),dp(1.7f),paint);
-        }
+        // Sem pontinhos/indicadores: o sorriso verde-neon é o próprio estado de escuta.
         // Scale sleepy marks to the compact notch too.
-        if("sonolento".equals(state)&&height>=dp(20)){
+        if(!listening && !commandListening && !speaking && "sonolento".equals(state)&&height>=dp(20)){
             paint.setColor(Color.rgb(142,175,207));
             float scale=Math.max(.54f,Math.min(1f,height/dp(70)));
             float lift=animated?((now%3000L)/3000f)*dp(9)*scale:0;
