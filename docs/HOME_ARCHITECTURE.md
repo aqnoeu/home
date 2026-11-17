@@ -42,6 +42,7 @@ de regressão suficientes para o comportamento do notch.
 | `HomeUiKit.java` | Botões, campos, cartões, notas e espaçamento reutilizáveis |
 | `HomeLocalCommands.java` | Identificação de comandos locais e consultas read-only; **não executa efeitos de UI** |
 | `WakeWordService.java` | Ciclo de microfone, frases de ativação, notificações e escuta de fundo |
+| `HomeOfflineReplies.java` | Respostas offline no background sem depender da Activity ou do microfone |
 | `WakeModelInstaller.java` | Instalação/validação do modelo offline |
 | `HomeVoice.java` | Escuta da consulta completa |
 | `FaberOffline.kt` | Voz de resposta offline |
