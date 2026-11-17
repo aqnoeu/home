@@ -1290,7 +1290,7 @@ public final class MainActivity extends Activity {
         add(box,info,0,12);
         int step=VoiceEnrollment.step(this);
         if(step<VoiceEnrollment.count()){
-            add(box,heading("Diga: \\""+VoiceEnrollment.prompt(step)+"\\"",19),0,12);
+            add(box,heading("Diga: "+VoiceEnrollment.prompt(step),19),0,12);
             action(box,"Gravar e verificar frase",true,()->{
                 pauseWake();
                 Intent recognition=new Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
@@ -1339,8 +1339,8 @@ public final class MainActivity extends Activity {
         correction.setPadding(dp(14),dp(14),dp(14),dp(14));
         correction.setBackground(bg(RAISED,13));
         add(correction,heading("Conferir reconhecimento",16),0,8);
-        add(correction,note("O aparelho entendeu: \\""+captured+"\\""),0,6);
-        add(correction,note("Você realmente falou: \\""+VoiceEnrollment.prompt(step)+"\\"?"),0,12);
+        add(correction,note("O aparelho entendeu: "+captured),0,6);
+        add(correction,note("Você realmente falou: "+VoiceEnrollment.prompt(step)+"?"),0,12);
         actions(correction,"Sim, corrigir",()->{
             if(!VoiceEnrollment.corrections(this)){
                 statusMessage("Ative o aprendizado por correções para registrar esta amostra.");return;
