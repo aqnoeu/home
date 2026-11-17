@@ -204,7 +204,7 @@ public final class WakeWordService extends Service implements RecognitionListene
             resetBackgroundState();
             main.removeCallbacks(pendingNotificationRecovery);
             paused=true;
-            visualState("pausado");
+            visualState(intent.getBooleanExtra("command_listening",false)?"aguardando_comando":"pausado");
             closeAudio();
             state("Detecção pausada durante a conversa.");
             if(running)return START_NOT_STICKY;
