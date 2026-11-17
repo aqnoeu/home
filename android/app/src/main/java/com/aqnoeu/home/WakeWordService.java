@@ -34,6 +34,7 @@ public final class WakeWordService extends Service implements RecognitionListene
     private String partialCandidate="";
     private int partialCount;
     private long partialSince;
+    private boolean backgroundWaiting, backgroundSpeaking;
     private String pendingWakePhrase="";
     private final Runnable pendingWakeConfirmation=()->{
         if(!running || paused || backgroundWaiting || pendingWakePhrase.isEmpty())return;
@@ -60,7 +61,6 @@ public final class WakeWordService extends Service implements RecognitionListene
             main.postDelayed(this,30000L);
         }
     };
-    private boolean backgroundWaiting, backgroundSpeaking;
     private String pendingCommand="";
     private final Runnable completePendingCommand=()->{
         if(!backgroundWaiting || paused || backgroundSpeaking)return;
