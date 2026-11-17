@@ -22,7 +22,19 @@ public final class EyesView extends View {
     private float gaze=0,targetGaze=0,mix=1f;
     private float eyeHeight=1f,eyeWidth=1f,colorR=242,colorG=248,colorB=255;
     private String previousState="neutro";
+    // Shared expression IDs, preserving the original indices 0-3.
+    public static final String[] EXPRESSION_LABELS={
+        "Normal","Feliz","Sonolento","Bravo",
+        "Piscadela","Lovabow","Pensando","Surpreso",
+        "Desconfiado","Tímido","Confuso","Travesso"
+    };
+    public static final String[] EXPRESSION_KEYS={
+        "neutro","neutro","sonolento","raiva",
+        "piscadela","lovabow","pensando","surpreso",
+        "desconfiado","timido","confuso","travesso"
+    };
     private int mood=0;
+    private boolean expressionPreview=false;
     private final android.content.SharedPreferences.OnSharedPreferenceChangeListener updateListener=
         (prefs,key)->{
             if(key!=null && key.startsWith("update_eyes_"))postInvalidateOnAnimation();
@@ -41,8 +53,13 @@ public final class EyesView extends View {
     }
     public void setEyeGap(float gap){eyeGapDp=Math.max(0,Math.min(600,gap));invalidate();}
     public void setMood(int index){
-        mood=Math.max(0,Math.min(3,index));
-        HomeEmotion.manual(index==2?"sonolento":index==3?"raiva":"neutro");
+        mood=Math.max(0,Math.min(EXPRESSION_KEYS.length-1,index));
+        HomeEmotion.manual(EXPRESSION_KEYS[mood]);
+        invalidate();
+    }
+    /** Dedicated preview shows the chosen face even when charging/listening. */
+    public void setExpressionPreview(boolean preview){
+        expressionPreview=preview;
         invalidate();
     }
     private float dp(float value){return value*getResources().getDisplayMetrics().density;}
@@ -65,15 +82,15 @@ public final class EyesView extends View {
         long updateElapsed=System.currentTimeMillis()-updateChangedAt;
         boolean updateDownloading="downloading".equals(updateState) && updateElapsed>=0 && updateElapsed<3600000L;
         boolean updateComplete="complete".equals(updateState) && updateElapsed>=0 && updateElapsed<2600L;
-        boolean updateActive=updateDownloading||updateComplete;
+        boolean updateActive=!expressionPreview && (updateDownloading||updateComplete);
         float updateFraction=updateComplete?1f:
             Math.max(0f,Math.min(1f,updatePrefs.getInt("update_eyes_percent",0)/100f));
         float smoothing=animated?1f-(float)Math.exp(-dt/0.23):1f;
-        String state=HomeEmotion.current(getContext());
+        String state=expressionPreview?EXPRESSION_KEYS[mood]:HomeEmotion.current(getContext());
         android.content.SharedPreferences prefs=getContext().getSharedPreferences("home",Context.MODE_PRIVATE);
         String voice=prefs.getString("wake_visual_state","desligado");
         long stamped=prefs.getLong("wake_visual_at",0L);
-        if(!prefs.getBoolean("wake_enabled",false) || System.currentTimeMillis()-stamped>120000L)
+        if(expressionPreview || !prefs.getBoolean("wake_enabled",false) || System.currentTimeMillis()-stamped>120000L)
             voice="desligado";
         boolean listening="aguardando_comando".equals(voice);
         boolean commandListening=listening;
@@ -94,6 +111,13 @@ public final class EyesView extends View {
         else if("carregando".equals(state)){rgb=Color.rgb(0,196,106);}
         else if("bateria_baixa".equals(state)){rgb=Color.rgb(242,164,68);targetH=.86f;}
         else if("economia".equals(state)){rgb=Color.rgb(147,184,219);targetH=.72f;}
+        else if("lovabow".equals(state)){rgb=Color.rgb(242,248,255);targetH=1f;}
+        else if("pensando".equals(state)){rgb=Color.rgb(213,228,245);targetH=.76f;targetW=.92f;}
+        else if("surpreso".equals(state)){rgb=Color.WHITE;targetH=1.12f;targetW=1.06f;}
+        else if("desconfiado".equals(state)){rgb=Color.rgb(221,232,248);targetH=.82f;targetW=.9f;}
+        else if("timido".equals(state)){rgb=Color.rgb(232,196,212);targetH=.8f;targetW=.94f;}
+        else if("confuso".equals(state)){rgb=Color.rgb(223,233,248);targetH=.9f;targetW=.96f;}
+        else if("travesso".equals(state)){rgb=Color.rgb(242,248,255);targetH=.84f;targetW=.94f;}
         // Escuta/fala são sinais imediatos, não transições suaves.
         float voiceSmoothing=(updateActive || listening || commandListening || speaking)?1f:smoothing;
         colorR=lerp(colorR,Color.red(rgb),voiceSmoothing);
@@ -134,7 +158,13 @@ public final class EyesView extends View {
             float x=left+i*(ew+gap);
             float shake="raiva".equals(state)&&animated?
                 (float)Math.sin(now/44.0)*dp(.65f):0f;
-            float y=(height-eh)/2f+shake;
+            float oneH=eh;
+            if("piscadela".equals(state)&&i==0)oneH*=.12f;
+            else if("confuso".equals(state))oneH*=i==0?.65f:1.08f;
+            else if("desconfiado".equals(state))oneH*=i==0?.62f:.96f;
+            else if("travesso".equals(state))oneH*=i==0?.55f:.92f;
+            if("pensando".equals(state))x+=ew*.12f;
+            float y=(height-oneH)/2f+shake;
             // At 100% only the RIGHT eye winks once, and the ordinary emotion returns.
             if(updateComplete && i==1 && updateElapsed>=700 && updateElapsed<1150){
                 float phase=(updateElapsed-700f)/450f;
@@ -165,9 +195,25 @@ public final class EyesView extends View {
                 }
                 canvas.restoreToCount(saved);
                 paint.setColor(eyeColor);
+            }else if("lovabow".equals(state)){
+                // Original two-eye identity, with each eye shaped as a heart.
+                float phase=animated?(now%1800L)/1800f:1f;
+                int rose=phase<.30f?Color.rgb(242,248,255):
+                    phase<.60f?Color.rgb(246,174,200):Color.rgb(241,139,181);
+                paint.setColor(rose);
+                paint.setAlpha(255);
+                Path heart=new Path();
+                heart.moveTo(x+ew*.50f,y+oneH*.94f);
+                heart.cubicTo(x-ew*.14f,y+oneH*.58f,x-ew*.10f,y+oneH*.12f,x+ew*.26f,y+oneH*.12f);
+                heart.cubicTo(x+ew*.43f,y+oneH*.12f,x+ew*.50f,y+oneH*.30f,x+ew*.50f,y+oneH*.30f);
+                heart.cubicTo(x+ew*.50f,y+oneH*.30f,x+ew*.57f,y+oneH*.12f,x+ew*.74f,y+oneH*.12f);
+                heart.cubicTo(x+ew*1.10f,y+oneH*.12f,x+ew*1.14f,y+oneH*.58f,x+ew*.50f,y+oneH*.94f);
+                heart.close();
+                canvas.drawPath(heart,paint);
+                paint.setColor(eyeColor);
             }else{
-                canvas.drawRoundRect(new RectF(x,y,x+ew,y+eh),
-                    Math.min(dp(5),eh/2),Math.min(dp(5),eh/2),paint);
+                canvas.drawRoundRect(new RectF(x,y,x+ew,y+oneH),
+                    Math.min(dp(5),oneH/2),Math.min(dp(5),oneH/2),paint);
             }
             if(!updateActive && "raiva".equals(state)&&eh>=dp(7)){
                 Path lid=new Path();
@@ -197,6 +243,35 @@ public final class EyesView extends View {
                 float phase=(float)(now/205.0-i*0.85);
                 float lift=animated?dp(1.6f)*Math.max(0f,(float)Math.sin(phase)):0f;
                 canvas.drawCircle(center+(i-1)*dp(4f),baseline-lift,radius,paint);
+            }
+        }
+        // Minimal auxiliary strokes; never draw a mouth.
+        if(("sonolento".equals(state)||"timido".equals(state)) && height>=dp(28)){
+            paint.setColor("sonolento".equals(state)
+                ?Color.rgb(142,175,207):Color.rgb(232,196,212));
+            paint.setStrokeWidth(dp(.8f));
+            for(int i=0;i<2;i++){
+                float sx=i==0?left-dp(4):left+2*ew+gap+dp(2);
+                for(int j=0;j<2;j++){
+                    float px=sx+j*dp(3), py=height*.80f+j*dp(.5f);
+                    canvas.drawLine(px,py,px+dp(2),py+dp(2),paint);
+                }
+            }
+        }
+        if("lovabow".equals(state)&&height>=dp(34) && animated){
+            float phase=(now%1800L)/1800f;
+            if(phase>.55f){
+                paint.setColor(Color.rgb(241,139,181));
+                float base=left+2*ew+gap+dp(5);
+                for(int i=0;i<3;i++){
+                    float x=base+i*dp(4), y=height*.66f-(phase-.55f)*height*.8f-i*dp(3);
+                    Path small=new Path();
+                    small.moveTo(x,y+dp(3));
+                    small.cubicTo(x-dp(5),y,x-dp(3),y-dp(3),x,y-dp(1));
+                    small.cubicTo(x+dp(3),y-dp(3),x+dp(5),y,x,y+dp(3));
+                    small.close();
+                    canvas.drawPath(small,paint);
+                }
             }
         }
         // Scale sleepy marks to the compact notch too.
