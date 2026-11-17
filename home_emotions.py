@@ -8,7 +8,11 @@ import os
 import time
 from dataclasses import dataclass
 
-EMOTIONS = ("neutro", "raiva", "sonolento", "tedio")
+EMOTIONS = (
+    "neutro", "raiva", "sonolento", "tedio",
+    "piscadela", "lovabow", "pensando", "surpreso",
+    "desconfiado", "timido", "confuso", "travesso",
+)
 IDLE_SLEEP_SECONDS = 5 * 60
 SAME_WINDOW_BORED_SECONDS = 12 * 60
 CONVERSATION_HOLD_SECONDS = 15
