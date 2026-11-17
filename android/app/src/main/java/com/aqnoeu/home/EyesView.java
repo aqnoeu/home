@@ -51,15 +51,15 @@ public final class EyesView extends View {
         long stamped=prefs.getLong("wake_visual_at",0L);
         if(!prefs.getBoolean("wake_enabled",false) || System.currentTimeMillis()-stamped>120000L)
             voice="desligado";
-        boolean listening="ouvindo".equals(voice);
+        boolean passiveWake="detector_ativo".equals(voice);
         boolean commandListening="aguardando_comando".equals(voice);
         boolean speaking="falando".equals(voice);
         int rgb=Color.rgb(242,248,255);
         float targetH=1f,targetW=1f;
-        if(listening || commandListening){
+        if(commandListening){
             rgb=Color.rgb(45,255,90);targetH=1.13f;targetW=1.02f; // verde-neon, expressão feliz
-        }else if(speaking){
-            rgb=Color.WHITE;targetH=1f;targetW=1f; // fala da Faber: olhos brancos
+        }else if(speaking || passiveWake || "processando".equals(voice) || "pausado".equals(voice)){
+            rgb=Color.WHITE;targetH=1f;targetW=1f; // Detector passivo e resposta: branco
         }else if("raiva".equals(state)){rgb=Color.rgb(255,106,0);targetH=.83f;}
         else if("sonolento".equals(state)){rgb=Color.rgb(142,175,207);targetH=.38f;}
         else if("tedio".equals(state)){rgb=Color.rgb(139,149,164);targetH=.78f;targetW=.78f;}
@@ -67,7 +67,7 @@ public final class EyesView extends View {
         else if("bateria_baixa".equals(state)){rgb=Color.rgb(242,164,68);targetH=.86f;}
         else if("economia".equals(state)){rgb=Color.rgb(147,184,219);targetH=.72f;}
         // Escuta/fala são sinais imediatos, não transições suaves.
-        float voiceSmoothing=(listening || commandListening || speaking)?1f:smoothing;
+        float voiceSmoothing=(passiveWake || commandListening || speaking || "processando".equals(voice) || "pausado".equals(voice))?1f:smoothing;
         colorR=lerp(colorR,Color.red(rgb),voiceSmoothing);
         colorG=lerp(colorG,Color.green(rgb),voiceSmoothing);
         colorB=lerp(colorB,Color.blue(rgb),voiceSmoothing);
@@ -119,7 +119,7 @@ public final class EyesView extends View {
                 paint.setColor(Color.rgb(11,17,26));
                 canvas.drawPath(lid,paint);
                 paint.setColor(eyeColor);
-            }else if(((listening || commandListening) || (mood==1&&"neutro".equals(state)))&&eh>=dp(9)){
+            }else if((commandListening || (mood==1&&"neutro".equals(state)))&&eh>=dp(9)){
                 paint.setColor(Color.rgb(11,17,26));
                 canvas.drawOval(new RectF(x-ew*.15f,y+eh*.54f,x+ew*1.16f,y+eh*1.36f),paint);
                 paint.setColor(eyeColor);
@@ -139,7 +139,7 @@ public final class EyesView extends View {
             }
         }
         // Scale sleepy marks to the compact notch too.
-        if(!listening && !commandListening && !speaking && "sonolento".equals(state)&&height>=dp(20)){
+        if(!passiveWake && !commandListening && !speaking && "sonolento".equals(state)&&height>=dp(20)){
             paint.setColor(Color.rgb(142,175,207));
             float scale=Math.max(.54f,Math.min(1f,height/dp(70)));
             float lift=animated?((now%3000L)/3000f)*dp(9)*scale:0;
