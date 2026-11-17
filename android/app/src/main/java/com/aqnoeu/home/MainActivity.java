@@ -162,6 +162,7 @@ public final class MainActivity extends Activity {
         showPage("assistant");
         if(query.trim().isEmpty()){
             statusMessage("Estou ouvindo. Pode falar.");
+            pauseWake(true);
             if(!HomeVoice.listen(this))resumeWake();
         }else{
             // Wake-word commands use the same offline command catalog as typed chat.
@@ -206,12 +207,16 @@ public final class MainActivity extends Activity {
         pauseWake();
         if(!HomeVoice.listen(this))resumeWake();
     }
-    private void pauseWake(){
+    private void pauseWake(){pauseWake(false);}
+    private void pauseWake(boolean listeningForCommand){
         if(WakeWordService.enabled(this)){
             wakeBusy=true;
             wakeHandler.removeCallbacksAndMessages(null);
-            try{startService(new Intent(this,WakeWordService.class).setAction(WakeWordService.PAUSE));}
-            catch(Exception ignored){}
+            try{
+                startService(new Intent(this,WakeWordService.class)
+                    .setAction(WakeWordService.PAUSE)
+                    .putExtra("command_listening",listeningForCommand));
+            }catch(Exception ignored){}
         }
     }
     private void speakAnswer(String answer){
@@ -219,8 +224,14 @@ public final class MainActivity extends Activity {
             resumeWake();return;
         }
         if(FaberOffline.isInstalled(this)){
+            getSharedPreferences("home",MODE_PRIVATE).edit()
+                .putString("wake_visual_state","falando")
+                .putLong("wake_visual_at",System.currentTimeMillis()).apply();
             FaberOffline.speak(this,answer,message->{
-                if(message.startsWith("✓ Faber reproduzida") || message.startsWith("Falha") || message.startsWith("Instale"))resumeWake();
+                if(message.startsWith("✓ Faber reproduzida") || message.startsWith("Falha")
+                    || message.startsWith("Instale") || message.startsWith("O Home já está falando")){
+                    resumeWake();
+                }
             });
         }else{resumeWake();}
     }
