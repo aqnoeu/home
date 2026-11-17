@@ -11,6 +11,8 @@ class TestVoiceCommands(unittest.TestCase):
         self.assertEqual(wake_command("Ei, Home, abrir calculadora"), "abrir calculadora")
         self.assertEqual(wake_command("hey home bloco de notas"), "bloco de notas")
         self.assertIsNone(wake_command("abra calculadora"))
+        self.assertIsNone(wake_command("quero dizer ok home"))
+        self.assertIsNone(wake_command("eu disse ei home"))
         self.assertEqual(wake_command("ei home"), "")
 
     def test_wake_variants_from_vosk(self):
