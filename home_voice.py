@@ -149,8 +149,9 @@ def wake_command(sentence):
     """Se a frase começa com a chamada ("ok Home", "ei Home"), devolve o comando
     que vem depois (pode ser ""). Caso contrário, None."""
     words = re.findall(r"[a-z0-9]+", normalize(sentence))
-    # Até duas palavras de ruído antes da chamada ("e ok home").
-    for i in range(min(3, len(words))):
+    # Aceita apenas um "e" inicial isolado, evitando ativar no meio de conversas.
+    offsets = (0, 1) if words and words[0] == "e" else (0,)
+    for i in offsets:
         rest = None
         w = words[i:]
         if w and w[0] in JOINED_WAKE:
@@ -371,6 +372,7 @@ class VoiceManager(QObject):
     command = Signal(str)
     confirmation_requested = Signal(str, str)
     wake_detected = Signal()
+    chat_updated = Signal()
 
     def __init__(self, home):
         super().__init__(home)
@@ -488,12 +490,14 @@ class VoiceManager(QObject):
             if local is not None:
                 self.home.record_chat("user",phrase)
                 self.home.record_chat("home",local)
+                self.chat_updated.emit()
                 self.speak(local)
                 return
             if not get_key():
                 notice = "Conecte a Groq uma vez no Assistente para receber respostas por voz."
                 self.home.record_chat("user", phrase)
                 self.home.record_chat("home", notice)
+                self.chat_updated.emit()
                 self.set_state(notice)
                 self._resume_wake_after_turn()
                 return
@@ -504,6 +508,7 @@ class VoiceManager(QObject):
             chat_id=self.home.chat_store.active()
             history=self.home.chat_store.context(chat_id)
             self.home.record_chat("user",phrase,session=chat_id)
+            self.chat_updated.emit()
             self.ai_worker = GroqWorker(phrase,history,parent=self.home)
             self.ai_worker.chat_id=chat_id
             ai=self.ai_worker
@@ -529,13 +534,17 @@ class VoiceManager(QObject):
             return
         self.ai_worker = None
         self.home.record_chat("home",response,session=worker.chat_id)
+        self.chat_updated.emit()
         self.speak(response, force=True)
 
     def on_ai_error(self, worker, problem):
         if self.ai_worker is not worker:
             return
         self.ai_worker = None
-        self.set_state("Falha na Groq: "+problem[:150])
+        message = "Falha na Groq: " + problem[:150]
+        self.home.record_chat("home", message, session=worker.chat_id)
+        self.chat_updated.emit()
+        self.set_state(message)
         self._resume_wake_after_turn()
 
     def decide_pending(self, approved):
