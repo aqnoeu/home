@@ -34,6 +34,86 @@ public final class WakeWordService extends Service implements RecognitionListene
     private String partialCandidate="";
     private int partialCount;
     private long partialSince;
+    private boolean backgroundWaiting, backgroundSpeaking;
+    private final Runnable backgroundCommandTimeout=()->{
+        if(backgroundWaiting && running && !paused){
+            backgroundWaiting=false;
+            state("Nenhum comando ouvido. HOME voltou a escutar a palavra de ativação.");
+        }
+    };
+    private boolean backgroundVoiceEnabled(){
+        return getSharedPreferences("home",MODE_PRIVATE).getBoolean("wake_background_audio",false)
+            && FaberOffline.isInstalled(this);
+    }
+    private void resetBackgroundState(){
+        backgroundWaiting=false;
+        backgroundSpeaking=false;
+        main.removeCallbacks(backgroundCommandTimeout);
+    }
+    /** Tarefa curta com o detector já em execução. Não inicia outro microfone nem abre Activity. */
+    private void beginBackgroundConversation(String initialCommand){
+        String cmd=initialCommand==null?"":initialCommand.trim();
+        if(!cmd.isEmpty()){
+            replyBackground(cmd);
+            return;
+        }
+        backgroundWaiting=true;
+        state("HOME chamado em segundo plano. Aguardando comando por voz.");
+        main.removeCallbacks(backgroundCommandTimeout);
+        main.postDelayed(backgroundCommandTimeout,12000L);
+    }
+    private String offlineAnswer(String question){
+        String q=normalize(question);
+        Locale brazil=new Locale("pt","BR");
+        java.util.Date now=new java.util.Date();
+        if(q.matches(".*\\b(hora|horas|horario)\\b.*"))
+            return "Agora são "+new java.text.SimpleDateFormat("HH:mm",brazil).format(now)+".";
+        if(q.matches(".*\\b(data|dia de hoje|que dia e hoje|hoje e que dia)\\b.*"))
+            return "Hoje é "+new java.text.SimpleDateFormat("dd 'de' MMMM 'de' yyyy",brazil).format(now)+".";
+        if(q.matches(".*\\b(bateria|carga do celular|porcentagem)\\b.*"))
+            return DeviceHub.battery(this);
+        if(q.matches(".*\\b(wifi|wi fi|internet|rede)\\b.*"))
+            return DeviceHub.network(this);
+        if(q.matches(".*\\b(bluetooth)\\b.*"))
+            return DeviceHub.bluetooth(this);
+        if(q.matches(".*\\b(memoria|ram)\\b.*"))
+            return DeviceHub.memory(this);
+        if(q.matches(".*\\b(armazenamento|espaco livre)\\b.*"))
+            return DeviceHub.storage();
+        if(q.matches(".*\\b(ola|oi|bom dia|boa tarde|boa noite|tudo bem)\\b.*"))
+            return "Olá! Estou ouvindo. Pode me chamar novamente.";
+        return "Esse comando ainda precisa do chat do HOME. Você pode abrir o aplicativo para continuar.";
+    }
+    private void replyBackground(String command){
+        if(!running || paused || backgroundSpeaking)return;
+        backgroundWaiting=false;
+        main.removeCallbacks(backgroundCommandTimeout);
+        backgroundSpeaking=true;
+        paused=true;
+        closeAudio(); // Faber não compete com o Vosk pelo microfone
+        String answer=offlineAnswer(command);
+        state("Respondendo em segundo plano com a Faber.");
+        getSharedPreferences("home",MODE_PRIVATE).edit().putString("wake_last_command",command).apply();
+        boolean started=FaberOffline.speakBackground(this,answer,()->main.post(()->{
+            backgroundSpeaking=false;
+            if(running && enabled(this)){
+                paused=false;
+                consecutiveAudioErrors=0;
+                main.postDelayed(()->{
+                    if(running && !paused){
+                        state("Faber terminou. HOME voltou a ouvir Ei Home ou Ok Home.");
+                        beginListening();
+                    }
+                },1100L);
+            }
+        }));
+        if(!started){
+            backgroundSpeaking=false;
+            paused=false;
+            state("A Faber não pôde responder. Detector reativado.");
+            main.postDelayed(this::beginListening,1100L);
+        }
+    }
     private final Runnable pendingNotificationRecovery=()->{
         if(running && paused && !MainActivity.isInForeground()){
             paused=false;
@@ -55,7 +135,7 @@ public final class WakeWordService extends Service implements RecognitionListene
         nm.createNotificationChannel(new NotificationChannel("home_wake","HOME — Ativação por voz",NotificationManager.IMPORTANCE_LOW));
     }
     @Override public int onStartCommand(Intent intent,int flags,int startId) {
-        if(intent!=null && STOP.equals(intent.getAction())){stopSelf();return START_NOT_STICKY;}
+        if(intent!=null && STOP.equals(intent.getAction())){resetBackgroundState();stopSelf();return START_NOT_STICKY;}
         if(!enabled(this) || !getSharedPreferences("home",MODE_PRIVATE).getBoolean("notch_active",false)
             || checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED
             || !WakeModelInstaller.installed(this)) {
@@ -63,6 +143,7 @@ public final class WakeWordService extends Service implements RecognitionListene
             stopSelf();return START_NOT_STICKY;
         }
         if(intent!=null && PAUSE.equals(intent.getAction())){
+            resetBackgroundState();
             main.removeCallbacks(pendingNotificationRecovery);
             paused=true;
             closeAudio();
@@ -70,6 +151,8 @@ public final class WakeWordService extends Service implements RecognitionListene
             if(running)return START_NOT_STICKY;
         }
         if(intent!=null && RESUME.equals(intent.getAction()) && running){
+            if(backgroundSpeaking)return START_NOT_STICKY;
+            resetBackgroundState();
             main.removeCallbacks(pendingNotificationRecovery);
             consecutiveAudioErrors=0;
             paused=false;
@@ -179,6 +262,13 @@ public final class WakeWordService extends Service implements RecognitionListene
         try{text=normalize(new JSONObject(hypothesis).optString(partial?"partial":"text",""));}
         catch(Exception ignored){return;}
         if(text.isEmpty())return;
+        if(backgroundWaiting){
+            if(partial)return;
+            String suffixPending=activationSuffix(text,true);
+            String command=suffixPending==null?text:suffixPending;
+            if(!command.trim().isEmpty())replyBackground(command);
+            return;
+        }
         String suffix=activationSuffix(text,!partial);
         if(suffix==null){if(!partial)clearPartial();return;}
         long now=SystemClock.elapsedRealtime();
@@ -204,10 +294,14 @@ public final class WakeWordService extends Service implements RecognitionListene
     }
     private void activate(String command){
         lastWakeAt=SystemClock.elapsedRealtime();
-        paused=true;
-        closeAudio(); // libera o AudioRecord ANTES do microfone de conversa
         getSharedPreferences("home",MODE_PRIVATE).edit()
             .putLong("wake_last_recognized",System.currentTimeMillis()).apply();
+        if(!MainActivity.isInForeground() && backgroundVoiceEnabled()){
+            beginBackgroundConversation(command);
+            return;
+        }
+        paused=true;
+        closeAudio(); // libera o AudioRecord ANTES do microfone de conversa
         Intent open=new Intent(this,MainActivity.class)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_SINGLE_TOP|Intent.FLAG_ACTIVITY_CLEAR_TOP)
             .putExtra(EXTRA_QUERY,command);
@@ -266,6 +360,7 @@ public final class WakeWordService extends Service implements RecognitionListene
     @Override public void onTimeout(){} // modo sem timeout
     @Override public void onDestroy(){
         main.removeCallbacks(pendingNotificationRecovery);
+        resetBackgroundState();
         running=false;paused=true;
         closeAudio();
         if(model!=null){try{model.close();}catch(Exception ignored){}model=null;}
