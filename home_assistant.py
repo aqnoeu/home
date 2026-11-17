@@ -180,6 +180,7 @@ class AssistantPage(QWidget):
 
         self.home.voice.state.connect(self.on_voice_state)
         self.home.voice.command.connect(self.on_voice_command)
+        self.home.voice.chat_updated.connect(self.on_voice_chat_updated)
         for role, text in home.assistant_history[-50:]:
             self.add_bubble(role,text)
         if not home.assistant_history:
@@ -414,6 +415,9 @@ class AssistantPage(QWidget):
                 return
         self.status.setText("Ainda não há resposta para reproduzir.")
 
+    def on_voice_chat_updated(self):
+        QTimer.singleShot(0, self.load_chat_messages)
+
     def on_voice_command(self,phrase):
         # The voice manager persists the transcript immediately after emitting command.
         QTimer.singleShot(0, self.load_chat_messages)
@@ -438,5 +442,6 @@ class AssistantPage(QWidget):
             pass
         try:
             self.home.voice.command.disconnect(self.on_voice_command)
+            self.home.voice.chat_updated.disconnect(self.on_voice_chat_updated)
         except (TypeError,RuntimeError):
             pass
