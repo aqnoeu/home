@@ -75,3 +75,13 @@ Executar `python -m unittest discover -s tests` e validar a interface Windows co
 - A seleção no painel é uma escolha manual, mas estados operacionais prioritários (bateria/carregamento, voz e atualizações) ainda podem substituir temporariamente a aparência no notch real.
 - O visual continua estritamente **sem boca**, com detalhes gráficos opcionais laterais/abaixo dos olhos.
 - Verificar em aparelho físico: navegação de páginas, seleção persistente, retorno à tela, notch real, atualizações e voz, além de fontes e telas estreitas.
+
+
+## Galeria de teste do Windows — atualização de 17/11/2026
+
+- `home_expression_gallery.py` implementa a página **Expressões**, acessível pelo botão **⋯** do Hub ou pela navegação interna.
+- A galeria mostra uma prévia renderizada pelo `EyesWidget` original, seguida de botões em **duas linhas e três colunas**, com navegação **1/2** e **2/2**.
+- Os 12 nomes são os mesmos do Android, incluindo o Sonolento aprimorado e Lovabow.
+- Ao clicar, atualiza a prévia e apresenta a expressão no notch por 12 segundos, sem desabilitar o motor contextual de energia/voz.
+- A página utiliza os recursos vetoriais existentes e não altera o símbolo oficial da marca.
+- Validação automatizada de navegação Windows incluída no workflow de release conjunta; a verificação visual e a compilação precisam ser observadas no GitHub Actions e no dispositivo.
