@@ -51,16 +51,18 @@ public final class EyesView extends View {
         long stamped=prefs.getLong("wake_visual_at",0L);
         if(!prefs.getBoolean("wake_enabled",false) || System.currentTimeMillis()-stamped>120000L)
             voice="desligado";
-        boolean listening="ouvindo".equals(voice);
-        boolean commandListening="aguardando_comando".equals(voice);
+        boolean listening="aguardando_comando".equals(voice);
+        boolean commandListening=listening;
         boolean speaking="falando".equals(voice);
+        boolean armed="armado".equals(voice);
         int rgb=Color.rgb(242,248,255);
         float targetH=1f,targetW=1f;
         if(listening || commandListening){
             rgb=Color.rgb(45,255,90);targetH=1.13f;targetW=1.02f; // verde-neon, expressão feliz
         }else if(speaking){
             rgb=Color.WHITE;targetH=1f;targetW=1f; // fala da Faber: olhos brancos
-        }else if("raiva".equals(state)){rgb=Color.rgb(255,106,0);targetH=.83f;}
+        }else if(armed){rgb=Color.WHITE;targetH=1f;targetW=1f;}
+        else if("raiva".equals(state)){rgb=Color.rgb(255,106,0);targetH=.83f;}
         else if("sonolento".equals(state)){rgb=Color.rgb(142,175,207);targetH=.38f;}
         else if("tedio".equals(state)){rgb=Color.rgb(139,149,164);targetH=.78f;targetW=.78f;}
         else if("carregando".equals(state)){rgb=Color.rgb(0,196,106);}
