@@ -80,8 +80,8 @@ public final class EyesView extends View {
         String updateState=updatePrefs.getString("update_eyes_state","idle");
         long updateChangedAt=updatePrefs.getLong("update_eyes_changed_at",0L);
         long updateElapsed=System.currentTimeMillis()-updateChangedAt;
-        boolean updateDownloading="downloading".equals(updateState) && updateElapsed>=0 && updateElapsed<3600000L;
-        boolean updateComplete="complete".equals(updateState) && updateElapsed>=0 && updateElapsed<2600L;
+        boolean updateDownloading=!expressionPreview && "downloading".equals(updateState) && updateElapsed>=0 && updateElapsed<3600000L;
+        boolean updateComplete=!expressionPreview && "complete".equals(updateState) && updateElapsed>=0 && updateElapsed<2600L;
         boolean updateActive=!expressionPreview && (updateDownloading||updateComplete);
         float updateFraction=updateComplete?1f:
             Math.max(0f,Math.min(1f,updatePrefs.getInt("update_eyes_percent",0)/100f));
