@@ -224,8 +224,12 @@ public final class MainActivity extends Activity {
             resumeWake();return;
         }
         if(FaberOffline.isInstalled(this)){
+            WakeWordService.showSpeaking(this); // olhos brancos com pulsação e pontinhos
             FaberOffline.speak(this,answer,message->{
-                if(message.startsWith("✓ Faber reproduzida") || message.startsWith("Falha") || message.startsWith("Instale"))resumeWake();
+                if(message.startsWith("✓ Faber reproduzida") || message.startsWith("Falha") || message.startsWith("Instale")){
+                    WakeWordService.showProcessing(this);
+                    resumeWake();
+                }
             });
         }else{resumeWake();}
     }
