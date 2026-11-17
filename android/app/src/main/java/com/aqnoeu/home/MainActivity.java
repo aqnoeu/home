@@ -161,8 +161,13 @@ public final class MainActivity extends Activity {
         pauseWake();
         showPage("assistant");
         if(query.trim().isEmpty()){
+            // The system speech dialog is the active command capture; not the passive Vosk wake service.
+            WakeWordService.showCommandListening(this);
             statusMessage("Estou ouvindo. Pode falar.");
-            if(!HomeVoice.listen(this))resumeWake();
+            if(!HomeVoice.listen(this)){
+                WakeWordService.showProcessing(this);
+                resumeWake();
+            }
         }else{
             // Wake-word commands use the same offline command catalog as typed chat.
             if(handleLocalCommand(query,true))return;
@@ -1409,6 +1414,8 @@ public final class MainActivity extends Activity {
     }
     @Override protected void onActivityResult(int request,int resultCode,Intent data){
         super.onActivityResult(request,resultCode,data);
+        // Green eyes end immediately when the speech recognition dialog returns or is canceled.
+        if(request==HomeVoice.REQUEST_SPEECH)WakeWordService.showProcessing(this);
         if(request==HomeVoice.REQUEST_SPEECH && (resultCode!=RESULT_OK || data==null)){
             resumeWake();return;
         }
