@@ -6,12 +6,24 @@ class EmotionTests(unittest.TestCase):
         self.assertEqual(normalize_emotion("raiva"), "raiva")
         self.assertEqual(normalize_emotion("sonolento"), "sonolento")
         self.assertEqual(normalize_emotion("tdio"), "neutro")
+        for name in ("piscadela", "lovabow", "pensando", "surpreso",
+                     "desconfiado", "timido", "confuso", "travesso"):
+            with self.subTest(expression=name):
+                self.assertEqual(normalize_emotion(name), name)
+        self.assertEqual(normalize_emotion("beijo"), "neutro")
+        self.assertEqual(normalize_emotion(None), "neutro")
     def test_priority(self):
         state=ContextState(last_activity=1.,focused_window=7,focused_since=1.)
         state.note_conversation("raiva", now=1000.)
         self.assertEqual(state.choose(1003.,charging=True),"raiva")
         self.assertEqual(state.choose(1100.,charging=True),"carregando")
         self.assertEqual(state.choose(1401.,charging=False),"sonolento")
+    def test_new_expression_does_not_override_power_after_hold(self):
+        state=ContextState(last_activity=1.)
+        state.note_conversation("lovabow", now=100.)
+        self.assertEqual(state.choose(114., charging=True), "lovabow")
+        self.assertEqual(state.choose(115., charging=True), "carregando")
+
     def test_operational_statuses_without_intrusive_notifications(self):
         state=ContextState(last_activity=990.,focused_since=990.)
         self.assertEqual(state.choose(1000.,battery_low=True),"bateria_baixa")
