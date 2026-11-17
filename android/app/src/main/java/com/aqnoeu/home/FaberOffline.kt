@@ -254,4 +254,82 @@ object FaberOffline {
             }
         }.start()
     }
+    /**
+     * Faber audio without an Activity. Used only inside an already-running
+     * opt-in microphone foreground service; never launches a background UI.
+     * Always calls finished so the wake detector can safely re-arm.
+     */
+    @JvmStatic fun speakBackground(context: Context, text: String, finished: Runnable): Boolean {
+        if(!isInstalled(context) || !talking.compareAndSet(false,true)) return false
+        val app=context.applicationContext
+        Thread {
+            try {
+                val root=folder(app)
+                val vits=OfflineTtsVitsModelConfig(
+                    model=File(root,"pt_BR-faber-medium.onnx").absolutePath,
+                    tokens=File(root,"tokens.txt").absolutePath,
+                    dataDir=File(root,"espeak-ng-data").absolutePath
+                )
+                var tts=cachedTts
+                if(tts==null) {
+                    tts=OfflineTts(config=OfflineTtsConfig(
+                        model=OfflineTtsModelConfig(vits=vits,numThreads=2,debug=false)))
+                    cachedTts=tts
+                }
+                stage="Sintetizando resposta em segundo plano"
+                val generated=tts.generate(text.take(500),sid=0,speed=1.0f)
+                val samples=generated.samples
+                val sampleRate=generated.sampleRate
+                if(samples.isEmpty() || sampleRate<=0) error("Faber não produziu áudio")
+                val minBuffer=AudioTrack.getMinBufferSize(sampleRate,
+                    AudioFormat.CHANNEL_OUT_MONO,AudioFormat.ENCODING_PCM_16BIT)
+                if(minBuffer<=0) error("Saída de áudio incompatível")
+                val player=AudioTrack.Builder()
+                    .setAudioAttributes(AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
+                    .setAudioFormat(AudioFormat.Builder().setSampleRate(sampleRate)
+                        .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT).build())
+                    .setBufferSizeInBytes(maxOf(minBuffer,32768))
+                    .setTransferMode(AudioTrack.MODE_STREAM).build()
+                try {
+                    player.play()
+                    val chunk=ShortArray(8192)
+                    var offset=0
+                    while(offset<samples.size){
+                        val count=minOf(chunk.size,samples.size-offset)
+                        for(i in 0 until count)
+                            chunk[i]=(samples[offset+i].coerceIn(-1f,1f)*32767f).toInt().toShort()
+                        var written=0
+                        while(written<count){
+                            val n=player.write(chunk,written,count-written,AudioTrack.WRITE_BLOCKING)
+                            if(n<=0)error("Falha ao tocar áudio")
+                            written+=n
+                        }
+                        offset+=count
+                    }
+                    val deadline=System.currentTimeMillis()+
+                        (samples.size*1000L/sampleRate).coerceAtMost(90000L)+3000L
+                    while(player.playbackHeadPosition.toLong()<samples.size.toLong() &&
+                        System.currentTimeMillis()<deadline)Thread.sleep(50)
+                } finally {
+                    try { player.stop() } catch (_:Exception) {}
+                    player.release()
+                }
+                stage="Resposta Faber concluída em segundo plano"
+            } catch(e:Throwable) {
+                Log.e("HomeFaber","Resposta em segundo plano falhou",e)
+                lastProblem=(e.javaClass.simpleName+": "+(e.message?:"")).take(300)
+                val broken=cachedTts
+                cachedTts=null
+                try{broken?.release()}catch(_:Throwable){}
+            } finally {
+                talking.set(false)
+                finished.run()
+            }
+        }.start()
+        return true
+    }
+
 }

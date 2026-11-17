@@ -46,20 +46,37 @@ public final class EyesView extends View {
         boolean animated=motionEnabled();
         float smoothing=animated?1f-(float)Math.exp(-dt/0.23):1f;
         String state=HomeEmotion.current(getContext());
+        android.content.SharedPreferences prefs=getContext().getSharedPreferences("home",Context.MODE_PRIVATE);
+        String voice=prefs.getString("wake_visual_state","desligado");
+        long stamped=prefs.getLong("wake_visual_at",0L);
+        if(!prefs.getBoolean("wake_enabled",false) || System.currentTimeMillis()-stamped>120000L)
+            voice="desligado";
+        boolean listening="ouvindo".equals(voice);
+        boolean commandListening="aguardando_comando".equals(voice);
+        boolean speaking="falando".equals(voice);
         int rgb=Color.rgb(242,248,255);
         float targetH=1f,targetW=1f;
-        if("raiva".equals(state)){rgb=Color.rgb(255,106,0);targetH=.83f;}
+        if(listening || commandListening){
+            rgb=Color.rgb(45,255,90);targetH=1.13f;targetW=1.02f; // verde-neon, expressão feliz
+        }else if(speaking){
+            rgb=Color.WHITE;targetH=1f;targetW=1f; // fala da Faber: olhos brancos
+        }else if("raiva".equals(state)){rgb=Color.rgb(255,106,0);targetH=.83f;}
         else if("sonolento".equals(state)){rgb=Color.rgb(142,175,207);targetH=.38f;}
         else if("tedio".equals(state)){rgb=Color.rgb(139,149,164);targetH=.78f;targetW=.78f;}
         else if("carregando".equals(state)){rgb=Color.rgb(0,196,106);}
         else if("bateria_baixa".equals(state)){rgb=Color.rgb(242,164,68);targetH=.86f;}
         else if("economia".equals(state)){rgb=Color.rgb(147,184,219);targetH=.72f;}
-        colorR=lerp(colorR,Color.red(rgb),smoothing);
-        colorG=lerp(colorG,Color.green(rgb),smoothing);
-        colorB=lerp(colorB,Color.blue(rgb),smoothing);
+        // Escuta/fala são sinais imediatos, não transições suaves.
+        float voiceSmoothing=(listening || commandListening || speaking)?1f:smoothing;
+        colorR=lerp(colorR,Color.red(rgb),voiceSmoothing);
+        colorG=lerp(colorG,Color.green(rgb),voiceSmoothing);
+        colorB=lerp(colorB,Color.blue(rgb),voiceSmoothing);
         eyeHeight=lerp(eyeHeight,targetH,smoothing);
         eyeWidth=lerp(eyeWidth,targetW,smoothing);
-        if(now>nextLook){
+        if(listening || commandListening){
+            targetGaze=0f;
+            nextLook=now+500L;
+        }else if(now>nextLook){
             targetGaze="tedio".equals(state)?(random.nextBoolean()?.35f:-.35f):
                 (random.nextFloat()-.5f)*.65f;
             nextLook=now+("tedio".equals(state)?6000:3500)+random.nextInt(2100);
@@ -74,7 +91,10 @@ public final class EyesView extends View {
         }
         float width=getWidth(),height=getHeight();
         float ew=Math.min(dp(13),width*.12f)*eyeWidth;
-        float eh=Math.max(dp(3),Math.min(dp(21),height*.68f)*eyeHeight*blink);
+        // Só durante a resposta falada: pulso suave dos olhos brancos.
+        float speakingPulse=speaking&&animated
+            ?(0.91f+0.09f*(float)Math.sin(now/210.0)):1f;
+        float eh=Math.max(dp(3),Math.min(dp(21),height*.68f)*eyeHeight*blink*speakingPulse);
         float gap=Math.min(dp(eyeGapDp),Math.max(0,width-2*ew-dp(8)));
         float left=(width-2*ew-gap)/2f+gaze*dp(6);
         int eyeColor=Color.rgb(Math.min(255,(int)colorR),Math.min(255,(int)colorG),Math.min(255,(int)colorB));
@@ -99,14 +119,27 @@ public final class EyesView extends View {
                 paint.setColor(Color.rgb(11,17,26));
                 canvas.drawPath(lid,paint);
                 paint.setColor(eyeColor);
-            }else if(mood==1&&"neutro".equals(state)&&eh>=dp(9)){
+            }else if(((listening || commandListening) || (mood==1&&"neutro".equals(state)))&&eh>=dp(9)){
                 paint.setColor(Color.rgb(11,17,26));
                 canvas.drawOval(new RectF(x-ew*.15f,y+eh*.54f,x+ew*1.16f,y+eh*1.36f),paint);
                 paint.setColor(eyeColor);
             }
         }
+        // Pontinhos acompanham exclusivamente a fala, nunca a escuta verde-neon.
+        if(speaking){
+            paint.setColor(Color.WHITE);
+            paint.setAlpha(255);
+            float center=width/2f;
+            float baseline=Math.min(height-dp(2.0f),height/2f+eh/2f+dp(3.0f));
+            float radius=dp(1.3f);
+            for(int i=0;i<3;i++){
+                float phase=(float)(now/205.0-i*0.85);
+                float lift=animated?dp(1.6f)*Math.max(0f,(float)Math.sin(phase)):0f;
+                canvas.drawCircle(center+(i-1)*dp(4f),baseline-lift,radius,paint);
+            }
+        }
         // Scale sleepy marks to the compact notch too.
-        if("sonolento".equals(state)&&height>=dp(20)){
+        if(!listening && !commandListening && !speaking && "sonolento".equals(state)&&height>=dp(20)){
             paint.setColor(Color.rgb(142,175,207));
             float scale=Math.max(.54f,Math.min(1f,height/dp(70)));
             float lift=animated?((now%3000L)/3000f)*dp(9)*scale:0;
