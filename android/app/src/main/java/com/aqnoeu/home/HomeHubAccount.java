@@ -120,7 +120,7 @@ public final class HomeHubAccount {
         con.setRequestMethod("POST");con.setConnectTimeout(10000);con.setReadTimeout(15000);
         con.setRequestProperty("apikey",publicKey);con.setRequestProperty("Authorization","Bearer "+access);
         con.setRequestProperty("Content-Type","application/json");
-        if(upsert)con.setRequestProperty("Prefer","resolution=merge-duplicates");
+        if(upsert)con.setRequestProperty("Prefer",path.startsWith("homehub_messages")?"resolution=ignore-duplicates":"resolution=merge-duplicates");
         con.setDoOutput(true);try(OutputStream out=con.getOutputStream()){out.write(body.toString().getBytes(StandardCharsets.UTF_8));}
         int code=con.getResponseCode();if(code>=400)throw new IllegalStateException("Falha de sincronização: HTTP "+code);
         con.disconnect();return body;
