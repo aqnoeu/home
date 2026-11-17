@@ -63,6 +63,24 @@ jobs:
         run: python -m pip install --upgrade -r requirements.txt pyinstaller pillow
       - name: Verificar sintaxe de todos os módulos Windows
         run: python -m compileall -q home_device.py home_groq_client.py home.py home_ui.py home_navigation.py home_assistant.py home_integrations.py home_voice.py home_voice_profile.py home_account.py home_faber.py home_groq.py home_emotions.py home_expression_gallery.py home_eyes.py home_chat_store.py updater.py update_service.py
+      - name: Validar componentes de voz e expressoes da release
+        shell: pwsh
+        run: |
+          @'
+          from pathlib import Path
+          from home_expression_gallery import EXPRESSIONS
+          assert len(EXPRESSIONS) == 12, "As 12 expressoes nao chegaram ao pacote Windows"
+          source=Path("home_voice.py").read_text(encoding="utf-8")
+          assert "roumi" in source and "wake_command" in source, "Ativacao por voz Windows ausente"
+          android=Path("android/app/src/main/java/com/aqnoeu/home")
+          wake=(android/"WakePhrases.java").read_text(encoding="utf-8")
+          eyes=(android/"EyesView.java").read_text(encoding="utf-8")
+          activity=(android/"MainActivity.java").read_text(encoding="utf-8")
+          assert "roumi" in wake and "bareSuffix" in wake, "Voz Android incompleta"
+          assert "EXPRESSION_LABELS" in eyes and "lovabow" in eyes, "Olhos Android incompletos"
+          assert activity.count("addExpressionPicker(face,eyes,prefs)") == 2, "Galerias Android incompletas"
+          print("OK: voz Android/Windows e 12 expressoes presentes")
+          '@ | python
       - name: Testar chat, credenciais, voz e Groq simulada
         run: python -m unittest discover -s tests -v
       - name: Testar interface Windows sem display físico
@@ -113,7 +131,7 @@ jobs:
       - name: Compilar Home e atualizador
         shell: pwsh
         run: |
-          pyinstaller --noconfirm --clean --onefile --windowed --collect-all vosk --collect-binaries sounddevice --hidden-import sounddevice --collect-all sherpa_onnx --collect-all keyring --add-data "assets/home_icon_approved.png;assets" --icon assets/home_icon.ico --name Home home.py
+          pyinstaller --noconfirm --clean --onefile --windowed --collect-all vosk --collect-binaries sounddevice --hidden-import sounddevice --collect-all sherpa_onnx --collect-all keyring --hidden-import home_expression_gallery --add-data "assets/home_icon_approved.png;assets" --icon assets/home_icon.ico --name Home home.py
           if ($LASTEXITCODE -ne 0) { throw "Compilação Windows falhou" }
           pyinstaller --noconfirm --clean --onefile --windowed --name HomeUpdater updater.py
           if ($LASTEXITCODE -ne 0) { throw "Atualizador Windows falhou" }
