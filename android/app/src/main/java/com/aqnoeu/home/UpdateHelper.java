@@ -27,6 +27,15 @@ public final class UpdateHelper {
     private static final long MAX_APK = 256L * 1024 * 1024;
     private UpdateHelper() {}
 
+    /** Persisted only for the notch animation; values follow actual downloaded bytes. */
+    private static void updateEyes(Activity activity, String state, int percent) {
+        activity.getSharedPreferences("home",Activity.MODE_PRIVATE).edit()
+            .putString("update_eyes_state",state)
+            .putInt("update_eyes_percent",Math.max(0,Math.min(100,percent)))
+            .putLong("update_eyes_changed_at",System.currentTimeMillis())
+            .apply();
+    }
+
     public static void check(Activity activity, TextView status) {
         status.setText("Consultando atualizações oficiais do Home Android...");
         new Thread(() -> {
@@ -82,7 +91,8 @@ public final class UpdateHelper {
     }
 
     private static void download(Activity activity, TextView status, String url, String digest, long size) {
-        status.setText("Baixando atualização do Home...");
+        status.setText("Baixando atualização do Home... 0%");
+        updateEyes(activity,"downloading",0);
         new Thread(() -> {
             File output = new File(activity.getCacheDir(), "home_update.apk");
             try {
@@ -98,6 +108,7 @@ public final class UpdateHelper {
                     if (c.getResponseCode() != 200) throw new IOException("Download HTTP " + c.getResponseCode());
                     MessageDigest md = MessageDigest.getInstance("SHA-256");
                     long total = 0;
+                    int lastPercent=-1;
                     try (InputStream stream = c.getInputStream(); FileOutputStream out = new FileOutputStream(output)) {
                         byte[] buffer = new byte[65536];
                         int n;
@@ -106,12 +117,23 @@ public final class UpdateHelper {
                             total += n;
                             if (total > MAX_APK || total > size) throw new IOException("APK excedeu o tamanho anunciado");
                             out.write(buffer, 0, n); md.update(buffer, 0, n);
+                            // Hold at 99 until the checksum has been verified.
+                            int percent=(int)Math.min(99L,total*100L/size);
+                            if(percent!=lastPercent){
+                                lastPercent=percent;
+                                updateEyes(activity,"downloading",percent);
+                                if(percent%5==0 || percent==99){
+                                    final int shown=percent;
+                                    ui(activity,()->status.setText("Baixando atualização do Home... "+shown+"%"));
+                                }
+                            }
                         }
                     }
                     if (total != size) throw new IOException("Download incompleto");
                     StringBuilder actual = new StringBuilder();
                     for (byte b : md.digest()) actual.append(String.format(Locale.ROOT, "%02x", b & 0xff));
                     if (!actual.toString().equals(digest)) throw new IOException("Falha na integridade SHA-256");
+                    updateEyes(activity,"complete",100);
                 } finally { c.disconnect(); }
                 ui(activity, () -> {
                     status.setText("Download verificado. Confirme a instalação no Android.");
@@ -129,6 +151,7 @@ public final class UpdateHelper {
                     } catch (Exception e) { status.setText("Não foi possível abrir o instalador: " + e.getMessage()); }
                 });
             } catch (Exception e) {
+                updateEyes(activity,"idle",0);
                 output.delete();
                 ui(activity, () -> status.setText("Download cancelado: " + e.getMessage()));
             }

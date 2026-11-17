@@ -35,8 +35,23 @@ class AndroidWakeSleepTest(unittest.TestCase):
         self.assertIn('verde-neon, expressão feliz',eyes)
         self.assertNotIn('paint.setColor(commandListening?',eyes)
         self.assertIn('float speakingPulse=speaking&&animated',eyes)
-        self.assertIn('if(speaking){',eyes)
+        self.assertIn('if(speaking && !updateActive){',eyes)
         self.assertIn('i<3',eyes)
+
+    def test_download_eyes_use_verified_real_progress_and_single_wink(self):
+        updater=(SRC/"UpdateHelper.java").read_text(encoding="utf-8")
+        eyes=(SRC/"EyesView.java").read_text(encoding="utf-8")
+        self.assertIn('total*100L/size',updater)
+        self.assertIn('Math.min(99L',updater)
+        self.assertIn('if (!actual.toString().equals(digest))',updater)
+        self.assertIn('updateEyes(activity,"complete",100)',updater)
+        self.assertIn('updateEyes(activity,"idle",0)',updater)
+        self.assertIn('update_eyes_percent',eyes)
+        self.assertIn('Color.rgb(139,149,164)',eyes)
+        self.assertIn('paint.setColor(Color.WHITE)',eyes)
+        self.assertIn('mask.addRoundRect(eyeBounds',eyes)
+        self.assertIn('if(updateComplete && i==1',eyes)
+        self.assertIn('updateElapsed<1500L',eyes)
 
     def test_background_faber_opt_in_and_recovery(self):
         wake=(SRC/"WakeWordService.java").read_text(encoding="utf-8")
