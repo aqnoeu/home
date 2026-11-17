@@ -238,8 +238,8 @@ jobs:
             dist/android/Home-Android.apk \
             dist/android/Home-Android.sha256 \
             --repo "$GITHUB_REPOSITORY" \
-            --title "HOME v$HOME_RELEASE_VERSION — Windows e Android" \
-            --notes "HOME completo para Windows e Android, com motor de voz offline e as funcionalidades recentes. No Android, instale primeiro a versão ponte 2.0.8 para atualizar o limite de tamanho; o APK completo conserva as verificações SHA-256 e assinatura." \
+            --title "HOME v$HOME_RELEASE_VERSION — Versão corrigida (Windows e Android)" \
+            --notes "Versão corrigida: cadastro de voz em Configurações > Voz / IA; testes de chamada e função; sincronização opcional pela Conta HOME; correção dos olhos no download e da piscada; regressões de Windows e Android. APK completo assinado, SHA-256 verificado e atualização instalada por cima da versão anterior. Código-fonte: $GITHUB_SHA." \
             --target "$GITHUB_SHA"
       - name: Publicar ponte de atualização para Android 0.1.x
         env:
