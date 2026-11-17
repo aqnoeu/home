@@ -82,6 +82,28 @@ public final class VoiceEnrollment {
         }catch(Exception ignored){}
         return null;
     }
+    /** Account backup contains reviewed text only; never raw audio or Android credentials. */
+    public static JSONObject cloudPayload(Context ctx)throws Exception{
+        JSONObject payload=new JSONObject();
+        payload.put("step",step(ctx));
+        payload.put("corrections",corrections(ctx));
+        payload.put("aliases",new JSONArray(p(ctx).getString("aliases","[]")));
+        return payload;
+    }
+    public static void importCloud(Context ctx,JSONObject payload)throws Exception{
+        if(payload==null)return;
+        SharedPreferences.Editor editor=p(ctx).edit();
+        editor.putInt("step",Math.max(0,Math.min(count(),payload.optInt("step",0))));
+        editor.putBoolean("corrections",payload.optBoolean("corrections",true));
+        JSONArray trusted=new JSONArray();
+        JSONArray input=payload.optJSONArray("aliases");
+        if(input!=null)for(int i=0;i<Math.min(15,input.length());i++){
+            String v=normalize(input.optString(i));
+            if(v.length()>=5 && v.length()<=28 && v.split(" ").length<=3 && !v.equals("home"))
+                trusted.put(v);
+        }
+        editor.putString("aliases",trusted.toString()).apply();
+    }
     public static String summary(Context ctx){
         int done=step(ctx);
         return done==count()?"Cadastro concluído: "+done+" de "+count()+" testes."
