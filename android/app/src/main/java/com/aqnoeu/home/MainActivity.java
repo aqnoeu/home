@@ -822,37 +822,10 @@ public final class MainActivity extends Activity {
     }
     private boolean handleLocalCommand(String query){return handleLocalCommand(query,false);}
     private boolean handleLocalCommand(String query,boolean speak){
-        String q=query==null?"":query.trim().toLowerCase(java.util.Locale.ROOT);
-        String normalized=java.text.Normalizer.normalize(q,java.text.Normalizer.Form.NFD)
-            .replaceAll("\\p{M}+","");
-        String answer=null;
-        String setting=null;
-        if(normalized.matches(".*\\b(que horas|quantas horas|qual a hora|qual e a hora|horario atual|qual o horario|me diga as horas|me diz as horas|me fale as horas|diga as horas|sao que horas)\\b.*")
-            || normalized.matches("^(horas|hora|horario|as horas|me diga a hora|me diz a hora|me fale a hora)[?!. ]*$")){
-            answer="Agora são "+new java.text.SimpleDateFormat("HH:mm",
-                new java.util.Locale("pt","BR")).format(new Date())+".";
-        }else if(normalized.matches(".*\\b(que dia e hoje|qual a data|data de hoje|dia de hoje)\\b.*")){
-            answer="Hoje é "+new java.text.SimpleDateFormat("dd/MM/yyyy",
-                new java.util.Locale("pt","BR")).format(new Date())+".";
-        }else if(normalized.matches(".*\\b(bateria|nivel da bateria|carga do celular)\\b.*")){
-            answer=DeviceHub.battery(this);
-        }else if(normalized.matches(".*\\b(rede|internet|conexao wi-?fi|sinal wi-?fi)\\b.*")){
-            answer=DeviceHub.network(this);
-        }else if(normalized.matches(".*\\b(memoria ram|ram disponivel|uso da memoria)\\b.*")){
-            answer=DeviceHub.memory(this);
-        }else if(normalized.matches(".*\\b(armazenamento|espaco livre|espaco no celular)\\b.*")){
-            answer=DeviceHub.storage();
-        }else if(normalized.matches(".*\\b(volume atual|volume da midia|nivel do volume)\\b.*")){
-            answer=DeviceHub.audio(this);
-        }else if(normalized.matches(".*\\b(bluetooth esta|estado do bluetooth|status do bluetooth)\\b.*")){
-            answer=DeviceHub.bluetooth(this);
-        }else if(normalized.matches("^(abra|abrir|abre|mostrar|mostre)\\s+(as\\s+)?(configuracoes\\s+(do|de)\\s+)?(wi-?fi|wifi).*")){
-            answer="Abrindo as configurações de Wi-Fi.";
-            setting=Settings.ACTION_WIFI_SETTINGS;
-        }else if(normalized.matches("^(abra|abrir|abre|mostrar|mostre)\\s+(as\\s+)?(configuracoes\\s+(do|de)\\s+)?bluetooth.*")){
-            answer="Abrindo as configurações de Bluetooth.";
-            setting=Settings.ACTION_BLUETOOTH_SETTINGS;
-        }else return false;
+        HomeLocalCommands.Result result=HomeLocalCommands.resolve(this,query);
+        if(result==null)return false;
+        String answer=result.answer;
+        String setting=result.setting;
         try{
             HomeChatStore store=HomeChatStore.get(this);
             store.add("user",query);
