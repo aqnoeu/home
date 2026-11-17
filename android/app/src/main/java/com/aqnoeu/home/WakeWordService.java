@@ -29,6 +29,9 @@ public final class WakeWordService extends Service implements RecognitionListene
     private SpeechService audio;
     private boolean running,paused,loading;
     private long lastWakeAt;
+    private String partialCandidate="";
+    private int partialCount;
+    private long partialSince;
 
     public static boolean enabled(Context context) {
         return context.getSharedPreferences("home",MODE_PRIVATE).getBoolean("wake_enabled",false);
@@ -57,6 +60,7 @@ public final class WakeWordService extends Service implements RecognitionListene
         }
         if(intent!=null && RESUME.equals(intent.getAction()) && running){
             paused=false;
+            clearPartial();
             beginListening();
             return START_NOT_STICKY;
         }
@@ -108,7 +112,7 @@ public final class WakeWordService extends Service implements RecognitionListene
             recognizer=new Recognizer(model,16000.0f);
             audio=new SpeechService(recognizer,16000.0f);
             if(!audio.startListening(this))throw new IllegalStateException("Não foi possível iniciar a escuta.");
-            state("Aguardando Ei Home ou Ok Home (offline).");
+            state("Detector offline ouvindo. Diga Ei Home, Ok Home ou Home.");
         }catch(Exception ex){
             state("Falha no microfone offline: "+ex.getClass().getSimpleName());
             closeAudio();stopSelf();
@@ -130,42 +134,93 @@ public final class WakeWordService extends Service implements RecognitionListene
         return Normalizer.normalize(input.toLowerCase(new Locale("pt","BR")),Normalizer.Form.NFD)
             .replaceAll("\\p{M}+","").replaceAll("[^a-z0-9 ]+"," ").replaceAll("\\s+"," ").trim();
     }
-    private void detect(String hypothesis){
+    /** Reconhece apenas frases de ativação, inclusive variantes ditadas com HOME antes da saudação. */
+    static String activationSuffix(String phrase,boolean finalOnly){
+        String text=phrase.trim();
+        String[] prefix={"ei home","ok home","hey home","oi home","ei romi","ei rome",
+            "ok romi","ok rome","o que home","home ok home","home ei home","home","home home"};
+        for(String value:prefix){
+            if(value.equals("home") && !finalOnly)continue; // "Home" isolado exige resultado final
+            if(text.equals(value))return "";
+            if(text.startsWith(value+" "))return text.substring(value.length()).trim();
+        }
+        return null;
+    }
+    private void clearPartial(){
+        partialCandidate="";
+        partialCount=0;
+        partialSince=0;
+    }
+    private void detect(String hypothesis,boolean partial){
         if(!running || paused || hypothesis==null)return;
         String text;
-        try{text=normalize(new JSONObject(hypothesis).optString("text",""));}
+        try{text=normalize(new JSONObject(hypothesis).optString(partial?"partial":"text",""));}
         catch(Exception ignored){return;}
         if(text.isEmpty())return;
-        String[] triggers={"ei home","ok home","hey home","oi home","ei romi","ei rome","ok romi","ok rome","o que home"};
-        int end=-1;
-        for(String trigger:triggers){
-            if(text.equals(trigger) || text.startsWith(trigger+" ")){end=trigger.length();break;}
+        String suffix=activationSuffix(text,!partial);
+        if(suffix==null){if(!partial)clearPartial();return;}
+        long now=SystemClock.elapsedRealtime();
+        if(now-lastWakeAt<4000)return;
+        if(partial){
+            // Requer 3 confirmações estáveis em pelo menos 200 ms; nunca usa texto incompleto como comando.
+            String matched=text.contains("home ok home")?"home ok home":
+                text.contains("home ei home")?"home ei home":
+                text.startsWith("ei home")?"ei home":
+                text.startsWith("ok home")?"ok home":
+                text.startsWith("hey home")?"hey home":
+                text.startsWith("oi home")?"oi home":
+                text.startsWith("o que home")?"o que home":text.startsWith("ei rom")?"ei rome":
+                text.startsWith("ok rom")?"ok rome":null;
+            if(matched==null)return;
+            if(!matched.equals(partialCandidate)){partialCandidate=matched;partialCount=1;partialSince=now;return;}
+            partialCount++;
+            if(partialCount<3 || now-partialSince<200)return;
+            suffix=""; // abrir reconhecimento completo, não reaproveitar hipótese parcial
         }
-        if(end<0 || SystemClock.elapsedRealtime()-lastWakeAt<4000)return;
+        clearPartial();
+        activate(suffix);
+    }
+    private void activate(String command){
         lastWakeAt=SystemClock.elapsedRealtime();
-        String command=text.substring(end).trim();
         paused=true;
         closeAudio(); // libera o AudioRecord ANTES do microfone de conversa
-        state("Ativado. Ouvindo seu comando.");
+        getSharedPreferences("home",MODE_PRIVATE).edit()
+            .putLong("wake_last_recognized",System.currentTimeMillis()).apply();
         Intent open=new Intent(this,MainActivity.class)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_SINGLE_TOP|Intent.FLAG_ACTIVITY_CLEAR_TOP)
             .putExtra(EXTRA_QUERY,command);
-        try{startActivity(open);}
-        catch(RuntimeException ex){
-            state("Toque na notificação HOME para abrir a conversa.");
-            PendingIntent pending=PendingIntent.getActivity(this,73,open,
-                PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
-            Notification note=new Notification.Builder(this,"home_wake")
-                .setContentTitle("HOME foi chamado")
-                .setContentText("Toque para conversar.")
-                .setSmallIcon(android.R.drawable.ic_btn_speak_now)
-                .setContentIntent(pending).setAutoCancel(true).build();
-            getSystemService(NotificationManager.class).notify(73,note);
+        if(MainActivity.isInForeground()){
+            try{
+                state("Ativação reconhecida. Abrindo microfone de conversa.");
+                startActivity(open);
+                return;
+            }catch(RuntimeException ex){
+                state("Reconhecido, mas o Android impediu a abertura automática.");
+            }
         }
+        // O Android limita iniciar Activity em segundo plano, mesmo com Foreground Service.
+        // Oferece notificação de alta prioridade que permite a transição por toque autorizado.
+        state("Home reconheceu a frase. Toque na notificação para conversar.");
+        PendingIntent tap=PendingIntent.getActivity(this,73,open,
+            PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
+        NotificationManager manager=getSystemService(NotificationManager.class);
+        manager.createNotificationChannel(new NotificationChannel(
+            "home_wake_detected_v2","HOME — Chamado por voz",NotificationManager.IMPORTANCE_HIGH));
+        Notification note=new Notification.Builder(this,"home_wake_detected_v2")
+            .setContentTitle("HOME ouviu você")
+            .setContentText("Toque para abrir a conversa.")
+            .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+            .setContentIntent(tap)
+            .setAutoCancel(true)
+            .setCategory(Notification.CATEGORY_MESSAGE)
+            .addAction(new Notification.Action.Builder(
+                android.R.drawable.ic_btn_speak_now,"Conversar",tap).build())
+            .build();
+        manager.notify(73,note);
     }
-    @Override public void onResult(String hypothesis){detect(hypothesis);}
-    @Override public void onPartialResult(String hypothesis){} // não ativar com hipóteses parciais instáveis
-    @Override public void onFinalResult(String hypothesis){detect(hypothesis);}
+    @Override public void onResult(String hypothesis){detect(hypothesis,false);}
+    @Override public void onPartialResult(String hypothesis){detect(hypothesis,true);}
+    @Override public void onFinalResult(String hypothesis){detect(hypothesis,false);}
     @Override public void onError(Exception error){
         if(!running || paused)return;
         state("Detector local interrompido: "+error.getClass().getSimpleName()+". Reative no HOME.");

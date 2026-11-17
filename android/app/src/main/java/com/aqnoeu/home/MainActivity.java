@@ -31,6 +31,10 @@ import java.util.Date;
  */
 public final class MainActivity extends Activity {
     private static final String DOWNLOAD = "https://github.com/aqnoeu/home/releases";
+    private static volatile boolean inForeground=false;
+    public static boolean isInForeground(){return inForeground;}
+    @Override protected void onResume(){super.onResume();inForeground=true;}
+    @Override protected void onPause(){inForeground=false;super.onPause();}
     private static final int BG = Color.rgb(11,17,26);           // #0B111A
     private static final int SURFACE = Color.rgb(20,29,42);
     private static final int RAISED = Color.rgb(29,40,56);
@@ -52,6 +56,7 @@ public final class MainActivity extends Activity {
     private String settingsTab = "Geral";
     private HomeHubAccount unifiedAccount;
     private static final int WAKE_PERMISSION_REQUEST = 721;
+    private static final int WAKE_NOTIFICATION_PERMISSION_REQUEST = 722;
     private boolean wakeBusy = false;
 
     private int dp(float n) {return Math.round(n*getResources().getDisplayMetrics().density);}
@@ -174,6 +179,13 @@ public final class MainActivity extends Activity {
         if(!getSharedPreferences("home",MODE_PRIVATE).getBoolean("notch_active",false)){
             statusMessage("Ative o Notch para iniciar a escuta.");return;
         }
+        if(Build.VERSION.SDK_INT>=33 &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED &&
+            !getSharedPreferences("home",MODE_PRIVATE).getBoolean("wake_notification_asked",false)){
+            getSharedPreferences("home",MODE_PRIVATE).edit().putBoolean("wake_notification_asked",true).apply();
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},WAKE_NOTIFICATION_PERMISSION_REQUEST);
+            return;
+        }
         if(!WakeModelInstaller.installed(this)){
             statusMessage("Instalando reconhecimento local pt-BR (~31 MB). O áudio permanecerá no aparelho.");
             WakeModelInstaller.install(this,(ok,message)->{
@@ -224,6 +236,11 @@ public final class MainActivity extends Activity {
         if(request==WAKE_PERMISSION_REQUEST){
             if(results.length>0 && results[0]==PackageManager.PERMISSION_GRANTED)startWake();
             else statusMessage("Permissão de microfone negada. Ei, Home não está ouvindo.");
+        }
+        if(request==WAKE_NOTIFICATION_PERMISSION_REQUEST){
+            startWake();
+            if(results.length==0 || results[0]!=PackageManager.PERMISSION_GRANTED)
+                statusMessage("Notificações bloqueadas: para conversar em segundo plano, talvez seja necessário abrir o HOME manualmente.");
         }
     }
     private void initScreen(String page,String subtitle){
@@ -1273,7 +1290,17 @@ public final class MainActivity extends Activity {
         action(wake,"Testar o microfone agora",false,()->{pauseWake();HomeVoice.listen(this);});
         TextView diag=note("Status: "+getSharedPreferences("home",MODE_PRIVATE).getString("wake_status","Ainda não iniciado."));
         add(wake,diag,6,8);
-        action(wake,"Verificar estado da escuta",false,()->diag.setText("Status: "+getSharedPreferences("home",MODE_PRIVATE).getString("wake_status","Ainda não iniciado.")));
+        action(wake,"Verificar estado da escuta",false,()->{
+            android.content.SharedPreferences wakePrefs=getSharedPreferences("home",MODE_PRIVATE);
+            long last=wakePrefs.getLong("wake_last_recognized",0);
+            String detected=last>0?new java.text.SimpleDateFormat("dd/MM HH:mm:ss",new java.util.Locale("pt","BR")).format(new java.util.Date(last)):"nenhuma ativação reconhecida";
+            diag.setText("Status: "+wakePrefs.getString("wake_status","Ainda não iniciado.")+"\\nÚltima ativação: "+detected);
+        });
+        action(wake,"Testar abertura da escuta",false,()->{
+            pauseWake();
+            statusMessage("Teste de conversa: vou abrir o reconhecimento de voz.");
+            HomeVoice.listen(this);
+        });
         add(wake,note("A ativação usa o modelo português offline. Enquanto ligada, a detecção mantém o microfone em uso, sem enviar áudio. O reconhecimento completo só abre após a frase. Ao desativar, a captura é encerrada."),3,0);
     }
     private void updatesPage(){
