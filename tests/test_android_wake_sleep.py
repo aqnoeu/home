@@ -74,6 +74,20 @@ class AndroidWakeSleepTest(unittest.TestCase):
         self.assertIn('wake_background_audio',activity)
         self.assertIn('fun speakBackground(context: Context',faber)
 
+    def test_background_voice_saves_dialog_before_notifying(self):
+        wake=(SRC/"WakeWordService.java").read_text(encoding="utf-8")
+        activity=(SRC/"MainActivity.java").read_text(encoding="utf-8")
+        self.assertIn('if(!MainActivity.isInForeground()){',wake)
+        self.assertIn('beginBackgroundConversation(command);',wake)
+        self.assertIn('store.addTo(session,"user",command);',wake)
+        self.assertIn('store.addTo(session,"assistant",answer);',wake)
+        self.assertIn('notifyBackgroundAnswer(command,answer);',wake)
+        self.assertIn('if(!backgroundVoiceEnabled()){',wake)
+        self.assertIn('private void resumeBackgroundListening()',wake)
+        self.assertIn('if("assistant".equals(currentPage))refreshChat();',activity)
+        # No longer notify just because the wake word was heard in background.
+        self.assertNotIn('if(!MainActivity.isInForeground() && backgroundVoiceEnabled())',wake)
+
     def test_offline_vosk_activation_with_stable_partial_confirmation(self):
         wake = (SRC / "WakeWordService.java").read_text(encoding="utf-8")
         self.assertIn("import org.vosk.Model;", wake)
