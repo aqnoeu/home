@@ -115,7 +115,7 @@ public final class HomeHubAccount {
         // Upsert with one account-scoped client ID, preserving independent device records.
         postRest("home_devices?on_conflict=user_id,client_id",device,true);
     }
-    private JSONObject postRest(String path,JSONObject body,boolean upsert)throws Exception{
+    private JSONObject postRest(String path,Object body,boolean upsert)throws Exception{
         HttpURLConnection con=(HttpURLConnection)new URL(endpoint+"/rest/v1/"+path).openConnection();
         con.setRequestMethod("POST");con.setConnectTimeout(10000);con.setReadTimeout(15000);
         con.setRequestProperty("apikey",publicKey);con.setRequestProperty("Authorization","Bearer "+access);
@@ -148,4 +148,43 @@ public final class HomeHubAccount {
             java.net.URLEncoder.encode(chatId,"UTF-8")+"&order=created_at.asc&limit=100",
             "GET",null,access,publicKey).optJSONArray("rows");
     }
+    /** Upload on explicit user request. Deterministic message IDs make retries idempotent. */
+    public synchronized int uploadLocalChats(HomeChatStore local)throws Exception{
+        if(!connected())throw new IllegalStateException("Entre na conta HOME.");
+        if(!preferences().optBoolean("sync_chats",false))
+            throw new IllegalStateException("Ative e salve a sincronização de conversas antes de enviar seu histórico.");
+        java.util.List<JSONObject> conversations=local.conversations();
+        JSONArray chats=new JSONArray(),messages=new JSONArray();
+        int count=0;
+        for(JSONObject c:conversations){
+            String id=c.optString("id");
+            try{UUID.fromString(id);}catch(Exception ignored){continue;}
+            chats.put(new JSONObject().put("id",id).put("user_id",userId)
+                .put("title",c.optString("title","Conversa").substring(0,
+                    Math.min(120,c.optString("title","Conversa").length()))).put("model","auto"));
+            JSONArray items=c.optJSONArray("messages");
+            if(items==null)continue;
+            for(int i=0;i<items.length();i++){
+                JSONObject m=items.optJSONObject(i);
+                if(m==null)continue;
+                String role=m.optString("role");
+                if(!"user".equals(role)&&!"assistant".equals(role))continue;
+                String content=m.optString("text","").trim();
+                if(content.isEmpty())continue;
+                String mid=UUID.nameUUIDFromBytes(("home-mobile:"+id+":"+i).getBytes(StandardCharsets.UTF_8)).toString();
+                messages.put(new JSONObject().put("id",mid).put("chat_id",id).put("user_id",userId)
+                    .put("role",role).put("content",content));
+                count++;
+            }
+        }
+        if(chats.length()>0)postRest("homehub_chats?on_conflict=id",chats,true);
+        // Chunking avoids oversized Data API requests on phones with long histories.
+        for(int start=0;start<messages.length();start+=80){
+            JSONArray batch=new JSONArray();
+            for(int i=start;i<Math.min(messages.length(),start+80);i++)batch.put(messages.get(i));
+            postRest("homehub_messages?on_conflict=id",batch,true);
+        }
+        return count;
+    }
+
 }
