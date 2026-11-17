@@ -123,7 +123,7 @@ public final class HomeHubAccount {
         if(upsert)con.setRequestProperty("Prefer",path.startsWith("homehub_messages")?"resolution=ignore-duplicates":"resolution=merge-duplicates");
         con.setDoOutput(true);try(OutputStream out=con.getOutputStream()){out.write(body.toString().getBytes(StandardCharsets.UTF_8));}
         int code=con.getResponseCode();if(code>=400)throw new IllegalStateException("Falha de sincronização: HTTP "+code);
-        con.disconnect();return body;
+        con.disconnect();return new JSONObject();
     }
     public synchronized JSONObject preferences()throws Exception{
         if(!connected())return new JSONObject();
