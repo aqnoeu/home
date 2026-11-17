@@ -99,6 +99,7 @@ public final class MainActivity extends Activity {
         String query=intent.getStringExtra(WakeWordService.EXTRA_QUERY);
         intent.removeExtra(WakeWordService.EXTRA_QUERY);
         if(query==null)return;
+        try{getSystemService(android.app.NotificationManager.class).cancel(73);}catch(Exception ignored){}
         wakeBusy=true;
         pauseWake();
         showPage("assistant");
@@ -1188,9 +1189,13 @@ public final class MainActivity extends Activity {
     }
     private void askHome(String question,TextView response){
         if(!HomeGroq.connected(this)){
-            if(response!=null)response.setText("Conecte a Groq na seção Assistente para fazer perguntas.");
-            else statusMessage("Conecte a Groq na seção Assistente.");
-            resumeWake();
+            if(response!=null){
+                response.setText("Conecte a Groq na seção Assistente para fazer perguntas.");
+                resumeWake();
+            }else{
+                // Pergunta por voz: mostra o aviso na própria conversa em vez de só na barra de status.
+                reportVoiceFailure(question,"Conecte a Groq na seção Assistente para eu responder perguntas por voz.");
+            }
             return;
         }
         HomeGroq.ask(this,question,new HomeGroq.Callback(){
