@@ -44,11 +44,21 @@ public final class WakeWordService extends Service implements RecognitionListene
         }
     };
     private boolean backgroundWaiting, backgroundSpeaking;
+    private String pendingCommand="";
+    private final Runnable completePendingCommand=()->{
+        if(!backgroundWaiting || paused || backgroundSpeaking)return;
+        String command=pendingCommand.trim();
+        if(command.isEmpty())return;
+        pendingCommand="";
+        replyBackground(command);
+    };
     private final Runnable backgroundCommandTimeout=()->{
         if(backgroundWaiting && running && !paused){
             backgroundWaiting=false;
-            visualState("ouvindo");
-            state("Nenhum comando ouvido. HOME voltou a escutar a palavra de ativação.");
+            pendingCommand="";
+            main.removeCallbacks(completePendingCommand);
+            visualState("armado");
+            state("Nenhum comando ouvido. HOME voltou a aguardar Ei Home.");
         }
     };
     private boolean backgroundVoiceEnabled(){
@@ -58,7 +68,25 @@ public final class WakeWordService extends Service implements RecognitionListene
     private void resetBackgroundState(){
         backgroundWaiting=false;
         backgroundSpeaking=false;
+        pendingCommand="";
         main.removeCallbacks(backgroundCommandTimeout);
+        main.removeCallbacks(completePendingCommand);
+    }
+    /** Capture the speech after the wake phrase from final OR stable partial Vosk text. */
+    private void captureBackgroundCommand(String utterance, boolean partial){
+        if(!backgroundWaiting || paused)return;
+        String trimmed=utterance.trim();
+        String suffix=activationSuffix(trimmed,true);
+        // The recognizer may repeat the wake phrase before it hears the command.
+        String command=suffix==null?trimmed:suffix;
+        if(command.isEmpty())return;
+        pendingCommand=command;
+        main.removeCallbacks(backgroundCommandTimeout);
+        main.postDelayed(backgroundCommandTimeout,12000L);
+        main.removeCallbacks(completePendingCommand);
+        // A final hypothesis is authoritative; partial words are confirmed after silence.
+        main.postDelayed(completePendingCommand,partial?1400L:100L);
+        state("Comando identificado: "+command.substring(0,Math.min(60,command.length())));
     }
     /** Tarefa curta com o detector já em execução. Não inicia outro microfone nem abre Activity. */
     private void beginBackgroundConversation(String initialCommand){
@@ -68,6 +96,7 @@ public final class WakeWordService extends Service implements RecognitionListene
             return;
         }
         backgroundWaiting=true;
+        pendingCommand="";
         visualState("aguardando_comando");
         state("HOME chamado em segundo plano. Aguardando comando por voz.");
         main.removeCallbacks(backgroundCommandTimeout);
@@ -98,19 +127,29 @@ public final class WakeWordService extends Service implements RecognitionListene
     private void replyBackground(String command){
         if(!running || paused || backgroundSpeaking)return;
         backgroundWaiting=false;
+        pendingCommand="";
+        main.removeCallbacks(completePendingCommand);
         main.removeCallbacks(backgroundCommandTimeout);
         backgroundSpeaking=true;
         visualState("falando");
         paused=true;
         closeAudio(); // Faber não compete com o Vosk pelo microfone
         String answer=offlineAnswer(command);
+        try{
+            HomeChatStore store=HomeChatStore.get(this);
+            String session=store.ensureActive();
+            store.addTo(session,"user",command);
+            store.addTo(session,"assistant",answer);
+        }catch(Exception ex){
+            state("Resposta por voz iniciada, mas o histórico não pôde ser salvo.");
+        }
         state("Respondendo em segundo plano com a Faber.");
         getSharedPreferences("home",MODE_PRIVATE).edit().putString("wake_last_command",command).apply();
         boolean started=FaberOffline.speakBackground(this,answer,()->main.post(()->{
             backgroundSpeaking=false;
             if(running && enabled(this)){
                 paused=false;
-                visualState("ouvindo");
+                visualState("armado");
                 consecutiveAudioErrors=0;
                 main.postDelayed(()->{
                     if(running && !paused){
@@ -123,7 +162,7 @@ public final class WakeWordService extends Service implements RecognitionListene
         if(!started){
             backgroundSpeaking=false;
             paused=false;
-            visualState("ouvindo");
+            visualState("armado");
             state("A Faber não pôde responder. Detector reativado.");
             main.postDelayed(this::beginListening,1100L);
         }
@@ -131,7 +170,7 @@ public final class WakeWordService extends Service implements RecognitionListene
     private final Runnable pendingNotificationRecovery=()->{
         if(running && paused && !MainActivity.isInForeground()){
             paused=false;
-            visualState("ouvindo");
+            visualState("armado");
             clearPartial();
             state("HOME reativou a escuta após a notificação não ser aberta.");
             beginListening();
@@ -165,7 +204,7 @@ public final class WakeWordService extends Service implements RecognitionListene
             resetBackgroundState();
             main.removeCallbacks(pendingNotificationRecovery);
             paused=true;
-            visualState("pausado");
+            visualState(intent.getBooleanExtra("command_listening",false)?"aguardando_comando":"pausado");
             closeAudio();
             state("Detecção pausada durante a conversa.");
             if(running)return START_NOT_STICKY;
@@ -232,14 +271,14 @@ public final class WakeWordService extends Service implements RecognitionListene
             audio=new SpeechService(recognizer,16000.0f);
             final long generation=++audioGeneration;
             RecognitionListener sessionListener=new RecognitionListener(){
-                @Override public void onResult(String text){if(generation==audioGeneration)detect(text,false);}
-                @Override public void onPartialResult(String text){if(generation==audioGeneration)detect(text,true);}
-                @Override public void onFinalResult(String text){if(generation==audioGeneration)detect(text,false);}
-                @Override public void onError(Exception e){if(generation==audioGeneration)WakeWordService.this.onError(e);}
-                @Override public void onTimeout(){if(generation==audioGeneration)WakeWordService.this.onTimeout();}
+                @Override public void onResult(String text){main.post(()->{if(generation==audioGeneration)detect(text,false);});}
+                @Override public void onPartialResult(String text){main.post(()->{if(generation==audioGeneration)detect(text,true);});}
+                @Override public void onFinalResult(String text){main.post(()->{if(generation==audioGeneration)detect(text,false);});}
+                @Override public void onError(Exception e){main.post(()->{if(generation==audioGeneration)WakeWordService.this.onError(e);});}
+                @Override public void onTimeout(){main.post(()->{if(generation==audioGeneration)WakeWordService.this.onTimeout();});}
             };
             if(!audio.startListening(sessionListener))throw new IllegalStateException("Não foi possível iniciar a escuta.");
-            visualState("ouvindo");
+            visualState("armado");
             state("Detector offline ouvindo. Diga Ei Home, Ok Home ou Home.");
         }catch(Exception ex){
             state("Falha no microfone offline: "+ex.getClass().getSimpleName());
@@ -287,10 +326,7 @@ public final class WakeWordService extends Service implements RecognitionListene
         catch(Exception ignored){return;}
         if(text.isEmpty())return;
         if(backgroundWaiting){
-            if(partial)return;
-            String suffixPending=activationSuffix(text,true);
-            String command=suffixPending==null?text:suffixPending;
-            if(!command.trim().isEmpty())replyBackground(command);
+            captureBackgroundCommand(text,partial);
             return;
         }
         String suffix=activationSuffix(text,!partial);
