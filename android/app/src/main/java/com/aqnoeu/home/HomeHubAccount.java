@@ -137,6 +137,44 @@ public final class HomeHubAccount {
             .put("response_style",style).put("sync_chats",chats)
             .put("sync_emotions",emotions),true);
     }
+    /** Sync only after a deliberate opt-in. Raw microphone audio never uploads. */
+    public synchronized void uploadVoiceProfile(JSONObject local)throws Exception{
+        if(!connected())throw new IllegalStateException("Entre na Conta HOME.");
+        JSONObject stored=voiceProfile();
+        if(!stored.optBoolean("sync_enabled",false))
+            throw new IllegalStateException("Autorize primeiro a sincronização do perfil de voz na Conta HOME.");
+        JSONObject settings=stored.optJSONObject("settings");
+        if(settings==null)settings=new JSONObject();
+        settings.put("android",local);
+        postRest("home_voice_profiles?on_conflict=user_id",new JSONObject()
+            .put("user_id",userId).put("sync_enabled",true)
+            .put("settings",settings).put("reviewed_aliases",new JSONObject())
+            .put("updated_at",new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX",
+                java.util.Locale.US).format(new java.util.Date())),true);
+    }
+    public synchronized JSONObject voiceProfile()throws Exception{
+        if(!connected())throw new IllegalStateException("Entre na Conta HOME.");
+        JSONObject r=http(endpoint+"/rest/v1/home_voice_profiles?select=*&user_id=eq."+userId,
+            "GET",null,access,publicKey);
+        JSONArray rows=r.optJSONArray("rows");
+        return rows!=null&&rows.length()>0?rows.getJSONObject(0):new JSONObject();
+    }
+    public synchronized void authorizeVoiceSync()throws Exception{
+        if(!connected())throw new IllegalStateException("Entre na Conta HOME.");
+        JSONObject current=voiceProfile();
+        postRest("home_voice_profiles?on_conflict=user_id",new JSONObject()
+            .put("user_id",userId).put("sync_enabled",true)
+            .put("settings",current.optJSONObject("settings")==null?new JSONObject():current.getJSONObject("settings"))
+            .put("reviewed_aliases",current.optJSONObject("reviewed_aliases")==null?new JSONObject():current.getJSONObject("reviewed_aliases")),true);
+    }
+    public synchronized JSONObject downloadVoiceProfile()throws Exception{
+        JSONObject record=voiceProfile();
+        if(!record.optBoolean("sync_enabled",false))
+            throw new IllegalStateException("A sincronização de voz ainda não foi autorizada.");
+        JSONObject byPlatform=record.optJSONObject("settings");
+        if(byPlatform==null)return new JSONObject();
+        return byPlatform.optJSONObject("android")==null?new JSONObject():byPlatform.getJSONObject("android");
+    }
     public synchronized JSONArray cloudChats()throws Exception{
         if(!connected())return new JSONArray();
         return http(endpoint+"/rest/v1/homehub_chats?select=id,title,updated_at&order=updated_at.desc&limit=40",
