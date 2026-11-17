@@ -425,7 +425,8 @@ class AssistantPage(QWidget):
             self.status.setText(text)
         elif text=="speaking":
             self.status.setText("Reproduzindo resposta...")
-        elif text and text not in ("thinking","listening") and text.startswith("Falha"):
+        elif text and text not in ("thinking","listening") and text.startswith(
+                ("Falha", "Estou ouvindo", "Aguardando", "Groq", "Conecte", "Faber", "Preparando")):
             self.status.setText(text)
         elif not text:
             self.status.setText("")

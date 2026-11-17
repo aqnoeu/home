@@ -18,7 +18,7 @@ PROMPTS = (
 
 def normalize(text):
     s = unicodedata.normalize("NFD", (text or "").casefold())
-    return re.sub(r"\\s+", " ", re.sub(r"[^a-z0-9 ]", " ", "".join(x for x in s if not unicodedata.combining(x)))).strip()
+    return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9 ]", " ", "".join(x for x in s if not unicodedata.combining(x)))).strip()
 
 def load():
     try:
