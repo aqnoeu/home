@@ -29,7 +29,7 @@ class AndroidWakeSleepTest(unittest.TestCase):
         self.assertIn('commandListening',eyes)
         self.assertIn('Color.rgb(45,255,90)',eyes)
         self.assertIn('rgb=Color.WHITE',eyes)
-        self.assertIn('O sorriso verde-neon',eyes)
+        self.assertIn('verde-neon, expressão feliz',eyes)
         self.assertNotIn('paint.setColor(commandListening?',eyes)
         self.assertIn('float speakingPulse=speaking&&animated',eyes)
         self.assertIn('if(speaking){',eyes)
