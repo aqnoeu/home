@@ -11,7 +11,35 @@ class TestVoiceCommands(unittest.TestCase):
         self.assertEqual(wake_command("Ei, Home, abrir calculadora"), "abrir calculadora")
         self.assertEqual(wake_command("hey home bloco de notas"), "bloco de notas")
         self.assertIsNone(wake_command("abra calculadora"))
+        self.assertIsNone(wake_command("quero dizer ok home"))
+        self.assertIsNone(wake_command("eu disse ei home"))
         self.assertEqual(wake_command("ei home"), "")
+
+    def test_wake_variants_from_vosk(self):
+        # O Vosk pt-BR transcreve "ok home" de formas variadas.
+        for heard in ("ok home", "OK, Home", "okay home", "oquei home", "o k home",
+                      "ok rome", "ok homem", "okhome", "e ok home"):
+            self.assertEqual(wake_command(heard), "", heard)
+        self.assertEqual(wake_command("ok home que horas são"), "que horas sao")
+        self.assertEqual(wake_command("ok, home, abra a calculadora"), "abra a calculadora")
+        self.assertEqual(wake_command("home"), "")
+        self.assertEqual(wake_command("home abrir calculadora"), "abrir calculadora")
+
+    def test_wake_has_no_false_positive(self):
+        for heard in ("o homem chegou", "ok vamos embora", "minha casa home office",
+                      "abra a calculadora", "quero ir para roma", ""):
+            self.assertIsNone(wake_command(heard), heard)
+
+    def test_natural_phrases(self):
+        self.assertEqual(interpret("por favor, abra a calculadora")[0], "calc")
+        self.assertEqual(interpret("pode abrir o bloco de notas")[0], "notepad")
+        self.assertEqual(interpret("quero abrir o gerenciador de tarefas")[0], "taskmgr")
+        self.assertEqual(interpret("aumentar o volume")[0], "volume_up")
+        self.assertEqual(interpret("diminuir o volume")[0], "volume_down")
+        self.assertEqual(interpret("abaixar o volume")[0], "volume_down")
+        self.assertEqual(interpret("sobe o volume")[0], "volume_up")
+        self.assertIsNone(interpret("o que e um volume de esfera"))
+        self.assertIsNone(interpret("qual a capital da franca"))
 
     def test_commands_allowlist(self):
         self.assertEqual(interpret("abra a calculadora")[0], "calc")

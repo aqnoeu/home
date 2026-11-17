@@ -24,6 +24,11 @@ class VoiceEnrollmentTests(unittest.TestCase):
         self.assertTrue(profile.matches(4, "Ok Home que dia é hoje"))
         self.assertTrue(profile.matches(5, "Home qual a bateria do computador"))
 
+    def test_punctuation_and_double_spaces_do_not_break_matching(self):
+        self.assertEqual(profile.normalize("Ok,  Home!"), "ok home")
+        self.assertTrue(profile.matches(1, "Ok, Home"))
+        self.assertTrue(profile.matches(4, "Ok, Home,  que dia é hoje?"))
+
     def test_reviewed_correction_only(self):
         self.assertEqual(profile.wake_suffix("ei rome"), None)
         profile.accept("ei rome", corrected=True)

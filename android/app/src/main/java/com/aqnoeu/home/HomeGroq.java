@@ -110,7 +110,7 @@ public final class HomeGroq {
                 messages.put(new JSONObject().put("role","user").put("content",q));
                 JSONObject body=new JSONObject().put("model",MODEL)
                     .put("messages",messages).put("temperature",0.5)
-                    .put("max_completion_tokens",450).put("reasoning_effort","low")
+                    .put("max_completion_tokens",900).put("reasoning_effort","low")
                     .put("include_reasoning",false)
                     .put("response_format",new JSONObject().put("type","json_object"))
                     .put("stream",false);
@@ -163,6 +163,10 @@ public final class HomeGroq {
                 String tag=structured.optString("emocao","neutro");
                 emotion=("raiva".equals(tag)||"sonolento".equals(tag)||"tedio".equals(tag))?tag:"neutro";
                 store.addTo(session,"assistant",answer);
+            }catch(java.net.SocketTimeoutException e){
+                error="A Groq demorou demais para responder. Tente novamente.";
+            }catch(java.io.IOException e){
+                error="Não consegui conectar à Groq. Verifique a internet do celular.";
             }catch(Exception e){error=e.getMessage()==null?"Falha de conexão com Groq.":e.getMessage();}
             finally{if(connection!=null)connection.disconnect();BUSY.set(false);}
             final String result=answer,problem=error,mood=emotion;

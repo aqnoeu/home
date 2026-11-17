@@ -133,7 +133,7 @@ public final class WakeWordService extends Service implements RecognitionListene
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
             .setContentTitle("HOME: "+answer.substring(0,Math.min(48,answer.length())))
             .setContentText("Você: "+command)
-            .setStyle(new Notification.BigTextStyle().bigText("Você: "+command+"\\nHOME: "+answer))
+            .setStyle(new Notification.BigTextStyle().bigText("Você: "+command+"\nHOME: "+answer))
             .setContentIntent(tap).setAutoCancel(true).build();
         manager.notify(75,notification);
     }
@@ -340,7 +340,8 @@ public final class WakeWordService extends Service implements RecognitionListene
             if(text.equals(value))return "";
             if(text.startsWith(value+" "))return text.substring(value.length()).trim();
         }
-        return null;
+        // Variantes que o Vosk pt-BR produz para "ok home" (oquei, o k, rome, homem...).
+        return WakePhrases.suffix(text);
     }
     private void clearPartial(){
         partialCandidate="";
@@ -380,34 +381,12 @@ public final class WakeWordService extends Service implements RecognitionListene
         main.removeCallbacks(pendingWakeConfirmation);
         main.postDelayed(pendingWakeConfirmation,750L);
     }
-    private void activate(String command){
-        lastWakeAt=SystemClock.elapsedRealtime();
-        getSharedPreferences("home",MODE_PRIVATE).edit()
-            .putLong("wake_last_recognized",System.currentTimeMillis()).apply();
-        if(!MainActivity.isInForeground()){
-            // Never interrupt background capture with an empty notification.
-            // The user expects a real command and a persisted chat entry.
-            beginBackgroundConversation(command);
-            return;
-        }
-        paused=true;
-        visualState("pausado");
-        closeAudio(); // libera o AudioRecord ANTES do microfone de conversa
-        Intent open=new Intent(this,MainActivity.class)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_SINGLE_TOP|Intent.FLAG_ACTIVITY_CLEAR_TOP)
-            .putExtra(EXTRA_QUERY,command);
-        if(MainActivity.isInForeground()){
-            try{
-                state("Ativação reconhecida. Abrindo microfone de conversa.");
-                startActivity(open);
-                return;
-            }catch(RuntimeException ex){
-                state("Reconhecido, mas o Android impediu a abertura automática.");
-            }
-        }
-        // O Android limita iniciar Activity em segundo plano, mesmo com Foreground Service.
-        // Oferece notificação de alta prioridade que permite a transição por toque autorizado.
-        state("Home reconheceu a frase. Toque na notificação para conversar.");
+    /** Sem a resposta falada em segundo plano, quem chama o HOME espera ver a conversa abrir.
+     *  Com a permissão de sobreposição (já exigida pelo Notch) o Android permite abrir a tela. */
+    private boolean canOpenChatFromBackground(){
+        return !backgroundVoiceEnabled() && android.provider.Settings.canDrawOverlays(this);
+    }
+    private void postWakeNotification(Intent open){
         PendingIntent tap=PendingIntent.getActivity(this,73,open,
             PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
         NotificationManager manager=getSystemService(NotificationManager.class);
@@ -424,6 +403,48 @@ public final class WakeWordService extends Service implements RecognitionListene
                 android.R.drawable.ic_btn_speak_now,"Conversar",tap).build())
             .build();
         manager.notify(73,note);
+    }
+    private void activate(String command){
+        lastWakeAt=SystemClock.elapsedRealtime();
+        getSharedPreferences("home",MODE_PRIVATE).edit()
+            .putLong("wake_last_recognized",System.currentTimeMillis()).apply();
+        if(!MainActivity.isInForeground()){
+            // Resposta falada em segundo plano ligada (opt-in): captura o comando sem abrir a tela.
+            if(!canOpenChatFromBackground()){
+                beginBackgroundConversation(command);
+                return;
+            }
+        }
+        paused=true;
+        visualState("pausado");
+        closeAudio(); // libera o AudioRecord ANTES do microfone de conversa
+        Intent open=new Intent(this,MainActivity.class)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_SINGLE_TOP|Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            .putExtra(EXTRA_QUERY,command);
+        boolean foreground=MainActivity.isInForeground();
+        boolean blocked=false;
+        try{
+            state("Ativação reconhecida. Abrindo a conversa.");
+            startActivity(open);
+            if(foreground)return;
+        }catch(RuntimeException ex){
+            blocked=true;
+            state("Reconhecido, mas o Android impediu a abertura automática.");
+        }
+        // O Android pode bloquear a abertura em segundo plano (às vezes sem avisar).
+        // A notificação de alta prioridade é o plano B: imediata se houve erro, senão só
+        // aparece se a conversa não tiver aberto em poucos segundos.
+        if(blocked){
+            state("Home reconheceu a frase. Toque na notificação para conversar.");
+            postWakeNotification(open);
+        }else{
+            main.postDelayed(()->{
+                if(running && !MainActivity.isInForeground()){
+                    state("Home reconheceu a frase. Toque na notificação para conversar.");
+                    postWakeNotification(open);
+                }
+            },2500L);
+        }
         // A notificação pode não ser tocada. Não deixe o detector permanentemente pausado.
         main.removeCallbacks(pendingNotificationRecovery);
         main.postDelayed(pendingNotificationRecovery,20000L);

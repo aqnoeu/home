@@ -70,6 +70,7 @@ class Home(QWidget):
         self.eyes.react_clicks = self.integration_prefs['eyes_react_clicks']
         self.voice = VoiceManager(self)
         self.voice.confirmation_requested.connect(self.on_voice_confirmation)
+        self.voice.wake_detected.connect(self.on_voice_wake)
         self.panel = HomePanel(self)
         self.panel.hide()
         self.page = "hub"
@@ -143,6 +144,11 @@ class Home(QWidget):
         else:
             self.panel.mic_status.setText("")
         self.panel.mic_status.setToolTip(status or "Microfone em espera")
+
+    def on_voice_wake(self):
+        # Ok/Ei Home abre a caixa de conversa para mostrar a pergunta e a resposta.
+        if self.page not in ('assistant', 'voice') or not self.expanded:
+            self.navigate('assistant')
 
     def on_voice_confirmation(self, phrase, action):
         if self.page != 'voice' or not self.expanded:

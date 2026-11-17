@@ -35,6 +35,26 @@ MAX_DOWNLOAD = 65 * 1024 * 1024
 MODEL_SHA256 = '6e1ce909032e1afa7a88e68a3d628ecafff302bdf195befab308826c395e93b7'
 SAMPLE_RATE = 16000
 
+_MODEL = None
+_MODEL_LOCK = threading.Lock()
+
+
+def load_model():
+    """Carrega o modelo Vosk uma única vez; recarregar a cada turno deixava o Home surdo por segundos."""
+    global _MODEL
+    from vosk import Model
+    with _MODEL_LOCK:
+        if _MODEL is None:
+            _MODEL = Model(str(MODEL_DIR))
+        return _MODEL
+
+
+def reset_model_cache():
+    global _MODEL
+    with _MODEL_LOCK:
+        _MODEL = None
+
+
 def model_is_complete(directory=MODEL_DIR):
     """Aceita os layouts Vosk legado (flat) e atual (am/conf/graph)."""
     root = Path(directory)
@@ -51,12 +71,32 @@ def normalize(sentence):
                    if not unicodedata.combining(c)).strip()
 
 
+FILLER_WORDS = {
+    "por", "favor", "pode", "poderia", "consegue", "quero", "queria", "gostaria",
+    "vamos", "agora", "entao", "eu", "me", "home", "ok", "ei", "hey", "voce",
+    "da", "de", "um", "uma", "ai", "so", "la",
+}
+OPEN_VERBS = {"abra", "abre", "abrir", "abri", "inicie", "iniciar", "mostre", "mostrar", "execute"}
+VOLUME_UP = ("aument", "suba", "sobe", "subir", "eleve", "elevar", "mais alto", "mais volume", "volume mais")
+VOLUME_DOWN = ("diminu", "abaix", "reduz", "baixa", "baixe", "baixar", "menos volume", "volume menos", "mais baixo")
+
+
+def _command_text(sentence):
+    """Normaliza e remove palavras de cortesia do início ("por favor, pode abrir...")."""
+    words = re.findall(r"[a-z0-9\-]+", normalize(sentence))
+    while words and words[0] in FILLER_WORDS and (len(words) > 1):
+        if words[0] in OPEN_VERBS:
+            break
+        words.pop(0)
+    return " ".join(words)
+
+
 def interpret(sentence):
     """Somente comandos predeterminados, sem shell, scripts ou navegação."""
-    s = normalize(sentence)
-    open_verbs = ("abra ", "abre ", "abrir ", "inicie ", "iniciar ", "mostre ")
-    request_to_open = s.startswith(open_verbs)
-    if request_to_open and any(word in s for word in ("bloco de notas", "notepad")):
+    s = _command_text(sentence)
+    first = s.split(" ", 1)[0] if s else ""
+    request_to_open = first in OPEN_VERBS
+    if request_to_open and any(word in s for word in ("bloco de notas", "bloco de nota", "notepad")):
         return ("notepad", "Abrindo o Bloco de Notas.")
     if request_to_open and "calculadora" in s:
         return ("calc", "Abrindo a Calculadora.")
@@ -81,29 +121,49 @@ def interpret(sentence):
         for term, action_key, reply in panels:
             if term in s:
                 return (action_key, reply)
-    if any(word in s for word in ("aumentar volume", "aumente o volume", "volume mais", "mais volume")):
-        return ("volume_up", "Aumentando o volume.")
-    if any(word in s for word in ("diminuir volume", "diminua o volume", "abaixar volume", "menos volume")):
-        return ("volume_down", "Diminuindo o volume.")
-    if any(word in s for word in ("silenciar", "sem som", "mudo")):
+    if "volume" in s:
+        if any(word in s for word in VOLUME_UP):
+            return ("volume_up", "Aumentando o volume.")
+        if any(word in s for word in VOLUME_DOWN):
+            return ("volume_down", "Diminuindo o volume.")
+    if any(word in s for word in ("silenciar", "silencie", "mutar", "sem som", "mudo")):
         return ("mute", "Alternando o som.")
-    if any(word in s for word in ("pausar musica", "pausar midia", "continuar musica", "reproduzir musica", "play pause")):
+    if any(word in s for word in ("pausar musica", "pausar midia", "pausar a musica", "continuar musica",
+                                  "continuar a musica", "reproduzir musica", "play pause")):
         return ("play_pause", "Alternando a reprodução.")
-    if "proxima musica" in s or "proxima faixa" in s:
+    if "proxima musica" in s or "proxima faixa" in s or "pular musica" in s:
         return ("next", "Próxima faixa.")
     if "musica anterior" in s or "faixa anterior" in s:
         return ("previous", "Faixa anterior.")
     return None
 
 
+# O modelo Vosk pt-BR não conhece "home" nem "ok": costuma transcrever como
+# "rome", "homem", "oquei", "o k"... Aceitamos essas variantes, mas só no INÍCIO da frase.
+CALL_WORDS = {"ei", "hey", "hei", "ey", "ok", "okay", "okey", "oke", "okei", "oquei", "oquey", "okê"}
+HOME_WORDS = {"home", "rome", "romi", "homi", "hom", "ome", "rhome", "rom", "homem", "hôme"}
+JOINED_WAKE = {"okhome", "eihome", "heyhome", "okayhome", "okrome", "eirome", "oquehome"}
+
+
 def wake_command(sentence):
-    s = normalize(sentence)
-    match = re.search(r"\b(?:ei|hey)[\s,]+(?:home|rome|romi)\b", s)
-    if match:return s[match.end():].strip(" ,.!?")
-    text = home_voice_profile.normalize(sentence)
-    for phrase in ("ok home", "okay home", "home"):
-        if text == phrase:return ""
-        if text.startswith(phrase+" "):return text[len(phrase):].strip()
+    """Se a frase começa com a chamada ("ok Home", "ei Home"), devolve o comando
+    que vem depois (pode ser ""). Caso contrário, None."""
+    words = re.findall(r"[a-z0-9]+", normalize(sentence))
+    # Aceita apenas um "e" inicial isolado, evitando ativar no meio de conversas.
+    offsets = (0, 1) if words and words[0] == "e" else (0,)
+    for i in offsets:
+        rest = None
+        w = words[i:]
+        if w and w[0] in JOINED_WAKE:
+            rest = w[1:]
+        elif len(w) >= 2 and w[0] in CALL_WORDS and w[1] in HOME_WORDS:
+            rest = w[2:]
+        elif len(w) >= 3 and w[0] == "o" and w[1] in ("k", "que", "key") and w[2] in HOME_WORDS:
+            rest = w[3:]
+        elif i == 0 and w and w[0] == "home":
+            rest = w[1:]
+        if rest is not None:
+            return " ".join(rest).strip()
     return home_voice_profile.wake_suffix(sentence)
 
 
@@ -161,6 +221,7 @@ class ModelDownloader(QThread):
             if MODEL_DIR.exists():
                 shutil.rmtree(MODEL_DIR)
             shutil.move(str(unpacked), str(MODEL_DIR))
+            reset_model_cache()
             self.completed.emit()
         except Exception as exc:
             self.failed.emit(str(exc))
@@ -170,6 +231,7 @@ class ModelDownloader(QThread):
 
 class ListeningWorker(QThread):
     heard = Signal(str)
+    wake_heard = Signal()
     mode_changed = Signal(str)
     error = Signal(str)
 
@@ -184,11 +246,11 @@ class ListeningWorker(QThread):
     def run(self):
         try:
             import sounddevice as sd
-            from vosk import Model, KaldiRecognizer, SetLogLevel
+            from vosk import KaldiRecognizer, SetLogLevel
             if not model_is_complete():
                 raise RuntimeError("Instale primeiro o modelo de português.")
             SetLogLevel(-1)
-            model = Model(str(MODEL_DIR))
+            model = load_model()
             recognizer = KaldiRecognizer(model, SAMPLE_RATE)
             audio_q = queue.Queue(maxsize=20)
             def callback(indata, frames, time_info, status):
@@ -223,10 +285,11 @@ class ListeningWorker(QThread):
                         return
                     inline = wake_command(phrase)
                     if inline is not None:
+                        self.wake_heard.emit()
                         if inline:
                             self.heard.emit(inline)
                             return
-                        armed_until = time.monotonic() + 7
+                        armed_until = time.monotonic() + 10
                         self.mode_changed.emit("Estou ouvindo o comando...")
                     elif time.monotonic() < armed_until:
                         self.heard.emit(phrase)
@@ -308,6 +371,8 @@ class VoiceManager(QObject):
     state = Signal(str)
     command = Signal(str)
     confirmation_requested = Signal(str, str)
+    wake_detected = Signal()
+    chat_updated = Signal()
 
     def __init__(self, home):
         super().__init__(home)
@@ -362,6 +427,7 @@ class VoiceManager(QObject):
         self.worker = ListeningWorker(mode)
         worker = self.worker
         worker.heard.connect(self.handle_heard)
+        worker.wake_heard.connect(self.wake_detected)
         worker.error.connect(self.handle_error)
         worker.mode_changed.connect(self.set_state)
         worker.finished.connect(lambda: self.on_finished(worker))
@@ -424,10 +490,16 @@ class VoiceManager(QObject):
             if local is not None:
                 self.home.record_chat("user",phrase)
                 self.home.record_chat("home",local)
+                self.chat_updated.emit()
                 self.speak(local)
                 return
             if not get_key():
-                self.set_state("Conecte a Groq uma vez no Assistente para receber respostas por voz.")
+                notice = "Conecte a Groq uma vez no Assistente para receber respostas por voz."
+                self.home.record_chat("user", phrase)
+                self.home.record_chat("home", notice)
+                self.chat_updated.emit()
+                self.set_state(notice)
+                self._resume_wake_after_turn()
                 return
             if self.ai_worker and self.ai_worker.isRunning():
                 self.set_state("O Home ainda está pensando na pergunta anterior.")
@@ -436,6 +508,7 @@ class VoiceManager(QObject):
             chat_id=self.home.chat_store.active()
             history=self.home.chat_store.context(chat_id)
             self.home.record_chat("user",phrase,session=chat_id)
+            self.chat_updated.emit()
             self.ai_worker = GroqWorker(phrase,history,parent=self.home)
             self.ai_worker.chat_id=chat_id
             ai=self.ai_worker
@@ -461,13 +534,17 @@ class VoiceManager(QObject):
             return
         self.ai_worker = None
         self.home.record_chat("home",response,session=worker.chat_id)
+        self.chat_updated.emit()
         self.speak(response, force=True)
 
     def on_ai_error(self, worker, problem):
         if self.ai_worker is not worker:
             return
         self.ai_worker = None
-        self.set_state("Falha na Groq: "+problem[:150])
+        message = "Falha na Groq: " + problem[:150]
+        self.home.record_chat("home", message, session=worker.chat_id)
+        self.chat_updated.emit()
+        self.set_state(message)
         self._resume_wake_after_turn()
 
     def decide_pending(self, approved):
@@ -575,7 +652,7 @@ class VoiceEnrollmentDialog(QDialog):
             self.detail.setText("As variantes confirmadas ficam neste Windows. Nenhum áudio foi enviado.")
         else:
             kind="chamada isolada" if step<3 else "chamada + função"
-            self.title.setText(f"Teste {step+1} de 6 — {kind}\\nDiga: {home_voice_profile.PROMPTS[step]}")
+            self.title.setText(f"Teste {step+1} de 6 — {kind}\nDiga: {home_voice_profile.PROMPTS[step]}")
             self.detail.setText("Teste a frase naturalmente e confira o texto reconhecido.")
     def record(self):
         if self.worker and self.worker.isRunning():return
@@ -602,9 +679,9 @@ class VoiceEnrollmentDialog(QDialog):
         if home_voice_profile.matches(step,phrase):
             home_voice_profile.accept(phrase)
             self.refresh()
-            self.detail.setText("✓ Reconhecido: "+phrase+("\\nFunção reconhecida no teste; execução não solicitada." if step>=3 else ""))
+            self.detail.setText("✓ Reconhecido: "+phrase+("\nFunção reconhecida no teste; execução não solicitada." if step>=3 else ""))
         else:
-            self.detail.setText("O Windows entendeu: "+phrase+"\\nVocê disse: "+home_voice_profile.PROMPTS[step]+"?")
+            self.detail.setText("O Windows entendeu: "+phrase+"\nVocê disse: "+home_voice_profile.PROMPTS[step]+"?")
             self.correct.setVisible(self.allow.isChecked())
             self.repeat.show()
     def confirm_correction(self):
