@@ -353,6 +353,7 @@ public final class WakeWordService extends Service implements RecognitionListene
             return;
         }
         String suffix=activationSuffix(text,!partial);
+        if(suffix==null)suffix=VoiceEnrollment.aliasSuffix(this,text,!partial);
         if(suffix==null){
             clearPartial();
             return;
