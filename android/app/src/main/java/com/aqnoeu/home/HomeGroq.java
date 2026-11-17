@@ -161,7 +161,7 @@ public final class HomeGroq {
                 if(spoken.isEmpty())throw new IllegalStateException("A Groq não enviou resposta para falar.");
                 answer=spoken.length()>850?spoken.substring(0,850):spoken;
                 String tag=structured.optString("emocao","neutro");
-                emotion=("raiva".equals(tag)||"sonolento".equals(tag)||"tedio".equals(tag))?tag:"neutro";
+                emotion=HomeEmotion.normalize(tag);
                 store.addTo(session,"assistant",answer);
             }catch(java.net.SocketTimeoutException e){
                 error="A Groq demorou demais para responder. Tente novamente.";
