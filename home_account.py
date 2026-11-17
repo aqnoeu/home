@@ -6,6 +6,7 @@ from pathlib import Path
 from urllib.request import Request, urlopen
 from urllib.parse import quote
 import keyring
+import home_voice_profile
 from PySide6.QtCore import QObject, Signal, QRunnable, QThreadPool, Qt
 from PySide6.QtWidgets import QWidget, QLabel, QLineEdit, QPushButton, QVBoxLayout, QHBoxLayout, QComboBox, QCheckBox, QListWidget
 
@@ -73,6 +74,38 @@ class AccountClient:
         request(self.url+"/rest/v1/home_preferences?on_conflict=user_id","POST",{
             "user_id":self.uid,"preferred_model":model,"response_style":style,"sync_chats":sync
         },{**self.auth_headers(),"Prefer":"resolution=merge-duplicates"})
+    def voice_profile(self):
+        if not self.uid:raise RuntimeError("Entre na Conta HOME.")
+        rows=request(self.url+"/rest/v1/home_voice_profiles?select=*&user_id=eq."+quote(self.uid),
+                     headers=self.auth_headers())
+        return rows[0] if rows else {}
+    def authorize_voice_sync(self):
+        old=self.voice_profile()
+        request(self.url+"/rest/v1/home_voice_profiles?on_conflict=user_id","POST",
+                {"user_id":self.uid,"sync_enabled":True,
+                 "settings":old.get("settings") or {},
+                 "reviewed_aliases":old.get("reviewed_aliases") or {}},
+                {**self.auth_headers(),"Prefer":"resolution=merge-duplicates"})
+    def upload_voice_profile(self):
+        old=self.voice_profile()
+        if not old.get("sync_enabled",False):
+            raise RuntimeError("Autorize a sincronização de voz antes de enviar.")
+        settings=old.get("settings") or {}
+        settings["windows"]=home_voice_profile.load()
+        request(self.url+"/rest/v1/home_voice_profiles?on_conflict=user_id","POST",
+                {"user_id":self.uid,"sync_enabled":True,"settings":settings,
+                 "reviewed_aliases":old.get("reviewed_aliases") or {}},
+                {**self.auth_headers(),"Prefer":"resolution=merge-duplicates"})
+        return True
+    def download_voice_profile(self):
+        old=self.voice_profile()
+        if not old.get("sync_enabled",False):
+            raise RuntimeError("Sincronização de voz não autorizada.")
+        windows=(old.get("settings") or {}).get("windows")
+        if not isinstance(windows,dict):
+            raise RuntimeError("Não há perfil Windows salvo na Conta HOME.")
+        home_voice_profile.save(windows)
+        return True
     def chats(self):
         return request(self.url+"/rest/v1/homehub_chats?select=id,title,updated_at&order=updated_at.desc&limit=40",
                        headers=self.auth_headers())
@@ -145,6 +178,18 @@ class AccountPage(QWidget):
         upload.clicked.connect(self.upload_local);l.addWidget(upload)
         refresh=QPushButton("Atualizar conversas sincronizadas");refresh.clicked.connect(self.refresh);l.addWidget(refresh)
         signout=QPushButton("Sair da conta neste Windows");signout.clicked.connect(self.sign_out);l.addWidget(signout)
+        self.voice_status=QLabel("Perfil de ativação: backup opcional, sem áudio.")
+        self.voice_status.setWordWrap(True)
+        l.addWidget(self.voice_status)
+        voice_optin=QPushButton("Autorizar sincronização do cadastro de voz")
+        voice_optin.clicked.connect(self.authorize_voice)
+        l.addWidget(voice_optin)
+        voice_send=QPushButton("Salvar perfil Windows na Conta HOME")
+        voice_send.clicked.connect(self.save_voice)
+        l.addWidget(voice_send)
+        voice_load=QPushButton("Restaurar perfil Windows desta conta")
+        voice_load.clicked.connect(self.load_voice)
+        l.addWidget(voice_load)
         l.addWidget(QLabel("As funções offline, controles locais e microfone não são enviados para o Hub."))
         self.run_task(lambda:self._resume(),self.connected)
     def run_task(self,work,done):
@@ -199,6 +244,22 @@ class AccountPage(QWidget):
         if not self.client or not self.client.uid:return
         self.status.setText("Enviando conversas autorizadas...")
         self.run_task(lambda:self.client.upload_local(self.home.chat_store),lambda n:(self.status.setText(str(n)+" mensagens sincronizadas."),self.refresh()))
+    def authorize_voice(self):
+        if not self.client or not self.client.uid:return
+        self.run_task(self.client.authorize_voice_sync,
+                      lambda _:self.voice_status.setText("✓ Sincronização de voz autorizada para a Conta HOME."))
+    def save_voice(self):
+        if not self.client or not self.client.uid:return
+        self.run_task(self.client.upload_voice_profile,
+                      lambda _:self.voice_status.setText("✓ Perfil Windows sincronizado."))
+    def load_voice(self):
+        if not self.client or not self.client.uid:return
+        from PySide6.QtWidgets import QMessageBox
+        answer=QMessageBox.question(self,"Restaurar perfil",
+            "Substituir frases e correções locais pelo backup Windows da sua Conta HOME?")
+        if answer!=QMessageBox.Yes:return
+        self.run_task(self.client.download_voice_profile,
+                      lambda _:self.voice_status.setText("✓ Perfil Windows restaurado."))
     def sign_out(self):
         if not self.client or not self.client.uid:return
         self.run_task(self.client.logout,lambda _:(self.list.clear(),self.status.setText("Sessão encerrada neste computador.")))
