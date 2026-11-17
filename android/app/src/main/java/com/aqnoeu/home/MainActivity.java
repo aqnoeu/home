@@ -50,6 +50,7 @@ public final class MainActivity extends Activity {
     private TextView chatTitle;
     private String currentPage = "assistant";
     private String settingsTab = "Geral";
+    private HomeHubAccount unifiedAccount;
     private static final int WAKE_PERMISSION_REQUEST = 721;
     private boolean wakeBusy = false;
 
@@ -448,7 +449,7 @@ public final class MainActivity extends Activity {
         add(root,note("Ajuste o HOME sem percorrer várias telas."),0,13);
         LinearLayout tabs=new LinearLayout(this);
         tabs.setOrientation(LinearLayout.HORIZONTAL);
-        String[] names={"Geral","Voz / IA","Aparência"};
+        String[] names={"Geral","Voz / IA","Aparência","Conta HOME"};
         for(String name:names){
             Button b=button(name,name.equals(tab),()->showSettings(name));
             b.setSingleLine(true);
@@ -462,9 +463,118 @@ public final class MainActivity extends Activity {
         switch(tab){
             case "Voz / IA": settingsVoice();break;
             case "Aparência": settingsAppearance();break;
+            case "Conta HOME": settingsAccount();break;
             default: settingsGeneral();break;
         }
         add(root,bottomNavigation("settings"),10,10);
+    }
+
+
+    /** Conta unificada com HOME HUB. Rede e autenticação nunca bloqueiam a interface. */
+    private void settingsAccount(){
+        if(unifiedAccount==null)unifiedAccount=new HomeHubAccount(this);
+        final HomeHubAccount account=unifiedAccount;
+        LinearLayout section=card("Conta HOME","Use o mesmo e-mail e senha do Home Hub, no navegador e no Windows.");
+        final TextView state=note(account.connected()?"Conectado: "+account.email():"Nenhuma conta vinculada neste aparelho.");
+        add(section,state,0,10);
+        final EditText email=edit("E-mail do Home Hub",false);
+        email.setSingleLine(true);email.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);
+        final EditText password=edit("Senha da conta HOME",true);
+        add(section,email,0,6);add(section,password,0,9);
+        action(section,"Entrar com conta HOME",true,()->{
+            String login=email.getText().toString().trim(),pass=password.getText().toString();
+            if(login.isEmpty()||pass.isEmpty()){state.setText("Digite seu e-mail e senha.");return;}
+            state.setText("Autenticando com segurança...");
+            new Thread(()->{
+                try{account.signIn(login,pass);runOnUiThread(()->{password.setText("");showSettings("Conta HOME");});}
+                catch(Exception e){runOnUiThread(()->state.setText("Não foi possível entrar: "+e.getMessage()));}
+            },"home-account-login").start();
+        });
+        action(section,"Sair da conta neste celular",false,()->{
+            new Thread(()->{account.signOut();runOnUiThread(()->showSettings("Conta HOME"));},"home-account-logout").start();
+        });
+
+        LinearLayout prefs=card("Sincronização autorizada","O HOME continua funcionando offline. Nenhum áudio, arquivo ou comando remoto é enviado.");
+        final String[] models={"auto","qwen","glm","nemotron","gemma","llama","granite"};
+        final String[] modelLabels={"Automático","Qwen 3","GLM 4.7","Nemotron 3","Gemma 4","Llama 3.3","Granite"};
+        final Spinner model=new Spinner(this);
+        model.setAdapter(new ArrayAdapter<String>(this,android.R.layout.simple_spinner_dropdown_item,modelLabels));
+        add(prefs,note("Modelo compartilhado"),0,4);add(prefs,model,0,9);
+        final String[] styles={"equilibrado","objetivo","detalhado"};
+        final Spinner style=new Spinner(this);
+        style.setAdapter(new ArrayAdapter<String>(this,android.R.layout.simple_spinner_dropdown_item,styles));
+        add(prefs,note("Estilo de resposta"),0,4);add(prefs,style,0,9);
+        final Switch syncChats=new Switch(this);syncChats.setText("Sincronizar conversas");syncChats.setTextColor(WHITE);
+        final Switch syncEmotions=new Switch(this);syncEmotions.setText("Sincronizar preferências de emoção");syncEmotions.setTextColor(WHITE);
+        add(prefs,syncChats,5,8);add(prefs,syncEmotions,0,10);
+        action(prefs,"Salvar preferências no Home Hub",true,()->{
+            if(!account.connected()){state.setText("Entre na sua conta antes de sincronizar.");return;}
+            final String selected=models[model.getSelectedItemPosition()],tone=styles[style.getSelectedItemPosition()];
+            new Thread(()->{
+                try{account.savePreferences(selected,tone,syncChats.isChecked(),syncEmotions.isChecked());
+                    runOnUiThread(()->state.setText("Preferências da conta HOME salvas."));}
+                catch(Exception e){runOnUiThread(()->state.setText("Falha ao salvar: "+e.getMessage()));}
+            },"home-account-save").start();
+        });
+        action(prefs,"Enviar histórico local para a conta HOME",false,()->{
+            if(!account.connected()){state.setText("Entre na conta HOME.");return;}
+            state.setText("Sincronizando conversas autorizadas...");
+            new Thread(()->{
+                try{int n=account.uploadLocalChats(HomeChatStore.get(this));
+                    runOnUiThread(()->state.setText("Histórico enviado com sucesso: "+n+" mensagens."));}
+                catch(Exception e){runOnUiThread(()->state.setText("Sincronização interrompida: "+e.getMessage()));}
+            },"home-account-upload").start();
+        });
+        LinearLayout history=card("Conversas no Home Hub","Leia o histórico compartilhado. Conversas locais permanecem salvas somente no celular.");
+        final LinearLayout list=column();add(history,list,0,8);
+        action(history,"Consultar conversas do Hub",false,()->{
+            if(!account.connected()){state.setText("Entre na sua conta HOME.");return;}
+            new Thread(()->{
+                try{
+                    org.json.JSONArray found=account.cloudChats();
+                    runOnUiThread(()->{
+                        list.removeAllViews();
+                        if(found==null||found.length()==0){add(list,note("Nenhuma conversa na nuvem."),0,8);return;}
+                        for(int i=0;i<Math.min(found.length(),30);i++){
+                            final org.json.JSONObject chat=found.optJSONObject(i);
+                            if(chat==null)continue;
+                            final String id=chat.optString("id");
+                            action(list,chat.optString("title","Conversa"),false,()->new Thread(()->{
+                                try{org.json.JSONArray entries=account.cloudMessages(id);
+                                    StringBuilder out=new StringBuilder();
+                                    if(entries!=null)for(int j=0;j<entries.length();j++){
+                                        org.json.JSONObject msg=entries.optJSONObject(j);
+                                        if(msg!=null)out.append("user".equals(msg.optString("role"))?"Você: ":"HOME: ")
+                                            .append(msg.optString("content")).append("\n\n");
+                                    }
+                                    runOnUiThread(()->{
+                                        list.removeAllViews();
+                                        TextView detail=note(out.toString());add(list,detail,0,8);
+                                        action(list,"Voltar às conversas",false,()->showSettings("Conta HOME"));
+                                    });
+                                }catch(Exception e){runOnUiThread(()->state.setText(e.getMessage()));}
+                            },"home-account-messages").start());
+                        }
+                    });
+                }catch(Exception e){runOnUiThread(()->state.setText("Falha ao consultar: "+e.getMessage()));}
+            },"home-account-history").start();
+        });
+        if(account.connected()){
+            new Thread(()->{
+                try{org.json.JSONObject p=account.preferences();runOnUiThread(()->{
+                    if(!"settings".equals(currentPage)||!"Conta HOME".equals(settingsTab))return;
+                    for(int i=0;i<models.length;i++)if(models[i].equals(p.optString("preferred_model","auto")))model.setSelection(i);
+                    for(int i=0;i<styles.length;i++)if(styles[i].equals(p.optString("response_style","equilibrado")))style.setSelection(i);
+                    syncChats.setChecked(p.optBoolean("sync_chats",false));
+                    syncEmotions.setChecked(p.optBoolean("sync_emotions",false));
+                });}catch(Exception e){runOnUiThread(()->state.setText("Preferências: "+e.getMessage()));}
+            },"home-account-pref").start();
+        }else{
+            new Thread(()->{
+                try{if(account.resume())runOnUiThread(()->showSettings("Conta HOME"));}
+                catch(Exception e){runOnUiThread(()->state.setText("Sessão anterior expirada. Entre novamente."));}
+            },"home-account-resume").start();
+        }
     }
 
     private void settingsGeneral(){
