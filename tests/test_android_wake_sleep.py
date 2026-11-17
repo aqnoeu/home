@@ -19,7 +19,7 @@ class AndroidWakeSleepTest(unittest.TestCase):
         self.assertIn('bg.setColor(Color.rgb(11,17,26));', overlay)
         self.assertIn('eyes.setBackground(bg);', overlay)
 
-    def test_offline_vosk_activation_without_partial_triggers(self):
+    def test_offline_vosk_activation_with_stable_partial_confirmation(self):
         wake = (SRC / "WakeWordService.java").read_text(encoding="utf-8")
         self.assertIn("import org.vosk.Model;", wake)
         self.assertIn("import org.vosk.android.SpeechService;", wake)
@@ -27,8 +27,13 @@ class AndroidWakeSleepTest(unittest.TestCase):
         self.assertIn("new SpeechService(recognizer,16000.0f)", wake)
         self.assertIn("audio.startListening(this)", wake)
         self.assertIn('String[] triggers={"ei home","ok home","hey home","oi home"', wake)
-        self.assertIn("onPartialResult(String hypothesis){}", wake)
-        self.assertIn("onResult(String hypothesis){detect(hypothesis);}", wake)
+        self.assertIn("onPartialResult(String hypothesis){detect(hypothesis,true);}", wake)
+        self.assertIn("partialCount<3", wake)
+        self.assertIn("now-partialSince<200", wake)
+        self.assertIn("home ok home", wake)
+        self.assertIn("MainActivity.isInForeground()", wake)
+        self.assertIn("home_wake_detected_v2", wake)
+        self.assertIn("onResult(String hypothesis){detect(hypothesis,false);}", wake)
         self.assertIn("closeAudio(); // libera o AudioRecord", wake)
         self.assertNotIn("SpeechRecognizer.createSpeechRecognizer", wake)
 
