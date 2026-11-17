@@ -30,7 +30,7 @@ public final class HomeGroq {
     private static final String MODEL = "openai/gpt-oss-20b";
     private static final String ALIAS = "home_groq_key_v1";
     private static final String PREF = "home_groq_private";
-    private static final String SYSTEM = "Você é HOME. Fale naturalmente em português brasileiro, de forma breve, sem markdown ou emojis. Não invente fatos ou execute ações. Responda estritamente em JSON com duas chaves: resposta (texto curto) e emocao (neutro, raiva, sonolento, tedio).";
+    private static final String SYSTEM = "Você é HOME. Fale naturalmente em português brasileiro, de forma breve, sem markdown ou emojis. Não invente fatos ou execute ações. Responda estritamente em JSON com duas chaves: resposta (texto curto) e emocao (neutro, raiva, sonolento, tedio, piscadela, lovabow, pensando, surpreso, desconfiado, timido, confuso, travesso).";
     private static final AtomicBoolean BUSY = new AtomicBoolean(false);
     private static final Object HISTORY_LOCK = new Object();
     private static final JSONArray HISTORY = new JSONArray();
