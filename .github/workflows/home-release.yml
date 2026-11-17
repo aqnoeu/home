@@ -13,6 +13,7 @@ on:
       - 'assets/**'
       - 'tests/**'
       - 'chrome-extension/**'
+      - 'release-request/**'
   workflow_dispatch:
 permissions:
   contents: write
@@ -27,6 +28,13 @@ jobs:
     outputs:
       number: ${{ steps.next.outputs.number }}
     steps:
+      - name: Validar origem da versão solicitada
+        run: |
+          test -f android/app/build.gradle.kts
+          test -f home_expression_gallery.py
+          test -f docs/MANUAL_EXPRESSOES_HOME.md
+          test -f android/app/src/main/java/com/aqnoeu/home/WakePhrases.java
+          echo "OK: base da versão conjunta, galeria de 12 expressões e ativação por voz presentes."
       - name: Definir mesma versão para PC e celular
         id: next
         env:
