@@ -49,6 +49,15 @@ class ModularArchitectureTest(unittest.TestCase):
         self.assertNotIn("HomeChatStore",commands)
         self.assertNotIn("HomeGroq",commands)
 
+    def test_background_offline_reply_logic_outside_microphone_service(self):
+        wake=(ANDROID/"WakeWordService.java").read_text(encoding="utf-8")
+        replies=(ANDROID/"HomeOfflineReplies.java").read_text(encoding="utf-8")
+        self.assertIn("HomeOfflineReplies.answer(this,question)",wake)
+        self.assertIn("public static String answer(android.content.Context context,String question)",replies)
+        self.assertIn("DeviceHub.battery(context)",replies)
+        self.assertNotIn("SpeechService",replies)
+        self.assertNotIn("HomeGroq",replies)
+
     def test_future_plan_saved_in_repository(self):
         roadmap=(ROOT/"docs/HOME_EVOLUTION_ROADMAP.md").read_text(encoding="utf-8")
         architecture=(ROOT/"docs/HOME_ARCHITECTURE.md").read_text(encoding="utf-8")
