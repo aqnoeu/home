@@ -1291,6 +1291,18 @@ public final class MainActivity extends Activity {
             if(on)startWake();
             else{stopService(new Intent(this,WakeWordService.class));statusMessage("Ei, Home desligado.");}
         });
+        settingSwitch(wake,"Responder em segundo plano com Faber",
+            "Após Ei Home, o HOME escuta comandos locais e fala sem abrir a tela. Requer Faber instalada.",
+            getSharedPreferences("home",MODE_PRIVATE).getBoolean("wake_background_audio",false),
+            (view,on)->{
+                if(on && !FaberOffline.isInstalled(this)){
+                    view.setChecked(false);
+                    statusMessage("Instale a voz Faber em Voz / IA para ativar respostas em segundo plano.");
+                    return;
+                }
+                getSharedPreferences("home",MODE_PRIVATE).edit().putBoolean("wake_background_audio",on).apply();
+                statusMessage(on?"Resposta por voz em segundo plano ativada.":"Resposta por voz em segundo plano desativada.");
+            });
         action(wake,"Testar o microfone agora",false,()->{openVoiceListening();});
         TextView diag=note("Status: "+getSharedPreferences("home",MODE_PRIVATE).getString("wake_status","Ainda não iniciado."));
         add(wake,diag,6,8);
