@@ -33,7 +33,12 @@ public final class MainActivity extends Activity {
     private static final String DOWNLOAD = "https://github.com/aqnoeu/home/releases";
     private static volatile boolean inForeground=false;
     public static boolean isInForeground(){return inForeground;}
-    @Override protected void onResume(){super.onResume();inForeground=true;}
+    @Override protected void onResume(){
+        super.onResume();
+        inForeground=true;
+        // Background speech is persisted by the service; reread it when opening the app.
+        if("assistant".equals(currentPage))refreshChat();
+    }
     @Override protected void onPause(){inForeground=false;super.onPause();}
     private static final int BG = Color.rgb(11,17,26);           // #0B111A
     private static final int SURFACE = Color.rgb(20,29,42);
