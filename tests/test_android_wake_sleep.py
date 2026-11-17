@@ -22,10 +22,18 @@ class AndroidWakeSleepTest(unittest.TestCase):
     def test_voice_animation_shows_actual_microphone_state(self):
         wake=(SRC/"WakeWordService.java").read_text(encoding="utf-8")
         eyes=(SRC/"EyesView.java").read_text(encoding="utf-8")
-        self.assertIn('visualState("ouvindo")',wake)
+        self.assertIn('visualState("detector_ativo")',wake)
+        self.assertNotIn('visualState("ouvindo")',wake)
+        self.assertIn('showCommandListening(Context context)',wake)
+        self.assertIn('showProcessing(Context context)',wake)
+        self.assertIn('visualState("aguardando_comando")',wake)
         self.assertIn('visualState("falando")',wake)
         self.assertIn('visualState("desligado")',wake)
         self.assertIn('wake_visual_state',eyes)
+        self.assertIn('boolean passiveWake="detector_ativo".equals(voice)',eyes)
+        self.assertIn('if(commandListening){',eyes)
+        self.assertIn('speaking || passiveWake',eyes)
+        self.assertNotIn('boolean listening="ouvindo"',eyes)
         self.assertIn('commandListening',eyes)
         self.assertIn('Color.rgb(45,255,90)',eyes)
         self.assertIn('rgb=Color.WHITE',eyes)
@@ -46,6 +54,8 @@ class AndroidWakeSleepTest(unittest.TestCase):
         self.assertIn('consecutiveAudioErrors',wake)
         self.assertIn('audioGeneration',wake)
         self.assertIn('wake_background_audio',activity)
+        self.assertIn('WakeWordService.showCommandListening(this);',activity)
+        self.assertIn('if(request==HomeVoice.REQUEST_SPEECH)WakeWordService.showProcessing(this);',activity)
         self.assertIn('fun speakBackground(context: Context',faber)
 
     def test_offline_vosk_activation_with_stable_partial_confirmation(self):
