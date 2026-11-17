@@ -158,6 +158,12 @@ public final class WakeWordService extends Service implements RecognitionListene
             .putBoolean("wake_command_active",false)
             .putLong("wake_visual_at",System.currentTimeMillis()).apply();
     }
+    public static void showSpeaking(Context context){
+        context.getSharedPreferences("home",MODE_PRIVATE).edit()
+            .putBoolean("wake_command_active",false)
+            .putString("wake_visual_state","falando")
+            .putLong("wake_visual_at",System.currentTimeMillis()).apply();
+    }
     private void state(String value) {
         getSharedPreferences("home",MODE_PRIVATE).edit().putString("wake_status",value).apply();
     }
