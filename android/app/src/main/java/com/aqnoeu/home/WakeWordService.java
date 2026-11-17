@@ -32,6 +32,14 @@ public final class WakeWordService extends Service implements RecognitionListene
     private String partialCandidate="";
     private int partialCount;
     private long partialSince;
+    private final Runnable pendingNotificationRecovery=()->{
+        if(running && paused && !MainActivity.isInForeground()){
+            paused=false;
+            clearPartial();
+            state("HOME reativou a escuta após a notificação não ser aberta.");
+            beginListening();
+        }
+    };
 
     public static boolean enabled(Context context) {
         return context.getSharedPreferences("home",MODE_PRIVATE).getBoolean("wake_enabled",false);
@@ -53,12 +61,14 @@ public final class WakeWordService extends Service implements RecognitionListene
             stopSelf();return START_NOT_STICKY;
         }
         if(intent!=null && PAUSE.equals(intent.getAction())){
+            main.removeCallbacks(pendingNotificationRecovery);
             paused=true;
             closeAudio();
             state("Detecção pausada durante a conversa.");
             if(running)return START_NOT_STICKY;
         }
         if(intent!=null && RESUME.equals(intent.getAction()) && running){
+            main.removeCallbacks(pendingNotificationRecovery);
             paused=false;
             clearPartial();
             beginListening();
@@ -217,6 +227,9 @@ public final class WakeWordService extends Service implements RecognitionListene
                 android.R.drawable.ic_btn_speak_now,"Conversar",tap).build())
             .build();
         manager.notify(73,note);
+        // A notificação pode não ser tocada. Não deixe o detector permanentemente pausado.
+        main.removeCallbacks(pendingNotificationRecovery);
+        main.postDelayed(pendingNotificationRecovery,20000L);
     }
     @Override public void onResult(String hypothesis){detect(hypothesis,false);}
     @Override public void onPartialResult(String hypothesis){detect(hypothesis,true);}
@@ -228,6 +241,7 @@ public final class WakeWordService extends Service implements RecognitionListene
     }
     @Override public void onTimeout(){} // modo sem timeout
     @Override public void onDestroy(){
+        main.removeCallbacks(pendingNotificationRecovery);
         running=false;paused=true;
         closeAudio();
         if(model!=null){try{model.close();}catch(Exception ignored){}model=null;}
