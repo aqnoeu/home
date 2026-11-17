@@ -108,16 +108,15 @@ public final class WakeWordService extends Service implements RecognitionListene
     /** Tarefa curta com o detector já em execução. Não inicia outro microfone nem abre Activity. */
     private void beginBackgroundConversation(String initialCommand){
         String cmd=initialCommand==null?"":initialCommand.trim();
-        if(!cmd.isEmpty()){
-            replyBackground(cmd);
-            return;
-        }
         backgroundWaiting=true;
         pendingCommand="";
         visualState("aguardando_comando");
         state("HOME chamado em segundo plano. Aguardando comando por voz.");
         main.removeCallbacks(backgroundCommandTimeout);
         main.postDelayed(backgroundCommandTimeout,12000L);
+        // Wake detection may come from a partial Vosk hypothesis. Do not cut
+        // off the rest of a sentence by closing the mic immediately.
+        if(!cmd.isEmpty())captureBackgroundCommand(cmd,true);
     }
     private String offlineAnswer(String question){
         String q=normalize(question);
