@@ -28,6 +28,7 @@ jobs:
     outputs:
       number: ${{ steps.next.outputs.number }}
     steps:
+      - uses: actions/checkout@v4
       - name: Validar origem da versão solicitada
         run: |
           test -f android/app/build.gradle.kts
