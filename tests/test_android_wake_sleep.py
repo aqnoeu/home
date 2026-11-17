@@ -26,6 +26,7 @@ class AndroidWakeSleepTest(unittest.TestCase):
         self.assertNotIn('visualState("ouvindo")',wake)
         self.assertIn('showCommandListening(Context context)',wake)
         self.assertIn('showProcessing(Context context)',wake)
+        self.assertIn('showSpeaking(Context context)',wake)
         self.assertIn('visualState("aguardando_comando")',wake)
         self.assertIn('visualState("falando")',wake)
         self.assertIn('visualState("desligado")',wake)
@@ -55,6 +56,7 @@ class AndroidWakeSleepTest(unittest.TestCase):
         self.assertIn('audioGeneration',wake)
         self.assertIn('wake_background_audio',activity)
         self.assertIn('WakeWordService.showCommandListening(this);',activity)
+        self.assertIn('WakeWordService.showSpeaking(this);',activity)
         self.assertIn('if(request==HomeVoice.REQUEST_SPEECH)WakeWordService.showProcessing(this);',activity)
         self.assertIn('fun speakBackground(context: Context',faber)
 
