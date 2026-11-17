@@ -13,6 +13,8 @@ from PySide6.QtWidgets import QWidget, QSizePolicy
 class EyesWidget(QWidget):
     """Desenho proprio inspirado no conceito de olhos expressivos de robos."""
     MOODS = ('Normal', 'Feliz', 'Sonolento', 'Bravo')
+    EXTRA_EXPRESSIONS = ('piscadela', 'lovabow', 'pensando', 'surpreso',
+                         'desconfiado', 'timido', 'confuso', 'travesso')
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -22,6 +24,8 @@ class EyesWidget(QWidget):
         self.setFixedHeight(22)
         self.mood = 0
         self.emotion = "neutro"
+        self.preview_emotion = None
+        self.preview_until = 0.0
         self.eye_color = QColor("#f2f8ff")
         self.emotion_height = 1.0
         self.emotion_width = 1.0
@@ -44,6 +48,22 @@ class EyesWidget(QWidget):
         self.timer.setInterval(50)
         self.timer.timeout.connect(self.animate)
         self.timer.start()
+
+    def show_expression(self, name, seconds=12.0):
+        """Previa temporaria para o catalogo; contexto automatico permanece ativo."""
+        if name not in self.EXTRA_EXPRESSIONS:
+            return False
+        self.preview_emotion = name
+        self.preview_until = time.monotonic() + max(0.0, seconds)
+        self.update()
+        return True
+
+    def current_expression(self, now=None):
+        now = time.monotonic() if now is None else now
+        if self.preview_emotion and now < self.preview_until:
+            return self.preview_emotion
+        self.preview_emotion = None
+        return self.emotion
 
     def blink_on_click(self, now=None):
         """Uma reação discreta ao clique, sem piscar repetidamente em sequência."""
@@ -80,6 +100,7 @@ class EyesWidget(QWidget):
             self.next_blink = now + random.uniform(4.5, 8.0)
         if self.blink_begin >= 0 and now - self.blink_begin >= self.blink_duration:
             self.blink_begin = -1.0
+        active = self.current_expression(now)
         targets = {
             "neutro": (1., 1., QColor("#F2F8FF")),
             "raiva": (.82, 1., QColor("#FF6A00")),
@@ -88,8 +109,16 @@ class EyesWidget(QWidget):
             "carregando": (1., 1., QColor("#00C46A")),
             "bateria_baixa": (.86, 1., QColor("#F2A444")),
             "economia": (.72, 1., QColor("#93B8DB")),
+            "piscadela": (1., 1., QColor("#F2F8FF")),
+            "lovabow": (1., 1., QColor("#F2F8FF")),
+            "pensando": (.76, .92, QColor("#D5E4F5")),
+            "surpreso": (1.12, 1.06, QColor("#F2F8FF")),
+            "desconfiado": (.82, .9, QColor("#DDE8F8")),
+            "timido": (.8, .94, QColor("#E8C4D4")),
+            "confuso": (.9, .96, QColor("#DFE9F8")),
+            "travesso": (.84, .94, QColor("#F2F8FF")),
         }
-        hh, ww, color = targets.get(self.emotion, targets["neutro"])
+        hh, ww, color = targets.get(active, targets["neutro"])
         factor = min(1., dt * 5.5)
         self.emotion_height += (hh - self.emotion_height) * factor
         self.emotion_width += (ww - self.emotion_width) * factor
@@ -109,6 +138,7 @@ class EyesWidget(QWidget):
         ew = min(w * 0.21, eh * 0.82, 25.0) * self.emotion_width
         gap = max(0.0, min(float(self.eye_gap), w - 2 * ew - 8))
         left = w / 2 + self.gaze * min(10, w * .055) - (ew * 2 + gap) / 2
+        active = self.current_expression()
         blink = 1.0
         if self.blink_begin >= 0:
             progress = (time.monotonic() - self.blink_begin) / self.blink_duration
@@ -129,22 +159,44 @@ class EyesWidget(QWidget):
         height = max(2., eh * blink * self.emotion_height)
         for index in range(2):
             x = left + index * (ew + gap)
-            if self.emotion == "raiva":
+            if active == "raiva":
                 x += math.sin(time.monotonic() * 24) * .55
-            y = (h - height) / 2 + self.gaze_y * min(4.,h*.12)
+            eye_height = height
+            if active == "piscadela" and index == 0:
+                eye_height *= .12
+            elif active == "confuso":
+                eye_height *= (.65 if index == 0 else 1.08)
+            elif active == "desconfiado":
+                eye_height *= (.62 if index == 0 else .96)
+            elif active == "travesso":
+                eye_height *= (.55 if index == 0 else .92)
+            if active == "pensando":
+                x += ew * .12
+            y = (h - eye_height) / 2 + self.gaze_y * min(4.,h*.12)
             path = QPainterPath()
-            radius = min(ew * .36, height * .45, 9)
-            path.addRoundedRect(x, y, ew, height, radius, radius)
+            radius = min(ew * .36, eye_height * .45, 9)
+            path.addRoundedRect(x, y, ew, eye_height, radius, radius)
             fill = QColor(self.eye_color)
-            if self.emotion == "carregando":
+            if active == "carregando":
                 fill.setAlpha(225 + round(15 * (1 + math.sin(time.monotonic()*2.6))))
+            if active == "lovabow":
+                # O coracao substitui cada olho; nao existe boca.
+                path = QPainterPath()
+                path.moveTo(x + ew*.5, y + eye_height*.93)
+                path.cubicTo(x-ew*.14, y+eye_height*.59, x-ew*.1, y+eye_height*.12, x+ew*.26, y+eye_height*.12)
+                path.cubicTo(x+ew*.43, y+eye_height*.12, x+ew*.5, y+eye_height*.29, x+ew*.5, y+eye_height*.29)
+                path.cubicTo(x+ew*.5, y+eye_height*.29, x+ew*.57, y+eye_height*.12, x+ew*.74, y+eye_height*.12)
+                path.cubicTo(x+ew*1.1, y+eye_height*.12, x+ew*1.14, y+eye_height*.59, x+ew*.5, y+eye_height*.93)
+                path.closeSubpath()
+                phase = (time.monotonic()*.6) % 1.
+                fill = QColor("#F2F8FF" if phase < .25 else "#F6AEC8" if phase < .5 else "#F18BB5")
             p.fillPath(path, fill)
             black = QColor('#05070b')
             if self.mood == 1 and self.emotion == "neutro" and blink > .6:
                 p.setPen(Qt.NoPen)
                 p.setBrush(black)
                 p.drawEllipse(int(x-ew*.17), int(y+height*.49), int(ew*1.34), int(height*.81))
-            elif (self.mood == 3 or self.emotion == "raiva") and blink > .6:
+            elif (self.mood == 3 or active == "raiva") and blink > .6:
                 lid = QPainterPath()
                 lid.moveTo(x-2, y-2)
                 lid.lineTo(x+ew+2, y-2)
@@ -156,7 +208,15 @@ class EyesWidget(QWidget):
                     lid.lineTo(x-2, y+height*.43)
                 lid.closeSubpath()
                 p.fillPath(lid, black)
-        if self.emotion == "sonolento" and h > 55:
+        if active in ("sonolento", "timido") and h >= 28:
+            # Tracos laterais abaixo dos olhos, sem formar boca ou rosto.
+            p.setPen(QColor("#8EAFCF" if active == "sonolento" else "#E8C4D4"))
+            for base_x in (left - 3, left + ew + gap + ew + 1):
+                for offset in (0, 4):
+                    yy = h*.80 + offset*.23
+                    p.drawLine(round(base_x+offset), round(yy),
+                               round(base_x+offset+2), round(yy+2))
+        if active == "sonolento" and h > 32:
             p.setPen(QColor("#8EAFCF"))
             p.drawText(round(left + 2*ew + gap + 8), round(h*.34 - 7*math.sin(time.monotonic()*.9)), "z")
 
