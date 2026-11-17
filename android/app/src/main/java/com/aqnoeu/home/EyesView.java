@@ -126,8 +126,11 @@ public final class EyesView extends View {
                 float wink=animated?Math.max(.09f,1f-(float)Math.sin(Math.PI*phase)*.91f):.12f;
                 y+=(eh-eh*wink)/2f;
                 float winkHeight=eh*wink;
+                paint.setColor(Color.WHITE);
+                paint.setAlpha(255);
                 canvas.drawRoundRect(new RectF(x,y,x+ew,y+winkHeight),
                     Math.min(dp(5),winkHeight/2f),Math.min(dp(5),winkHeight/2f),paint);
+                paint.setColor(eyeColor);
             }else if(updateActive){
                 RectF eyeBounds=new RectF(x,y,x+ew,y+eh);
                 float radius=Math.min(dp(5),eh/2f);
@@ -161,7 +164,8 @@ public final class EyesView extends View {
                 paint.setColor(Color.rgb(11,17,26));
                 canvas.drawPath(lid,paint);
                 paint.setColor(eyeColor);
-            }else if(((updateActive || listening || commandListening) || (mood==1&&"neutro".equals(state)))&&eh>=dp(9)){
+            }else if(!(updateComplete && i==1 && updateElapsed>=210 && updateElapsed<610) &&
+                ((updateActive || listening || commandListening) || (mood==1&&"neutro".equals(state)))&&eh>=dp(9)){
                 paint.setColor(Color.rgb(11,17,26));
                 canvas.drawOval(new RectF(x-ew*.15f,y+eh*.54f,x+ew*1.16f,y+eh*1.36f),paint);
                 paint.setColor(eyeColor);
