@@ -21,7 +21,7 @@ class MobileNavigationTest(unittest.TestCase):
         self.assertIn('private void showSettings(String tab)', self.code)
 
     def test_settings_tabs_are_inline(self):
-        self.assertIn('String[] names={"Geral","Voz / IA","Aparência"};', self.code)
+        self.assertIn('String[] names={"Geral","Voz / IA","Aparência","Conta HOME"};', self.code)
         for text in ['"Mostrar notch"', '"Ouvir ‘Ei, Home’"', '"Mostrar aba de toque"',
                      '"Integrar à barra superior"', '"Responder com voz"']:
             self.assertIn(text, self.code)
