@@ -2,6 +2,12 @@
 
 Home é um widget de entalhe para a borda superior do Windows, inspirado no formato de uma Dynamic Island, com olhos animados expressivos e dimensões personalizáveis.
 
+## Manual de expressões
+
+O catálogo técnico e visual (olhos originais sem boca, expressões, estados e regras de interação) está versionado em [docs/MANUAL_EXPRESSOES_HOME.md](docs/MANUAL_EXPRESSOES_HOME.md).
+
+No Android, o **Hub** e **Configurações → Aparência** têm um seletor de 12 expressões em duas linhas, com uma prévia usando o próprio renderizador. A escolha é salva e aplicada ao notch respeitando os estados operacionais prioritários.
+
 ## Recursos da versão 0.7 (código-fonte)
 - Entalhe acoplado à borda superior, com curvas laterais e abertura animada.
 - Olhos vetoriais com piscadas, olhares aleatórios e expressões.
