@@ -25,8 +25,14 @@ class TestVoiceCommands(unittest.TestCase):
         self.assertEqual(wake_command("home"), "")
         self.assertEqual(wake_command("home abrir calculadora"), "abrir calculadora")
 
+    def test_wake_r_sound_variants(self):
+        # Em pt-BR o H de "home" soa como R: o Vosk ouve "rôumi", "romi".
+        for heard in ("ok roumi", "ei romi", "ai houmi", "eiroumi", "romi", "roumi"):
+            self.assertEqual(wake_command(heard), "", heard)
+        self.assertEqual(wake_command("roumi que dia é hoje"), "que dia e hoje")
+
     def test_wake_has_no_false_positive(self):
-        for heard in ("o homem chegou", "ok vamos embora", "minha casa home office",
+        for heard in ("roma e linda", "quero ir para rome", "o homem chegou", "ok vamos embora", "minha casa home office",
                       "abra a calculadora", "quero ir para roma", ""):
             self.assertIsNone(wake_command(heard), heard)
 

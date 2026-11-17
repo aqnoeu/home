@@ -341,7 +341,9 @@ public final class WakeWordService extends Service implements RecognitionListene
             if(text.startsWith(value+" "))return text.substring(value.length()).trim();
         }
         // Variantes que o Vosk pt-BR produz para "ok home" (oquei, o k, rome, homem...).
-        return WakePhrases.suffix(text);
+        String heard=WakePhrases.suffix(text);
+        if(heard==null && finalOnly)heard=WakePhrases.bareSuffix(text);
+        return heard;
     }
     private void clearPartial(){
         partialCandidate="";
