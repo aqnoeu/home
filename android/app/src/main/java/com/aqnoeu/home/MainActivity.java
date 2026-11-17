@@ -219,6 +219,18 @@ public final class MainActivity extends Activity {
             }catch(Exception ignored){}
         }
     }
+    private void reportVoiceFailure(String question,String explanation){
+        try{
+            HomeChatStore store=HomeChatStore.get(this);
+            String session=store.ensureActive();
+            store.addTo(session,"user",question);
+            store.addTo(session,"assistant",explanation);
+            refreshChat();
+        }catch(Exception ignored){}
+        statusMessage(explanation);
+        if(FaberOffline.isInstalled(this))speakAnswer(explanation);
+        else resumeWake();
+    }
     private void speakAnswer(String answer){
         if(!getSharedPreferences("home",MODE_PRIVATE).getBoolean("voice_replies",true)){
             resumeWake();return;
@@ -1433,8 +1445,8 @@ public final class MainActivity extends Activity {
             if(handleLocalCommand(question,true))return;
             statusMessage("Você: "+question+"  ·  HOME está pensando…");
             if(!HomeGroq.connected(this)){
-                statusMessage("Conecte a Groq no Assistente para receber respostas por voz.");
-                resumeWake();return;
+                reportVoiceFailure(question,"A pergunta foi recebida, mas a IA do celular não está conectada. Abra o HOME para configurar a conta.");
+                return;
             }
             HomeGroq.ask(this,question,new HomeGroq.Callback(){
                 @Override public void onEmotion(String emotion){HomeEmotion.fromGroq(emotion);}
@@ -1445,9 +1457,14 @@ public final class MainActivity extends Activity {
                     else {resumeWake();statusMessage("HOME: "+answer+"\nInstale a voz Faber para ouvir.");}
                 }
                 @Override public void onError(String reason){
-                    resumeWake();
                     refreshChat();
                     statusMessage(reason);
+                    // HomeGroq já salva a mensagem do usuário; registrar apenas o aviso de erro.
+                    try{HomeChatStore.get(MainActivity.this).add("assistant","Não consegui responder: "+reason);}
+                    catch(Exception ignored){}
+                    refreshChat();
+                    if(FaberOffline.isInstalled(MainActivity.this))speakAnswer("Não consegui responder. Veja o aviso na conversa.");
+                    else resumeWake();
                 }
             });
             refreshChat();
