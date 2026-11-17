@@ -141,6 +141,36 @@ public final class WakeWordService extends Service implements RecognitionListene
             return "Olá! Estou ouvindo. Pode me chamar novamente.";
         return "Esse comando ainda precisa do chat do HOME. Você pode abrir o aplicativo para continuar.";
     }
+    private void notifyBackgroundAnswer(String command,String answer){
+        NotificationManager manager=getSystemService(NotificationManager.class);
+        manager.createNotificationChannel(new NotificationChannel(
+            "home_voice_response_v1","HOME — Respostas por voz",NotificationManager.IMPORTANCE_DEFAULT));
+        Intent app=new Intent(this,MainActivity.class)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_SINGLE_TOP|Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        PendingIntent tap=PendingIntent.getActivity(this,75,app,
+            PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
+        Notification notification=new Notification.Builder(this,"home_voice_response_v1")
+            .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+            .setContentTitle("HOME: "+answer.substring(0,Math.min(48,answer.length())))
+            .setContentText("Você: "+command)
+            .setStyle(new Notification.BigTextStyle().bigText("Você: "+command+"\\nHOME: "+answer))
+            .setContentIntent(tap).setAutoCancel(true).build();
+        manager.notify(75,notification);
+    }
+    private void resumeBackgroundListening(){
+        backgroundSpeaking=false;
+        if(running && enabled(this)){
+            paused=false;
+            visualState("armado");
+            consecutiveAudioErrors=0;
+            main.postDelayed(()->{
+                if(running && !paused){
+                    state("HOME voltou a ouvir Ei Home, Ok Home ou Home.");
+                    beginListening();
+                }
+            },1100L);
+        }
+    }
     private void replyBackground(String command){
         if(!running || paused || backgroundSpeaking)return;
         backgroundWaiting=false;
@@ -148,40 +178,38 @@ public final class WakeWordService extends Service implements RecognitionListene
         main.removeCallbacks(completePendingCommand);
         main.removeCallbacks(backgroundCommandTimeout);
         backgroundSpeaking=true;
-        visualState("falando");
         paused=true;
-        closeAudio(); // Faber não compete com o Vosk pelo microfone
+        visualState("falando");
+        closeAudio(); // libera o AudioRecord antes da resposta local
         String answer=offlineAnswer(command);
+        boolean saved=false;
         try{
             HomeChatStore store=HomeChatStore.get(this);
             String session=store.ensureActive();
             store.addTo(session,"user",command);
             store.addTo(session,"assistant",answer);
+            saved=true;
         }catch(Exception ex){
-            state("Resposta por voz iniciada, mas o histórico não pôde ser salvo.");
+            state("Falha ao salvar o comando: "+ex.getClass().getSimpleName());
+        }
+        getSharedPreferences("home",MODE_PRIVATE).edit().putString("wake_last_command",command).apply();
+        if(!saved){
+            resumeBackgroundListening();
+            return;
+        }
+        // Notify only after the actual command and response have been saved.
+        notifyBackgroundAnswer(command,answer);
+        if(!backgroundVoiceEnabled()){
+            state("Comando e resposta salvos. Resposta falada em segundo plano desativada.");
+            resumeBackgroundListening();
+            return;
         }
         state("Respondendo em segundo plano com a Faber.");
-        getSharedPreferences("home",MODE_PRIVATE).edit().putString("wake_last_command",command).apply();
-        boolean started=FaberOffline.speakBackground(this,answer,()->main.post(()->{
-            backgroundSpeaking=false;
-            if(running && enabled(this)){
-                paused=false;
-                visualState("armado");
-                consecutiveAudioErrors=0;
-                main.postDelayed(()->{
-                    if(running && !paused){
-                        state("Faber terminou. HOME voltou a ouvir Ei Home ou Ok Home.");
-                        beginListening();
-                    }
-                },1100L);
-            }
-        }));
+        boolean started=FaberOffline.speakBackground(this,answer,
+            ()->main.post(this::resumeBackgroundListening));
         if(!started){
-            backgroundSpeaking=false;
-            paused=false;
-            visualState("armado");
-            state("A Faber não pôde responder. Detector reativado.");
-            main.postDelayed(this::beginListening,1100L);
+            state("Faber não iniciou. Resposta preservada no histórico.");
+            resumeBackgroundListening();
         }
     }
     private final Runnable pendingNotificationRecovery=()->{
@@ -376,7 +404,9 @@ public final class WakeWordService extends Service implements RecognitionListene
         lastWakeAt=SystemClock.elapsedRealtime();
         getSharedPreferences("home",MODE_PRIVATE).edit()
             .putLong("wake_last_recognized",System.currentTimeMillis()).apply();
-        if(!MainActivity.isInForeground() && backgroundVoiceEnabled()){
+        if(!MainActivity.isInForeground()){
+            // Never interrupt background capture with an empty notification.
+            // The user expects a real command and a persisted chat entry.
             beginBackgroundConversation(command);
             return;
         }
