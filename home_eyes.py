@@ -192,7 +192,7 @@ class EyesWidget(QWidget):
                 fill = QColor("#F2F8FF" if phase < .25 else "#F6AEC8" if phase < .5 else "#F18BB5")
             p.fillPath(path, fill)
             black = QColor('#05070b')
-            if self.mood == 1 and self.emotion == "neutro" and blink > .6:
+            if self.mood == 1 and active == "neutro" and blink > .6:
                 p.setPen(Qt.NoPen)
                 p.setBrush(black)
                 p.drawEllipse(int(x-ew*.17), int(y+height*.49), int(ew*1.34), int(height*.81))
@@ -208,6 +208,21 @@ class EyesWidget(QWidget):
                     lid.lineTo(x-2, y+height*.43)
                 lid.closeSubpath()
                 p.fillPath(lid, black)
+        if active == "lovabow" and h >= 32:
+            # Pequenos coracoes sobem apenas na fase final; somem no notch compacto.
+            phase = (time.monotonic() * .6) % 1.
+            if phase >= .5:
+                p.setPen(Qt.NoPen)
+                p.setBrush(QColor("#F18BB5"))
+                for i in range(3):
+                    cx = left + 2*ew + gap + 3 + i*5
+                    cy = h*.67 - (phase-.5)*h*.5 - i*3
+                    spark = QPainterPath()
+                    spark.moveTo(cx, cy+3)
+                    spark.cubicTo(cx-5, cy, cx-3, cy-3, cx, cy-1)
+                    spark.cubicTo(cx+3, cy-3, cx+5, cy, cx, cy+3)
+                    spark.closeSubpath()
+                    p.fillPath(spark, QColor("#F18BB5"))
         if active in ("sonolento", "timido") and h >= 28:
             # Tracos laterais abaixo dos olhos, sem formar boca ou rosto.
             p.setPen(QColor("#8EAFCF" if active == "sonolento" else "#E8C4D4"))
