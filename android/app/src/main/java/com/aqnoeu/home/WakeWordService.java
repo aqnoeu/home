@@ -47,7 +47,7 @@ public final class WakeWordService extends Service implements RecognitionListene
     private final Runnable backgroundCommandTimeout=()->{
         if(backgroundWaiting && running && !paused){
             backgroundWaiting=false;
-            visualState("ouvindo");
+            visualState("detector_ativo");
             state("Nenhum comando ouvido. HOME voltou a escutar a palavra de ativação.");
         }
     };
@@ -110,7 +110,7 @@ public final class WakeWordService extends Service implements RecognitionListene
             backgroundSpeaking=false;
             if(running && enabled(this)){
                 paused=false;
-                visualState("ouvindo");
+                visualState("detector_ativo");
                 consecutiveAudioErrors=0;
                 main.postDelayed(()->{
                     if(running && !paused){
@@ -123,7 +123,7 @@ public final class WakeWordService extends Service implements RecognitionListene
         if(!started){
             backgroundSpeaking=false;
             paused=false;
-            visualState("ouvindo");
+            visualState("detector_ativo");
             state("A Faber não pôde responder. Detector reativado.");
             main.postDelayed(this::beginListening,1100L);
         }
@@ -131,7 +131,7 @@ public final class WakeWordService extends Service implements RecognitionListene
     private final Runnable pendingNotificationRecovery=()->{
         if(running && paused && !MainActivity.isInForeground()){
             paused=false;
-            visualState("ouvindo");
+            visualState("detector_ativo");
             clearPartial();
             state("HOME reativou a escuta após a notificação não ser aberta.");
             beginListening();
@@ -143,6 +143,17 @@ public final class WakeWordService extends Service implements RecognitionListene
     }
     private void visualState(String visual){
         getSharedPreferences("home",MODE_PRIVATE).edit().putString("wake_visual_state",visual)
+            .putLong("wake_visual_at",System.currentTimeMillis()).apply();
+    }
+    /** The green eyes indicate command capture, never passive wake-word detection. */
+    public static void showCommandListening(Context context){
+        context.getSharedPreferences("home",MODE_PRIVATE).edit()
+            .putString("wake_visual_state","aguardando_comando")
+            .putLong("wake_visual_at",System.currentTimeMillis()).apply();
+    }
+    public static void showProcessing(Context context){
+        context.getSharedPreferences("home",MODE_PRIVATE).edit()
+            .putString("wake_visual_state","processando")
             .putLong("wake_visual_at",System.currentTimeMillis()).apply();
     }
     private void state(String value) {
@@ -239,7 +250,7 @@ public final class WakeWordService extends Service implements RecognitionListene
                 @Override public void onTimeout(){if(generation==audioGeneration)WakeWordService.this.onTimeout();}
             };
             if(!audio.startListening(sessionListener))throw new IllegalStateException("Não foi possível iniciar a escuta.");
-            visualState("ouvindo");
+            visualState("detector_ativo");
             state("Detector offline ouvindo. Diga Ei Home, Ok Home ou Home.");
         }catch(Exception ex){
             state("Falha no microfone offline: "+ex.getClass().getSimpleName());
