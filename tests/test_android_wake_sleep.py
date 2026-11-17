@@ -27,7 +27,10 @@ class AndroidWakeSleepTest(unittest.TestCase):
         self.assertIn('visualState("desligado")',wake)
         self.assertIn('wake_visual_state',eyes)
         self.assertIn('commandListening',eyes)
-        self.assertIn('paint.setColor(commandListening?',eyes)
+        self.assertIn('Color.rgb(45,255,90)',eyes)
+        self.assertIn('rgb=Color.WHITE',eyes)
+        self.assertIn('O sorriso verde-neon',eyes)
+        self.assertNotIn('paint.setColor(commandListening?',eyes)
 
     def test_background_faber_opt_in_and_recovery(self):
         wake=(SRC/"WakeWordService.java").read_text(encoding="utf-8")
