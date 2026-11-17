@@ -34,6 +34,15 @@ public final class WakeWordService extends Service implements RecognitionListene
     private String partialCandidate="";
     private int partialCount;
     private long partialSince;
+    private final Runnable visualHeartbeat=new Runnable(){
+        @Override public void run(){
+            if(!running)return;
+            android.content.SharedPreferences p=getSharedPreferences("home",MODE_PRIVATE);
+            String current=p.getString("wake_visual_state","desligado");
+            if(!"desligado".equals(current))visualState(current);
+            main.postDelayed(this,30000L);
+        }
+    };
     private boolean backgroundWaiting, backgroundSpeaking;
     private final Runnable backgroundCommandTimeout=()->{
         if(backgroundWaiting && running && !paused){
@@ -189,6 +198,8 @@ public final class WakeWordService extends Service implements RecognitionListene
             stopSelf();return START_NOT_STICKY;
         }
         running=true;
+        main.removeCallbacks(visualHeartbeat);
+        main.postDelayed(visualHeartbeat,30000L);
         if(!paused)beginListening();
         return START_NOT_STICKY;
     }
@@ -374,6 +385,7 @@ public final class WakeWordService extends Service implements RecognitionListene
     @Override public void onTimeout(){} // modo sem timeout
     @Override public void onDestroy(){
         main.removeCallbacks(pendingNotificationRecovery);
+        main.removeCallbacks(visualHeartbeat);
         resetBackgroundState();
         running=false;paused=true;
         visualState("desligado");
