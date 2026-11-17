@@ -31,6 +31,9 @@ class AndroidWakeSleepTest(unittest.TestCase):
         self.assertIn('rgb=Color.WHITE',eyes)
         self.assertIn('O sorriso verde-neon',eyes)
         self.assertNotIn('paint.setColor(commandListening?',eyes)
+        self.assertIn('float speakingPulse=speaking&&animated',eyes)
+        self.assertIn('if(speaking){',eyes)
+        self.assertIn('i<3',eyes)
 
     def test_background_faber_opt_in_and_recovery(self):
         wake=(SRC/"WakeWordService.java").read_text(encoding="utf-8")
