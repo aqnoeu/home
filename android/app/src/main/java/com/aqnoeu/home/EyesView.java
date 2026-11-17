@@ -54,7 +54,7 @@ public final class EyesView extends View {
         boolean listening="aguardando_comando".equals(voice);
         boolean commandListening=listening;
         boolean speaking="falando".equals(voice);
-        boolean armed="armado".equals(voice);
+        boolean armed="armado".equals(voice) || "pausado".equals(voice) || "carregando".equals(voice);
         int rgb=Color.rgb(242,248,255);
         float targetH=1f,targetW=1f;
         if(listening || commandListening){
