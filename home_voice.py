@@ -140,9 +140,11 @@ def interpret(sentence):
 
 # O modelo Vosk pt-BR não conhece "home" nem "ok": costuma transcrever como
 # "rome", "homem", "oquei", "o k"... Aceitamos essas variantes, mas só no INÍCIO da frase.
-CALL_WORDS = {"ei", "hey", "hei", "ey", "ok", "okay", "okey", "oke", "okei", "oquei", "oquey", "okê"}
-HOME_WORDS = {"home", "rome", "romi", "homi", "hom", "ome", "rhome", "rom", "homem", "hôme"}
-JOINED_WAKE = {"okhome", "eihome", "heyhome", "okayhome", "okrome", "eirome", "oquehome"}
+CALL_WORDS = {"ei", "hey", "hei", "ey", "oi", "ae", "ai", "oque", "ok", "okay", "okey", "oke", "okei", "oquei", "oquey", "okê"}
+HOME_WORDS = {"home", "homi", "homy", "hom", "ome", "homem", "rome", "romi", "romy", "rhome", "rhomi",
+              "rom", "roume", "roumi", "roumy", "houmi", "houme", "hôme"}
+JOINED_WAKE = {c + h for c in CALL_WORDS for h in HOME_WORDS}  # "okhome", "eiromi"...
+BARE_WAKE = {"home", "rome", "romi", "romy", "rhome", "rhomi", "roume", "roumi", "roumy", "houmi", "houme"}
 
 
 def wake_command(sentence):
@@ -160,7 +162,7 @@ def wake_command(sentence):
             rest = w[2:]
         elif len(w) >= 3 and w[0] == "o" and w[1] in ("k", "que", "key") and w[2] in HOME_WORDS:
             rest = w[3:]
-        elif i == 0 and w and w[0] == "home":
+        elif i == 0 and w and w[0] in BARE_WAKE:
             rest = w[1:]
         if rest is not None:
             return " ".join(rest).strip()

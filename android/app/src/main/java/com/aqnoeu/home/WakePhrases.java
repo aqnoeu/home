@@ -14,11 +14,20 @@ import java.util.Set;
  */
 final class WakePhrases {
     private static final Set<String> CALL=new HashSet<>(Arrays.asList(
-        "ei","hey","hei","ey","oi","ok","okay","okey","oke","okei","oquei","oquey"));
+        "ei","hey","hei","ey","oi","ae","ai","oque","ok","okay","okey","oke","okei","oquei","oquey"));
+    /** Como o Vosk pt-BR costuma ouvir "home": o H inicial soa como R ("rôumi"). */
     private static final Set<String> HOME=new HashSet<>(Arrays.asList(
-        "home","rome","romi","homi","hom","ome","rhome","rom","homem","roume"));
-    private static final Set<String> JOINED=new HashSet<>(Arrays.asList(
-        "okhome","eihome","heyhome","okayhome","okrome","eirome","oquehome"));
+        "home","homi","homy","hom","ome","homem",
+        "rome","romi","romy","rhome","rhomi","rom",
+        "roume","roumi","roumy","houmi","houme"));
+    /** Formas específicas o bastante para valer sozinhas, no início da frase ("Rôumi, que horas são?"). */
+    private static final Set<String> BARE=new HashSet<>(Arrays.asList(
+        "home","rome","romi","romy","rhome","rhomi","roume","roumi","roumy","houmi","houme"));
+    private static final Set<String> JOINED=new HashSet<>();
+    static{
+        // "okhome", "eiromi", "oqueroumi"... o reconhecedor às vezes cola as duas palavras.
+        for(String call:CALL)for(String home:HOME)JOINED.add(call+home);
+    }
     private static final Set<String> SPELLED_OK=new HashSet<>(Arrays.asList("k","que","key"));
 
     private WakePhrases(){}
@@ -47,5 +56,29 @@ final class WakePhrases {
             }
         }
         return null;
+    }
+
+    /**
+     * Chamada curta: só o nome ("Home", "Rôumi") no início da frase. Use apenas com resultado
+     * final do reconhecedor, para não ativar por palavras soltas durante uma conversa.
+     * @return o comando depois do nome, "" se só chamou, ou null
+     */
+    static String bareSuffix(String text){
+        if(text==null || text.isEmpty())return null;
+        String[] words=text.split(" ");
+        int start=words.length>1 && "e".equals(words[0])?1:0;
+        if(BARE.contains(words[start]))return join(words,start+1);
+        // "ro me" / "ho me": a palavra partida em duas
+        if(start+1<words.length && ("ro".equals(words[start])||"ho".equals(words[start]))
+            && ("me".equals(words[start+1])||"mi".equals(words[start+1])))return join(words,start+2);
+        return null;
+    }
+    private static String join(String[] words,int from){
+        StringBuilder rest=new StringBuilder();
+        for(int j=from;j<words.length;j++){
+            if(rest.length()>0)rest.append(' ');
+            rest.append(words[j]);
+        }
+        return rest.toString();
     }
 }

@@ -18,6 +18,12 @@ public class WakeHarness {
             failures++;System.out.println("FALHOU: '"+input+"' -> "+got+" (esperado "+expected+")");
         }
     }
+    static void bare(String input,String expected){
+        String got=WakePhrases.bareSuffix(input);
+        if(expected==null?got!=null:!expected.equals(got)){
+            failures++;System.out.println("FALHOU bare: '"+input+"' -> "+got+" (esperado "+expected+")");
+        }
+    }
     public static void main(String[] a){
         eq("ok home","");
         eq("ei home","");
@@ -29,6 +35,21 @@ public class WakeHarness {
         eq("e ok home","");
         eq("okey home que horas sao","que horas sao");
         eq("ok home abra a calculadora","abra a calculadora");
+        eq("ok roumi","");
+        eq("ei romi que horas sao","que horas sao");
+        eq("ai houmi","");
+        eq("eiroumi","");
+        eq("oqueroumi","");
+        eq("ae rhome","");
+        bare("romi","");
+        bare("roumi que dia e hoje","que dia e hoje");
+        bare("home","");
+        bare("ro me abra a calculadora","abra a calculadora");
+        bare("e rome","");
+        bare("roma",null);
+        bare("quero ir para rome",null);
+        bare("o homem chegou",null);
+        bare("",null);
         eq("quero dizer ok home",null);
         eq("eu disse ei home",null);
         eq("o homem chegou",null);
@@ -62,7 +83,8 @@ class AndroidWakePhrasesTest(unittest.TestCase):
     def test_service_uses_tolerant_parser_and_opens_chat_from_background(self):
         wake = (SRC / "WakeWordService.java").read_text(encoding="utf-8")
         main = (SRC / "MainActivity.java").read_text(encoding="utf-8")
-        self.assertIn("return WakePhrases.suffix(text);", wake)
+        self.assertIn("WakePhrases.suffix(text)", wake)
+        self.assertIn("WakePhrases.bareSuffix(text)", wake)
         self.assertIn("canOpenChatFromBackground()", wake)
         self.assertIn("Settings.canDrawOverlays(this)", wake)
         self.assertIn("startActivity(open);", wake)
