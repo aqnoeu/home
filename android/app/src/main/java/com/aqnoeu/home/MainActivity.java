@@ -65,87 +65,23 @@ public final class MainActivity extends Activity {
     private boolean wakeBusy = false;
     private static final int VOICE_ENROLL_REQUEST = 815;
 
-    private int dp(float n) {return Math.round(n*getResources().getDisplayMetrics().density);}
-    private boolean narrow(){return getResources().getConfiguration().screenWidthDp<440;}
-    private GradientDrawable bg(int color,int radius){
-        GradientDrawable d=new GradientDrawable();
-        d.setColor(color);d.setCornerRadius(dp(radius));
-        if(color!=BLUE)d.setStroke(dp(1),LINE);
-        return d;
-    }
-    private TextView text(String value,int sp,int color,boolean heavy){
-        TextView t=new TextView(this);
-        t.setText(value);t.setTextSize(sp);t.setTextColor(color);t.setIncludeFontPadding(false);
-        t.setTypeface(android.graphics.Typeface.create("sans-serif",
-            heavy?android.graphics.Typeface.BOLD:android.graphics.Typeface.NORMAL));
-        t.setLineSpacing(dp(2),1.02f);
-        t.setBreakStrategy(android.text.Layout.BREAK_STRATEGY_HIGH_QUALITY);
-        t.setHyphenationFrequency(android.text.Layout.HYPHENATION_FREQUENCY_NONE);
-        return t;
-    }
-    private TextView text(String value,int sp){return text(value,sp,WHITE,false);}
-    private TextView heading(String value,int sp){return text(value,sp,WHITE,true);}
-    private TextView note(String value){return text(value,13,MUTED,false);}
-    private LinearLayout.LayoutParams space(int top,int bottom){
-        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);
-        p.topMargin=dp(top);p.bottomMargin=dp(bottom);return p;
-    }
-    private void add(LinearLayout host,View view,int top,int bottom){host.addView(view,space(top,bottom));}
-    private LinearLayout column(){
-        LinearLayout l=new LinearLayout(this);l.setOrientation(LinearLayout.VERTICAL);return l;
-    }
-    private LinearLayout card(String title,String description){
-        LinearLayout l=column();
-        l.setBackground(bg(SURFACE,16));
-        l.setPadding(dp(16),dp(16),dp(16),dp(16));
-        if(title!=null&&!title.isEmpty())add(l,heading(title,17),0,description==null?12:7);
-        if(description!=null&&!description.isEmpty())add(l,note(description),0,12);
-        add(root,l,0,12);
-        return l;
-    }
-    private Button button(String value,boolean primary,Runnable click){
-        Button b=new Button(this);
-        b.setText(value);b.setAllCaps(false);b.setTextSize(14);
-        b.setTypeface(android.graphics.Typeface.create("sans-serif-medium",0));
-        b.setMinHeight(dp(48));b.setMinimumHeight(dp(48));
-        b.setGravity(Gravity.CENTER);
-        b.setSingleLine(false);
-        b.setMaxLines(2);
-        b.setBreakStrategy(android.text.Layout.BREAK_STRATEGY_HIGH_QUALITY);
-        b.setTextColor(WHITE);
-        b.setBackground(bg(primary?BLUE:RAISED,13));
-        b.setPadding(dp(10),dp(8),dp(10),dp(8));
-        b.setOnClickListener(v->click.run());
-        return b;
-    }
-    private void action(LinearLayout target,String label,boolean primary,Runnable run){
-        add(target,button(label,primary,run),4,8);
-    }
-    private void actions(LinearLayout target,String left,Runnable a,String right,Runnable b){
-        LinearLayout row=new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        Button first=button(left,true,a),second=button(right,false,b);
-        first.setTextSize(narrow()?12:14);
-        second.setTextSize(narrow()?12:14);
-        LinearLayout.LayoutParams one=new LinearLayout.LayoutParams(0,dp(54),1);
-        one.rightMargin=dp(5);row.addView(first,one);
-        LinearLayout.LayoutParams two=new LinearLayout.LayoutParams(0,dp(54),1);
-        two.leftMargin=dp(5);row.addView(second,two);
-        add(target,row,2,8);
-    }
-    private EditText edit(String hint,boolean secret){
-        EditText e=new EditText(this);
-        e.setTextColor(WHITE);e.setHintTextColor(MUTED);e.setHint(hint);
-        e.setTextSize(15);e.setSingleLine(secret);
-        e.setInputType(secret?InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_PASSWORD:
-            InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_FLAG_CAP_SENTENCES|InputType.TYPE_TEXT_FLAG_MULTI_LINE);
-        e.setBackground(bg(RAISED,13));
-        e.setPadding(dp(15),dp(12),dp(15),dp(12));
-        e.setMinimumHeight(dp(52));
-        if(!secret){e.setMinLines(2);e.setMaxLines(4);}
-        return e;
-    }
+    private final HomeUiKit ui=new HomeUiKit(this);
+    private int dp(float n){return ui.dp(n);}
+    private boolean narrow(){return ui.narrow();}
+    private GradientDrawable bg(int color,int radius){return ui.bg(color,radius);}
+    private TextView text(String value,int sp,int color,boolean heavy){return ui.text(value,sp,color,heavy);}
+    private TextView text(String value,int sp){return ui.text(value,sp);}
+    private TextView heading(String value,int sp){return ui.heading(value,sp);}
+    private TextView note(String value){return ui.note(value);}
+    private LinearLayout.LayoutParams space(int top,int bottom){return ui.space(top,bottom);}
+    private void add(LinearLayout host,View view,int top,int bottom){ui.add(host,view,top,bottom);}
+    private LinearLayout column(){return ui.column();}
+    private LinearLayout card(String title,String description){return ui.card(title,description);}
+    private Button button(String value,boolean primary,Runnable click){return ui.button(value,primary,click);}
+    private void action(LinearLayout target,String label,boolean primary,Runnable run){ui.action(target,label,primary,run);}
+    private void actions(LinearLayout target,String left,Runnable a,String right,Runnable b){ui.actions(target,left,a,right,b);}
+    private EditText edit(String hint,boolean secret){return ui.edit(hint,secret);}
+
     private void showStatus(String value){if(status!=null)status.setText(value);}
     public void reportVoiceStatus(String message){statusMessage(message);}
     private void success(TextView view,String message){view.setText("✓ "+message);view.setTextColor(GREEN);}
@@ -289,6 +225,7 @@ public final class MainActivity extends Activity {
         scroll.setBackgroundColor(BG);
         scroll.setVerticalScrollBarEnabled(false);
         root=column();
+        ui.setRoot(root);
         // Android 15 edge-to-edge: use the measured system/cutout bars + breathing room.
         final int h=dp(18);
         root.setPadding(h,dp(28),h,dp(24));
