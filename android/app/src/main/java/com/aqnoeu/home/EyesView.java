@@ -73,7 +73,7 @@ public final class EyesView extends View {
         colorB=lerp(colorB,Color.blue(rgb),voiceSmoothing);
         eyeHeight=lerp(eyeHeight,targetH,smoothing);
         eyeWidth=lerp(eyeWidth,targetW,smoothing);
-        if(listening || commandListening){
+        if(commandListening){
             targetGaze=0f;
             nextLook=now+500L;
         }else if(now>nextLook){
