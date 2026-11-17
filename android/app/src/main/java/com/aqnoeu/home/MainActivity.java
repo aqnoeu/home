@@ -314,33 +314,8 @@ public final class MainActivity extends Activity {
         LinearLayout.LayoutParams eyesSize=new LinearLayout.LayoutParams(-1,dp(86));
         eyesSize.bottomMargin=dp(8);
         face.addView(eyes,eyesSize);
-        add(face,note("Expressão"),0,9);
-        HorizontalScrollView hscroll=new HorizontalScrollView(this);
-        hscroll.setHorizontalScrollBarEnabled(false);
-        hscroll.setHorizontalFadingEdgeEnabled(true);
-        hscroll.setFadingEdgeLength(dp(12));
-        LinearLayout moods=new LinearLayout(this);moods.setOrientation(LinearLayout.HORIZONTAL);
-        String[] labels={"Normal","Feliz","Sonolento","Bravo"};
-        for(int i=0;i<labels.length;i++){
-            final int index=i;
-            Button mood=button(labels[i],false,()->{
-                prefs.edit().putInt("mood",index).apply();
-                eyes.setMood(index);
-                for(int j=0;j<moods.getChildCount();j++)
-                    moods.getChildAt(j).setBackground(bg(j==index?BLUE:RAISED,12));
-                if(Settings.canDrawOverlays(this))refreshNotch();
-                showStatus("Expressão: "+labels[index]);
-                status.setVisibility(View.VISIBLE);
-            });
-            mood.setSingleLine(true);
-            mood.setTextSize(13);
-            mood.setPadding(dp(12),0,dp(12),0);
-            mood.setBackground(bg(index==prefs.getInt("mood",0)?BLUE:RAISED,12));
-            LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(dp(labels[i].equals("Sonolento")?110:94),dp(46));
-            p.rightMargin=dp(8);moods.addView(mood,p);
-        }
-        hscroll.addView(moods);
-        face.addView(hscroll);
+        add(face,note("Expressão — escolha uma opção para visualizar e aplicar ao notch."),0,9);
+        addExpressionPicker(face,eyes,prefs);
 
         add(root,heading("Acesso rápido",18),9,12);
         LinearLayout quick=column();
@@ -889,9 +864,72 @@ public final class MainActivity extends Activity {
         });
     }
 
+    /** Shared compact two-row expression grid used by Hub and Appearance. */
+    private void addExpressionPicker(LinearLayout face,EyesView eyes,
+                                     android.content.SharedPreferences prefs){
+        eyes.setExpressionPreview(true);
+        final int columns=3, rows=2, perPage=columns*rows;
+        final int count=EyesView.EXPRESSION_LABELS.length;
+        final int pageCount=(count+perPage-1)/perPage;
+        final int[] currentPage={Math.min(pageCount-1,
+            prefs.getInt("mood",0)/perPage)};
+        LinearLayout selector=column();
+        GridLayout grid=new GridLayout(this);
+        grid.setColumnCount(columns);
+        grid.setRowCount(rows);
+        selector.addView(grid,new LinearLayout.LayoutParams(-1,-2));
+        LinearLayout pager=new LinearLayout(this);
+        pager.setGravity(Gravity.CENTER_VERTICAL);
+        pager.setOrientation(LinearLayout.HORIZONTAL);
+        Button previous=button("‹",false,()->{});
+        Button next=button("›",false,()->{});
+        TextView pageText=text("",12,MUTED,true);
+        pageText.setGravity(Gravity.CENTER);
+        pager.addView(previous,new LinearLayout.LayoutParams(dp(48),dp(40)));
+        pager.addView(pageText,new LinearLayout.LayoutParams(0,dp(40),1));
+        pager.addView(next,new LinearLayout.LayoutParams(dp(48),dp(40)));
+        selector.addView(pager);
+        Runnable[] redraw=new Runnable[1];
+        redraw[0]=()->{
+            grid.removeAllViews();
+            int selected=prefs.getInt("mood",0);
+            int first=currentPage[0]*perPage;
+            for(int position=0;position<perPage;position++){
+                int index=first+position;
+                if(index>=count)break;
+                Button b=button(EyesView.EXPRESSION_LABELS[index],false,()->{
+                    prefs.edit().putInt("mood",index).apply();
+                    eyes.setMood(index);
+                    if(Settings.canDrawOverlays(this))refreshNotch();
+                    showStatus("Expressão: "+EyesView.EXPRESSION_LABELS[index]);
+                    if(status!=null)status.setVisibility(View.VISIBLE);
+                    redraw[0].run();
+                });
+                b.setTextSize(11);
+                b.setSingleLine(true);
+                b.setAllCaps(false);
+                b.setPadding(dp(3),0,dp(3),0);
+                b.setBackground(bg(index==selected?BLUE:RAISED,10));
+                GridLayout.LayoutParams lp=new GridLayout.LayoutParams(
+                    GridLayout.spec(position/columns),GridLayout.spec(position%columns,1f));
+                lp.width=0;
+                lp.height=dp(43);
+                lp.setMargins(dp(2),dp(3),dp(2),dp(3));
+                grid.addView(b,lp);
+            }
+            pageText.setText((currentPage[0]+1)+" / "+pageCount);
+            previous.setEnabled(currentPage[0]>0);
+            next.setEnabled(currentPage[0]<pageCount-1);
+        };
+        previous.setOnClickListener(v->{if(currentPage[0]>0){currentPage[0]--;redraw[0].run();}});
+        next.setOnClickListener(v->{if(currentPage[0]<pageCount-1){currentPage[0]++;redraw[0].run();}});
+        redraw[0].run();
+        face.addView(selector);
+    }
+
     private void settingsAppearance(){
         android.content.SharedPreferences prefs=getSharedPreferences("home",MODE_PRIVATE);
-        LinearLayout face=card("Expressões oficiais","Normal, Feliz, Sonolento e Bravo.");
+        LinearLayout face=card("Catálogo de expressões","Toque para visualizar e usar no notch. Duas linhas, sem rolagem lateral.");
         EyesView eyes=new EyesView(this);
         eyes.setMood(prefs.getInt("mood",0));
         eyes.setEyeGap(prefs.getInt("eye_gap",9));
@@ -899,29 +937,7 @@ public final class MainActivity extends Activity {
         LinearLayout.LayoutParams preview=new LinearLayout.LayoutParams(-1,dp(84));
         preview.bottomMargin=dp(10);
         face.addView(eyes,preview);
-        HorizontalScrollView hscroll=new HorizontalScrollView(this);
-        hscroll.setHorizontalScrollBarEnabled(false);
-        LinearLayout moods=new LinearLayout(this);
-        moods.setOrientation(LinearLayout.HORIZONTAL);
-        String[] labels={"Normal","Feliz","Sonolento","Bravo"};
-        for(int i=0;i<labels.length;i++){
-            final int index=i;
-            Button mood=button(labels[i],false,()->{
-                prefs.edit().putInt("mood",index).apply();
-                eyes.setMood(index);
-                for(int j=0;j<moods.getChildCount();j++)
-                    moods.getChildAt(j).setBackground(bg(j==index?BLUE:RAISED,12));
-                refreshNotch();
-            });
-            mood.setSingleLine(true);mood.setTextSize(12);
-            mood.setBackground(bg(index==prefs.getInt("mood",0)?BLUE:RAISED,12));
-            LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(
-                dp(labels[i].equals("Sonolento")?110:94),dp(48));
-            p.rightMargin=dp(8);
-            moods.addView(mood,p);
-        }
-        hscroll.addView(moods);
-        face.addView(hscroll);
+        addExpressionPicker(face,eyes,prefs);
         LinearLayout setup=card("Posição e aparência",null);
         action(setup,"Ajustar notch e distância dos olhos  ›",false,this::showEditor);
         add(setup,note("A identidade dos olhos é preservada conforme o Manual de Marca HOME."),6,0);
