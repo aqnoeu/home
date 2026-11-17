@@ -162,7 +162,7 @@ public final class MainActivity extends Activity {
         showPage("assistant");
         if(query.trim().isEmpty()){
             statusMessage("Estou ouvindo. Pode falar.");
-            HomeVoice.listen(this);
+            if(!HomeVoice.listen(this))resumeWake();
         }else{
             // Wake-word commands use the same offline command catalog as typed chat.
             if(handleLocalCommand(query,true))return;
@@ -201,6 +201,10 @@ public final class MainActivity extends Activity {
             startForegroundService(new Intent(this,WakeWordService.class));
             statusMessage("Ei Home / Ok Home: detector offline ativo.");
         }catch(Exception e){statusMessage("Falha ao iniciar escuta: "+e.getMessage());}
+    }
+    private void openVoiceListening(){
+        pauseWake();
+        if(!HomeVoice.listen(this))resumeWake();
     }
     private void pauseWake(){
         if(WakeWordService.enabled(this)){
@@ -882,7 +886,7 @@ public final class MainActivity extends Activity {
                     FaberOffline.installAsync(this,voiceState::setText);
                 });
         });
-        action(response,"Testar microfone",false,()->{pauseWake();HomeVoice.listen(this);});
+        action(response,"Testar microfone",false,()->{openVoiceListening();});
         LinearLayout ia=card("Inteligência artificial",null);
         TextView groq=note(HomeGroq.connected(this)?
             "● Groq conectada":"● Groq desconectada");
@@ -1038,7 +1042,7 @@ public final class MainActivity extends Activity {
         dock.setPadding(dp(4),dp(3),dp(4),dp(3));
 
         Button mic=button("◉",false,()->{
-            pauseWake();HomeVoice.listen(this);
+            openVoiceListening();
         });
         mic.setTextSize(20);
         mic.setContentDescription("Falar com o Home");
@@ -1241,7 +1245,7 @@ public final class MainActivity extends Activity {
             "Olá! Eu sou o HOME. Esta é minha voz no celular.",
             voiceState::setText));
         LinearLayout microphone=card("Microfone","Fale com o HOME e receba uma resposta formulada pela Groq.");
-        action(microphone,"◉ Perguntar por voz",true,()->{pauseWake();HomeVoice.listen(this);});
+        action(microphone,"◉ Perguntar por voz",true,()->{openVoiceListening();});
         action(microphone,"Abrir Assistente",false,()->showPage("assistant"));
         LinearLayout diagnostics=card("Diagnóstico","Informações de instalação, modelo e reprodução, sem janelas sobrepostas.");
         TextView report=note("Toque para exibir as informações técnicas da Faber.");
@@ -1287,7 +1291,7 @@ public final class MainActivity extends Activity {
             if(on)startWake();
             else{stopService(new Intent(this,WakeWordService.class));statusMessage("Ei, Home desligado.");}
         });
-        action(wake,"Testar o microfone agora",false,()->{pauseWake();HomeVoice.listen(this);});
+        action(wake,"Testar o microfone agora",false,()->{openVoiceListening();});
         TextView diag=note("Status: "+getSharedPreferences("home",MODE_PRIVATE).getString("wake_status","Ainda não iniciado."));
         add(wake,diag,6,8);
         action(wake,"Verificar estado da escuta",false,()->{
@@ -1297,9 +1301,8 @@ public final class MainActivity extends Activity {
             diag.setText("Status: "+wakePrefs.getString("wake_status","Ainda não iniciado.")+"\\nÚltima ativação: "+detected);
         });
         action(wake,"Testar abertura da escuta",false,()->{
-            pauseWake();
             statusMessage("Teste de conversa: vou abrir o reconhecimento de voz.");
-            HomeVoice.listen(this);
+            openVoiceListening();
         });
         add(wake,note("A ativação usa o modelo português offline. Enquanto ligada, a detecção mantém o microfone em uso, sem enviar áudio. O reconhecimento completo só abre após a frase. Ao desativar, a captura é encerrada."),3,0);
     }
