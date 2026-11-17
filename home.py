@@ -131,6 +131,8 @@ class Home(QWidget):
         self.last_page = (title,url,content)
 
     def on_voice_status(self, status):
+        if hasattr(self, "eyes"):
+            self.eyes.voice_state = status if status in ("listening", "thinking", "speaking") else ""
         if not self.integration_prefs.get('voice_microphone'):
             self.panel.mic_status.setText("")
         elif status == "listening":
@@ -384,16 +386,20 @@ class Home(QWidget):
             super().mouseReleaseEvent(event)
 
     def set_mood(self,index):
+        self.eyes.preview_emotion = None
         self.eyes.mood = {0:0,1:1,2:3}.get(index,0)
         self.eyes.emotion = {0:"neutro",1:"neutro",2:"raiva"}.get(index,"neutro")
         self.panel.set_mood(index)
         self.eyes.update()
 
     def next_mood(self):
-        self.eyes.mood = (self.eyes.mood+1) % len(EyesWidget.MOODS)
-        index={0:0,1:1,3:2}.get(self.eyes.mood,-1)
-        self.panel.set_mood(index)
-        self.eyes.update()
+        # Alterna as oito novas expressoes com previa de 12 segundos.
+        current = getattr(self, "_extra_mood_index", -1)
+        self._extra_mood_index = (current + 1) % len(EyesWidget.EXTRA_EXPRESSIONS)
+        self.eyes.mood = 0
+        self.eyes.show_expression(EyesWidget.EXTRA_EXPRESSIONS[self._extra_mood_index])
+        self.panel.set_mood(-1)
+        self.panel.more.setToolTip("Expressao: " + EyesWidget.EXTRA_EXPRESSIONS[self._extra_mood_index])
 
     def toggle(self):
         if self.expanded:
