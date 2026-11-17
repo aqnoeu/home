@@ -570,6 +570,40 @@ public final class MainActivity extends Activity {
                 catch(Exception e){runOnUiThread(()->state.setText("Sincronização interrompida: "+e.getMessage()));}
             },"home-account-upload").start();
         });
+        LinearLayout voiceCloud=card("Perfil de ativação na Conta HOME",
+            "Sincronize apenas frases e correções de texto. Áudio e identificação biométrica permanecem locais.");
+        action(voiceCloud,"Autorizar sincronização do perfil de voz",false,()->{
+            if(!account.connected()){state.setText("Entre na Conta HOME.");return;}
+            requestInlineConfirm("Sincronizar cadastro de voz",
+                "Autorizar backup das frases e variantes corrigidas na Conta HOME? Nenhum áudio será enviado.",()->{
+                    new Thread(()->{
+                        try{account.authorizeVoiceSync();runOnUiThread(()->state.setText("✓ Sincronização do perfil de voz autorizada."));}
+                        catch(Exception ex){runOnUiThread(()->state.setText("Falha: "+ex.getMessage()));}
+                    },"home-voice-sync-optin").start();
+                });
+        });
+        action(voiceCloud,"Salvar perfil Android na Conta HOME",true,()->{
+            if(!account.connected()){state.setText("Entre na Conta HOME.");return;}
+            new Thread(()->{
+                try{account.uploadVoiceProfile(VoiceEnrollment.cloudPayload(this));
+                    runOnUiThread(()->state.setText("✓ Perfil Android salvo na Conta HOME."));}
+                catch(Exception ex){runOnUiThread(()->state.setText("Falha: "+ex.getMessage()));}
+            },"home-voice-sync-upload").start();
+        });
+        action(voiceCloud,"Restaurar perfil Android desta conta",false,()->{
+            if(!account.connected()){state.setText("Entre na Conta HOME.");return;}
+            requestInlineConfirm("Restaurar perfil de voz",
+                "Substituir as frases e correções deste Android pelo backup da Conta HOME?",()->{
+                    new Thread(()->{
+                        try{
+                            org.json.JSONObject saved=account.downloadVoiceProfile();
+                            if(saved.length()==0)throw new IllegalStateException("Nenhum perfil Android salvo na conta.");
+                            VoiceEnrollment.importCloud(this,saved);
+                            runOnUiThread(()->state.setText("✓ Perfil Android restaurado."));
+                        }catch(Exception ex){runOnUiThread(()->state.setText("Falha: "+ex.getMessage()));}
+                    },"home-voice-sync-download").start();
+                });
+        });
         LinearLayout history=card("Conversas no Home Hub","Leia o histórico compartilhado. Conversas locais permanecem salvas somente no celular.");
         final LinearLayout list=column();add(history,list,0,8);
         action(history,"Consultar conversas do Hub",false,()->{
