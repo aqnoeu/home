@@ -44,6 +44,15 @@ public final class EyesView extends View {
         float dt=lastFrame==0?.05f:Math.min(.15f,(now-lastFrame)/1000f);
         lastFrame=now;
         boolean animated=motionEnabled();
+        android.content.SharedPreferences updatePrefs=getContext().getSharedPreferences("home",Context.MODE_PRIVATE);
+        String updateState=updatePrefs.getString("update_eyes_state","idle");
+        long updateChangedAt=updatePrefs.getLong("update_eyes_changed_at",0L);
+        long updateElapsed=System.currentTimeMillis()-updateChangedAt;
+        boolean updateDownloading="downloading".equals(updateState) && updateElapsed>=0 && updateElapsed<3600000L;
+        boolean updateComplete="complete".equals(updateState) && updateElapsed>=0 && updateElapsed<1500L;
+        boolean updateActive=updateDownloading||updateComplete;
+        float updateFraction=updateComplete?1f:
+            Math.max(0f,Math.min(1f,updatePrefs.getInt("update_eyes_percent",0)/100f));
         float smoothing=animated?1f-(float)Math.exp(-dt/0.23):1f;
         String state=HomeEmotion.current(getContext());
         android.content.SharedPreferences prefs=getContext().getSharedPreferences("home",Context.MODE_PRIVATE);
@@ -57,7 +66,9 @@ public final class EyesView extends View {
         boolean armed="armado".equals(voice) || "pausado".equals(voice) || "carregando".equals(voice);
         int rgb=Color.rgb(242,248,255);
         float targetH=1f,targetW=1f;
-        if(listening || commandListening){
+        if(updateActive){
+            rgb=Color.rgb(139,149,164);targetH=1f;targetW=1f; // cinza do tédio, preenchimento branco desenhado abaixo
+        }else if(listening || commandListening){
             rgb=Color.rgb(45,255,90);targetH=1.13f;targetW=1.02f; // verde-neon, expressão feliz
         }else if(speaking){
             rgb=Color.WHITE;targetH=1f;targetW=1f; // fala da Faber: olhos brancos
@@ -69,13 +80,13 @@ public final class EyesView extends View {
         else if("bateria_baixa".equals(state)){rgb=Color.rgb(242,164,68);targetH=.86f;}
         else if("economia".equals(state)){rgb=Color.rgb(147,184,219);targetH=.72f;}
         // Escuta/fala são sinais imediatos, não transições suaves.
-        float voiceSmoothing=(listening || commandListening || speaking)?1f:smoothing;
+        float voiceSmoothing=(updateActive || listening || commandListening || speaking)?1f:smoothing;
         colorR=lerp(colorR,Color.red(rgb),voiceSmoothing);
         colorG=lerp(colorG,Color.green(rgb),voiceSmoothing);
         colorB=lerp(colorB,Color.blue(rgb),voiceSmoothing);
         eyeHeight=lerp(eyeHeight,targetH,smoothing);
         eyeWidth=lerp(eyeWidth,targetW,smoothing);
-        if(listening || commandListening){
+        if(updateActive || listening || commandListening){
             targetGaze=0f;
             nextLook=now+500L;
         }else if(now>nextLook){
@@ -100,7 +111,7 @@ public final class EyesView extends View {
         float gap=Math.min(dp(eyeGapDp),Math.max(0,width-2*ew-dp(8)));
         float left=(width-2*ew-gap)/2f+gaze*dp(6);
         int eyeColor=Color.rgb(Math.min(255,(int)colorR),Math.min(255,(int)colorG),Math.min(255,(int)colorB));
-        float pulse="carregando".equals(state)&&animated
+        float pulse=!updateActive && "carregando".equals(state)&&animated
             ?(.93f+.07f*(float)Math.sin(now/550.0)):1f;
         paint.setColor(eyeColor);
         paint.setAlpha((int)(255*pulse));
@@ -109,9 +120,38 @@ public final class EyesView extends View {
             float shake="raiva".equals(state)&&animated?
                 (float)Math.sin(now/44.0)*dp(.65f):0f;
             float y=(height-eh)/2f+shake;
-            canvas.drawRoundRect(new RectF(x,y,x+ew,y+eh),
-                Math.min(dp(5),eh/2),Math.min(dp(5),eh/2),paint);
-            if("raiva".equals(state)&&eh>=dp(7)){
+            // At 100% only the RIGHT eye winks once, and the ordinary emotion returns.
+            if(updateComplete && i==1 && updateElapsed>=210 && updateElapsed<610){
+                float phase=(updateElapsed-210f)/400f;
+                float wink=animated?Math.max(.09f,1f-(float)Math.sin(Math.PI*phase)*.91f):.12f;
+                y+=(eh-eh*wink)/2f;
+                float winkHeight=eh*wink;
+                canvas.drawRoundRect(new RectF(x,y,x+ew,y+winkHeight),
+                    Math.min(dp(5),winkHeight/2f),Math.min(dp(5),winkHeight/2f),paint);
+            }else if(updateActive){
+                RectF eyeBounds=new RectF(x,y,x+ew,y+eh);
+                float radius=Math.min(dp(5),eh/2f);
+                paint.setColor(Color.rgb(139,149,164)); // same gray as tédio
+                paint.setAlpha(255);
+                canvas.drawRoundRect(eyeBounds,radius,radius,paint);
+                int saved=canvas.save();
+                Path mask=new Path();
+                mask.addRoundRect(eyeBounds,radius,radius,Path.Direction.CW);
+                canvas.clipPath(mask);
+                float fillTop=y+eh*(1f-updateFraction);
+                if(updateFraction>0f){
+                    paint.setColor(Color.WHITE);
+                    paint.setShadowLayer(dp(2.5f),0f,0f,Color.WHITE);
+                    canvas.drawRect(x,fillTop,x+ew,y+eh,paint);
+                    paint.clearShadowLayer();
+                }
+                canvas.restoreToCount(saved);
+                paint.setColor(eyeColor);
+            }else{
+                canvas.drawRoundRect(new RectF(x,y,x+ew,y+eh),
+                    Math.min(dp(5),eh/2),Math.min(dp(5),eh/2),paint);
+            }
+            if(!updateActive && "raiva".equals(state)&&eh>=dp(7)){
                 Path lid=new Path();
                 lid.moveTo(x-1,y-2);
                 lid.lineTo(x+ew+1,y-2);
@@ -121,14 +161,14 @@ public final class EyesView extends View {
                 paint.setColor(Color.rgb(11,17,26));
                 canvas.drawPath(lid,paint);
                 paint.setColor(eyeColor);
-            }else if(((listening || commandListening) || (mood==1&&"neutro".equals(state)))&&eh>=dp(9)){
+            }else if(((updateActive || listening || commandListening) || (mood==1&&"neutro".equals(state)))&&eh>=dp(9)){
                 paint.setColor(Color.rgb(11,17,26));
                 canvas.drawOval(new RectF(x-ew*.15f,y+eh*.54f,x+ew*1.16f,y+eh*1.36f),paint);
                 paint.setColor(eyeColor);
             }
         }
         // Pontinhos acompanham exclusivamente a fala, nunca a escuta verde-neon.
-        if(speaking){
+        if(speaking && !updateActive){
             paint.setColor(Color.WHITE);
             paint.setAlpha(255);
             float center=width/2f;
@@ -151,6 +191,6 @@ public final class EyesView extends View {
             paint.setTextSize(dp(8)*scale);
             canvas.drawText("z",sx+dp(8)*scale,height*.37f-lift*.7f,paint);
         }
-        if(animated)postInvalidateDelayed(50);
+        if(animated || updateActive)postInvalidateDelayed(50);
     }
 }
