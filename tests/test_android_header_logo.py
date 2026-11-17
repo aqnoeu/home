@@ -33,8 +33,11 @@ class AndroidHeaderLogoTest(unittest.TestCase):
 
     def test_expression_labels_do_not_wrap(self):
         main = MAIN.read_text(encoding="utf-8")
-        self.assertIn("mood.setSingleLine(true);", main)
-        self.assertIn("dp(labels[i].equals(\"Sonolento\")?110:94)", main)
+        # O seletor novo usa grade 2x3, sem rolagem horizontal.
+        self.assertIn("b.setSingleLine(true);", main)
+        self.assertIn("final int columns=3, rows=2, perPage=columns*rows;", main)
+        self.assertIn("addExpressionPicker(face,eyes,prefs);", main)
+        self.assertNotIn("dp(labels[i].equals(\"Sonolento\")?110:94)", main)
 
     def test_header_copy_and_expression_view_remain(self):
         main = MAIN.read_text(encoding="utf-8")
