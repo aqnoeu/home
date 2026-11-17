@@ -38,6 +38,7 @@ public final class WakeWordService extends Service implements RecognitionListene
     private final Runnable backgroundCommandTimeout=()->{
         if(backgroundWaiting && running && !paused){
             backgroundWaiting=false;
+            visualState("ouvindo");
             state("Nenhum comando ouvido. HOME voltou a escutar a palavra de ativação.");
         }
     };
@@ -58,6 +59,7 @@ public final class WakeWordService extends Service implements RecognitionListene
             return;
         }
         backgroundWaiting=true;
+        visualState("aguardando_comando");
         state("HOME chamado em segundo plano. Aguardando comando por voz.");
         main.removeCallbacks(backgroundCommandTimeout);
         main.postDelayed(backgroundCommandTimeout,12000L);
@@ -89,6 +91,7 @@ public final class WakeWordService extends Service implements RecognitionListene
         backgroundWaiting=false;
         main.removeCallbacks(backgroundCommandTimeout);
         backgroundSpeaking=true;
+        visualState("falando");
         paused=true;
         closeAudio(); // Faber não compete com o Vosk pelo microfone
         String answer=offlineAnswer(command);
@@ -98,6 +101,7 @@ public final class WakeWordService extends Service implements RecognitionListene
             backgroundSpeaking=false;
             if(running && enabled(this)){
                 paused=false;
+                visualState("ouvindo");
                 consecutiveAudioErrors=0;
                 main.postDelayed(()->{
                     if(running && !paused){
@@ -110,6 +114,7 @@ public final class WakeWordService extends Service implements RecognitionListene
         if(!started){
             backgroundSpeaking=false;
             paused=false;
+            visualState("ouvindo");
             state("A Faber não pôde responder. Detector reativado.");
             main.postDelayed(this::beginListening,1100L);
         }
@@ -117,6 +122,7 @@ public final class WakeWordService extends Service implements RecognitionListene
     private final Runnable pendingNotificationRecovery=()->{
         if(running && paused && !MainActivity.isInForeground()){
             paused=false;
+            visualState("ouvindo");
             clearPartial();
             state("HOME reativou a escuta após a notificação não ser aberta.");
             beginListening();
@@ -125,6 +131,10 @@ public final class WakeWordService extends Service implements RecognitionListene
 
     public static boolean enabled(Context context) {
         return context.getSharedPreferences("home",MODE_PRIVATE).getBoolean("wake_enabled",false);
+    }
+    private void visualState(String visual){
+        getSharedPreferences("home",MODE_PRIVATE).edit().putString("wake_visual_state",visual)
+            .putLong("wake_visual_at",System.currentTimeMillis()).apply();
     }
     private void state(String value) {
         getSharedPreferences("home",MODE_PRIVATE).edit().putString("wake_status",value).apply();
@@ -146,6 +156,7 @@ public final class WakeWordService extends Service implements RecognitionListene
             resetBackgroundState();
             main.removeCallbacks(pendingNotificationRecovery);
             paused=true;
+            visualState("pausado");
             closeAudio();
             state("Detecção pausada durante a conversa.");
             if(running)return START_NOT_STICKY;
@@ -185,6 +196,7 @@ public final class WakeWordService extends Service implements RecognitionListene
         if(!running || paused || loading || audio!=null)return;
         if(model!=null){openAudio();return;}
         loading=true;
+        visualState("carregando");
         state("Carregando detector local de português...");
         new Thread(()->{
             Model loaded=null;
@@ -216,6 +228,7 @@ public final class WakeWordService extends Service implements RecognitionListene
                 @Override public void onTimeout(){if(generation==audioGeneration)WakeWordService.this.onTimeout();}
             };
             if(!audio.startListening(sessionListener))throw new IllegalStateException("Não foi possível iniciar a escuta.");
+            visualState("ouvindo");
             state("Detector offline ouvindo. Diga Ei Home, Ok Home ou Home.");
         }catch(Exception ex){
             state("Falha no microfone offline: "+ex.getClass().getSimpleName());
@@ -301,6 +314,7 @@ public final class WakeWordService extends Service implements RecognitionListene
             return;
         }
         paused=true;
+        visualState("pausado");
         closeAudio(); // libera o AudioRecord ANTES do microfone de conversa
         Intent open=new Intent(this,MainActivity.class)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_SINGLE_TOP|Intent.FLAG_ACTIVITY_CLEAR_TOP)
@@ -362,6 +376,7 @@ public final class WakeWordService extends Service implements RecognitionListene
         main.removeCallbacks(pendingNotificationRecovery);
         resetBackgroundState();
         running=false;paused=true;
+        visualState("desligado");
         closeAudio();
         if(model!=null){try{model.close();}catch(Exception ignored){}model=null;}
         super.onDestroy();
