@@ -56,6 +56,7 @@ public final class MainActivity extends Activity {
     private String settingsTab = "Geral";
     private HomeHubAccount unifiedAccount;
     private static final int WAKE_PERMISSION_REQUEST = 721;
+    private static final int WAKE_NOTIFICATION_PERMISSION_REQUEST = 722;
     private boolean wakeBusy = false;
 
     private int dp(float n) {return Math.round(n*getResources().getDisplayMetrics().density);}
@@ -178,6 +179,13 @@ public final class MainActivity extends Activity {
         if(!getSharedPreferences("home",MODE_PRIVATE).getBoolean("notch_active",false)){
             statusMessage("Ative o Notch para iniciar a escuta.");return;
         }
+        if(Build.VERSION.SDK_INT>=33 &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED &&
+            !getSharedPreferences("home",MODE_PRIVATE).getBoolean("wake_notification_asked",false)){
+            getSharedPreferences("home",MODE_PRIVATE).edit().putBoolean("wake_notification_asked",true).apply();
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},WAKE_NOTIFICATION_PERMISSION_REQUEST);
+            return;
+        }
         if(!WakeModelInstaller.installed(this)){
             statusMessage("Instalando reconhecimento local pt-BR (~31 MB). O áudio permanecerá no aparelho.");
             WakeModelInstaller.install(this,(ok,message)->{
@@ -228,6 +236,11 @@ public final class MainActivity extends Activity {
         if(request==WAKE_PERMISSION_REQUEST){
             if(results.length>0 && results[0]==PackageManager.PERMISSION_GRANTED)startWake();
             else statusMessage("Permissão de microfone negada. Ei, Home não está ouvindo.");
+        }
+        if(request==WAKE_NOTIFICATION_PERMISSION_REQUEST){
+            startWake();
+            if(results.length==0 || results[0]!=PackageManager.PERMISSION_GRANTED)
+                statusMessage("Notificações bloqueadas: para conversar em segundo plano, talvez seja necessário abrir o HOME manualmente.");
         }
     }
     private void initScreen(String page,String subtitle){
