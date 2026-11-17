@@ -6,7 +6,7 @@ from pathlib import Path
 from urllib.request import Request, urlopen
 from urllib.parse import quote
 import keyring
-from PySide6.QtCore import QObject, Signal, QRunnable, QThreadPool
+from PySide6.QtCore import QObject, Signal, QRunnable, QThreadPool, Qt
 from PySide6.QtWidgets import QWidget, QLabel, QLineEdit, QPushButton, QVBoxLayout, QHBoxLayout, QComboBox, QCheckBox, QListWidget
 
 BASE="https://homehub-ia.vercel.app"
@@ -76,6 +76,29 @@ class AccountClient:
     def chats(self):
         return request(self.url+"/rest/v1/homehub_chats?select=id,title,updated_at&order=updated_at.desc&limit=40",
                        headers=self.auth_headers())
+    def messages(self, chat_id):
+        return request(self.url+"/rest/v1/homehub_messages?select=role,content&chat_id=eq."+quote(chat_id)+"&order=created_at.asc&limit=150",headers=self.auth_headers())
+    def upload_local(self, store):
+        if not self.get_preferences().get("sync_chats",False):
+            raise RuntimeError("Ative a sincronização no HOME HUB antes de enviar conversas locais.")
+        data=store.data.get("chats",[])
+        chats=[];messages=[]
+        for chat in data:
+            try:uuid.UUID(chat["id"])
+            except (ValueError,TypeError,KeyError):continue
+            cid=chat["id"]
+            chats.append({"id":cid,"user_id":self.uid,"title":str(chat.get("title","Conversa"))[:120],"model":"auto"})
+            for i,message in enumerate(chat.get("messages",[])):
+                role=message.get("role")
+                if role not in ("user","home"):continue
+                content=str(message.get("text","")).strip()
+                if not content:continue
+                mid=str(uuid.uuid5(uuid.NAMESPACE_URL,"home-windows:"+cid+":"+str(i)))
+                messages.append({"id":mid,"chat_id":cid,"user_id":self.uid,"role":"assistant" if role=="home" else "user","content":content})
+        if chats:request(self.url+"/rest/v1/homehub_chats?on_conflict=id","POST",chats,{**self.auth_headers(),"Prefer":"resolution=merge-duplicates"})
+        for start in range(0,len(messages),80):
+            request(self.url+"/rest/v1/homehub_messages?on_conflict=id","POST",messages[start:start+80],{**self.auth_headers(),"Prefer":"resolution=ignore-duplicates"})
+        return len(messages)
     def logout(self):
         try:request(self.url+"/auth/v1/logout","POST",{},self.auth_headers())
         finally:
@@ -115,7 +138,11 @@ class AccountPage(QWidget):
         l.addWidget(self.style)
         self.sync=QCheckBox("Compartilhar histórico com o HOME HUB (opt-in)");l.addWidget(self.sync)
         save=QPushButton("Salvar preferências da conta");save.clicked.connect(self.save);l.addWidget(save)
-        self.list=QListWidget();l.addWidget(self.list)
+        self.list=QListWidget();self.list.itemClicked.connect(self.open_cloud_chat);l.addWidget(self.list)
+        self.preview=QLabel("Selecione uma conversa para consultar as mensagens sincronizadas.")
+        self.preview.setWordWrap(True);l.addWidget(self.preview)
+        upload=QPushButton("Enviar histórico local (somente com sincronização autorizada)")
+        upload.clicked.connect(self.upload_local);l.addWidget(upload)
         refresh=QPushButton("Atualizar conversas sincronizadas");refresh.clicked.connect(self.refresh);l.addWidget(refresh)
         signout=QPushButton("Sair da conta neste Windows");signout.clicked.connect(self.sign_out);l.addWidget(signout)
         l.addWidget(QLabel("As funções offline, controles locais e microfone não são enviados para o Hub."))
@@ -156,8 +183,22 @@ class AccountPage(QWidget):
         self.run_task(self.client.chats,self.chats_loaded)
     def chats_loaded(self,chats):
         self.list.clear()
-        for chat in chats:self.list.addItem(chat.get("title","Conversa"))
+        for chat in chats:
+            from PySide6.QtWidgets import QListWidgetItem
+            item=QListWidgetItem(chat.get("title","Conversa"))
+            item.setData(Qt.UserRole,chat.get("id"))
+            self.list.addItem(item)
         self.status.setText("Conectado · "+str(len(chats))+" conversas no HOME HUB")
+    def open_cloud_chat(self,item):
+        if not self.client or not self.client.uid:return
+        self.run_task(lambda:self.client.messages(item.data(Qt.UserRole)),self.show_cloud_messages)
+    def show_cloud_messages(self,entries):
+        preview="\\n\\n".join(("Você" if m.get("role")=="user" else "HOME")+": "+m.get("content","")[:250] for m in entries[-12:])
+        self.preview.setText(preview[:1700] or "Conversa vazia.")
+    def upload_local(self):
+        if not self.client or not self.client.uid:return
+        self.status.setText("Enviando conversas autorizadas...")
+        self.run_task(lambda:self.client.upload_local(self.home.chat_store),lambda n:(self.status.setText(str(n)+" mensagens sincronizadas."),self.refresh()))
     def sign_out(self):
         if not self.client or not self.client.uid:return
         self.run_task(self.client.logout,lambda _:(self.list.clear(),self.status.setText("Sessão encerrada neste computador.")))
