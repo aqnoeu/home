@@ -1,5 +1,10 @@
 # HOME Intersect — melhorias planejadas
 
+> **Roteiro principal de modernização (17/11/2026):** [docs/HOME_EVOLUTION_ROADMAP.md](docs/HOME_EVOLUTION_ROADMAP.md).  
+> **Arquitetura modular:** [docs/HOME_ARCHITECTURE.md](docs/HOME_ARCHITECTURE.md).  
+> As propostas abaixo permanecem registradas; não confundir itens planejados com entregas.
+
+
 Atualizado em 16/11/2026. Este arquivo registra propostas, não funcionalidades já instaladas.
 
 ## Próxima etapa: conectar HOME Intersect ↔ HOME Writer

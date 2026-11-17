@@ -3,6 +3,7 @@ from pathlib import Path
 import unittest
 ROOT=Path(__file__).resolve().parents[1]
 MAIN=(ROOT/"android/app/src/main/java/com/aqnoeu/home/MainActivity.java").read_text(encoding="utf-8")
+LOCAL=(ROOT/"android/app/src/main/java/com/aqnoeu/home/HomeLocalCommands.java").read_text(encoding="utf-8")
 VOICE=(ROOT/"home_voice.py").read_text(encoding="utf-8")
 INTEGRATIONS=(ROOT/"home_integrations.py").read_text(encoding="utf-8")
 
@@ -21,11 +22,13 @@ class DeviceActionsTest(unittest.TestCase):
         self.assertLess(wake.index('handleLocalCommand(query,true)'),wake.index('askHome(query,null)'))
         self.assertIn('if(speak)speakAnswer(answer);',MAIN)
         self.assertIn('if(speak)resumeWake();',MAIN)
-        self.assertIn('quantas horas',MAIN)
-        self.assertIn('qual o horario',MAIN)
+        self.assertIn('quantas horas',LOCAL)
+        self.assertIn('qual o horario',LOCAL)
         self.assertIn('BatteryManager.EXTRA_LEVEL',MAIN)
-        self.assertIn('Settings.ACTION_WIFI_SETTINGS',MAIN)
-        self.assertIn('Settings.ACTION_BLUETOOTH_SETTINGS',MAIN)
+        self.assertIn('HomeLocalCommands.resolve(this,query)',MAIN)
+        self.assertIn('DeviceHub.battery(context)',LOCAL)
+        self.assertIn('Settings.ACTION_WIFI_SETTINGS',LOCAL)
+        self.assertIn('Settings.ACTION_BLUETOOTH_SETTINGS',LOCAL)
 
     def test_windows_only_allowlisted_actions(self):
         self.assertIn('"taskmgr":',INTEGRATIONS)
