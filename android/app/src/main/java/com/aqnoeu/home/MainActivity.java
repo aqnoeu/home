@@ -945,6 +945,15 @@ public final class MainActivity extends Activity {
                 });
         });
         action(response,"Testar microfone",false,()->{openVoiceListening();});
+        LinearLayout enrollment=card("Reconhecimento personalizado",
+            "Cadastre Ei Home, Ok Home e Home, depois teste cada chamada junto de uma função.");
+        add(enrollment,note(VoiceEnrollment.summary(this)),0,9);
+        action(enrollment,"Cadastrar minha voz",true,this::showVoiceEnrollment);
+        settingSwitch(enrollment,"Aprendizado por correções",
+            "Registrar variantes confirmadas no próprio aparelho.",
+            VoiceEnrollment.corrections(this),(view,on)->VoiceEnrollment.setCorrections(this,on));
+        action(enrollment,"Configurar ativação contínua",false,()->showSettings("Geral"));
+
         LinearLayout ia=card("Inteligência artificial",null);
         TextView groq=note(HomeGroq.connected(this)?
             "● Groq conectada":"● Groq desconectada");
@@ -1346,7 +1355,7 @@ public final class MainActivity extends Activity {
             "Apagar cadastro de voz","Isso excluirá os testes e as variantes corrigidas armazenadas neste aparelho.",()->{
                 VoiceEnrollment.reset(this);showVoiceEnrollment();
             }));
-        action(box,"Voltar às configurações",false,()->showSettings("Geral"));
+        action(box,"Voltar a Voz / IA",false,()->showSettings("Voz / IA"));
         add(box,note("A captura do exercício usa o serviço de reconhecimento de fala instalado no Android, com preferência offline. O Android pode usar rede conforme o serviço escolhido. O detector normal do Home permanece Vosk local."),6,0);
     }
     private String enrollmentOfflineResult(int step){
