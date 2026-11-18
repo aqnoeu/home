@@ -74,6 +74,28 @@ class AccountClient:
         request(self.url+"/rest/v1/home_preferences?on_conflict=user_id","POST",{
             "user_id":self.uid,"preferred_model":model,"response_style":style,"sync_chats":sync
         },{**self.auth_headers(),"Prefer":"resolution=merge-duplicates"})
+    def _groq_rpc(self,action,payload=None):
+        if not self.uid or not self.access:
+            raise RuntimeError("Entre na Conta HOME.")
+        url=self.url+"/rest/v1/rpc/"+action
+        import urllib.request
+        body=json.dumps(payload or {}).encode("utf-8")
+        req=urllib.request.Request(url,data=body,method="POST",headers={
+            **self.auth_headers(),"Content-Type":"application/json","Accept":"application/json"})
+        try:
+            with urllib.request.urlopen(req,timeout=15) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except Exception as e:
+            raise RuntimeError("Sincronização segura da Groq indisponível.") from None
+    def get_groq_key(self):
+        value=self._groq_rpc("home_get_groq_key")
+        return value if isinstance(value,str) and value.startswith("gsk_") else None
+    def save_groq_key(self,value):
+        if not isinstance(value,str) or not value.startswith("gsk_") or len(value)<25:
+            raise ValueError("Chave Groq inválida.")
+        return self._groq_rpc("home_save_groq_key",{"p_key":value})
+    def delete_groq_key(self):
+        return self._groq_rpc("home_delete_groq_key")
     def voice_profile(self):
         if not self.uid:raise RuntimeError("Entre na Conta HOME.")
         rows=request(self.url+"/rest/v1/home_voice_profiles?select=*&user_id=eq."+quote(self.uid),
@@ -159,6 +181,9 @@ class AccountPage(QWidget):
         l=QVBoxLayout(self)
         title=QLabel("Conta HOME — mesmo acesso do Home Hub")
         l.addWidget(title)
+        self.groq_status=QLabel("Groq: aguardando autenticação da conta.")
+        self.groq_status.setWordWrap(True)
+        l.addWidget(self.groq_status)
         self.status=QLabel("Conecte-se para vincular este computador.");self.status.setWordWrap(True);l.addWidget(self.status)
         self.email=QLineEdit();self.email.setPlaceholderText("E-mail da conta HOME");l.addWidget(self.email)
         self.password=QLineEdit();self.password.setPlaceholderText("Senha");self.password.setEchoMode(QLineEdit.Password);l.addWidget(self.password)
@@ -214,7 +239,21 @@ class AccountPage(QWidget):
         self.password.clear()
         self.status.setText("Conectado como "+email+" · Windows vinculado")
         self.run_task(self.client.get_preferences,self.pref_loaded)
+        self.run_task(self._restore_groq,self._groq_restored)
         self.refresh()
+    def _restore_groq(self):
+        import home_groq
+        remote=self.client.get_groq_key()
+        if remote:
+            home_groq.save_key(remote)
+            return "✓ Groq restaurada automaticamente da Conta HOME."
+        local=home_groq.get_key()
+        if local:
+            self.client.save_groq_key(local)
+            return "✓ Groq local salva com segurança na Conta HOME."
+        return "Conta conectada. Cadastre a chave Groq uma vez para sincronizá-la."
+    def _groq_restored(self,message):
+        self.groq_status.setText(message)
     def pref_loaded(self,p):
         self.model.setCurrentIndex(max(0,self.model.findData(p.get("preferred_model","auto"))))
         self.style.setCurrentIndex(max(0,self.style.findData(p.get("response_style","equilibrado"))))
