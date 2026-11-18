@@ -110,8 +110,8 @@ public final class EyesView extends View {
             if("carregando".equals(state))rgb=Color.rgb(0,196,106);
             else if("bateria_baixa".equals(state)){rgb=Color.rgb(242,164,68);targetH=.86f;}
             else {rgb=Color.rgb(147,184,219);targetH=.72f;}
-        }else if(activeConversation){rgb=Color.rgb(45,220,112);targetH=1.05f;}
-        else if(armed && HomeEmotion.enabled(getContext(),"escutando")){rgb=Color.WHITE;targetH=1f;targetW=1f;}
+        }else if(activeConversation && ("neutro".equals(state)||"feliz".equals(state)||"conversa".equals(state))){rgb=Color.rgb(45,220,112);targetH=1.05f;}
+        else if(armed && HomeEmotion.enabled(getContext(),"escutando") && !activeConversation){rgb=Color.WHITE;targetH=1f;targetW=1f;}
         else if("raiva".equals(state)){rgb=Color.rgb(255,106,0);targetH=.83f;}
         else if("sonolento".equals(state)){rgb=Color.rgb(142,175,207);targetH=.38f;}
         else if("tedio".equals(state)){rgb=Color.rgb(139,149,164);targetH=.78f;targetW=.78f;}
