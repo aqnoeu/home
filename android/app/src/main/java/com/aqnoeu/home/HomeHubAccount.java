@@ -125,6 +125,41 @@ public final class HomeHubAccount {
         int code=con.getResponseCode();if(code>=400)throw new IllegalStateException("Falha de sincronização: HTTP "+code);
         con.disconnect();return new JSONObject();
     }
+    /** RPC returning a scalar JSON string uses the transport below (not JSONObject). */
+    private String groqRpc(String function,JSONObject payload)throws Exception {
+        HttpURLConnection con=(HttpURLConnection)new URL(endpoint+"/rest/v1/rpc/"+function).openConnection();
+        con.setRequestMethod("POST");con.setConnectTimeout(10000);con.setReadTimeout(15000);
+        con.setRequestProperty("apikey",publicKey);
+        con.setRequestProperty("Authorization","Bearer "+access);
+        con.setRequestProperty("Content-Type","application/json");con.setDoOutput(true);
+        try(OutputStream out=con.getOutputStream()){out.write(payload.toString().getBytes(StandardCharsets.UTF_8));}
+        int status=con.getResponseCode();
+        try(InputStream in=status>=400?con.getErrorStream():con.getInputStream()){
+            ByteArrayOutputStream bytes=new ByteArrayOutputStream();byte[] buf=new byte[1024];int n;
+            if(in!=null)while((n=in.read(buf))!=-1)bytes.write(buf,0,n);
+            String raw=bytes.toString("UTF-8");
+            if(status>=400)throw new IllegalStateException("Falha ao sincronizar Groq: HTTP "+status);
+            return raw.trim();
+        }finally{con.disconnect();}
+    }
+    public synchronized String restoreGroqKey()throws Exception {
+        if(!connected())return null;
+        String raw=groqRpc("home_get_groq_key",new JSONObject());
+        if("null".equals(raw)||raw.isEmpty())return null;
+        Object decoded=new org.json.JSONTokener(raw).nextValue();
+        return decoded instanceof String?(String)decoded:null;
+    }
+    public synchronized void backupGroqKey(String key)throws Exception {
+        if(!connected())throw new IllegalStateException("Entre na Conta HOME.");
+        String normalized=key==null?"":key.trim();
+        if(!normalized.startsWith("gsk_")||normalized.length()<25)throw new IllegalArgumentException("Chave Groq inválida.");
+        String result=groqRpc("home_save_groq_key",new JSONObject().put("p_key",normalized));
+        if(!"true".equals(result))throw new IllegalStateException("Falha ao salvar a credencial.");
+    }
+    public synchronized void forgetGroqKey()throws Exception {
+        if(!connected())throw new IllegalStateException("Entre na Conta HOME.");
+        groqRpc("home_delete_groq_key",new JSONObject());
+    }
     public synchronized JSONObject preferences()throws Exception{
         if(!connected())return new JSONObject();
         JSONObject r=http(endpoint+"/rest/v1/home_preferences?select=*&user_id=eq."+userId,"GET",null,access,publicKey);
