@@ -979,6 +979,29 @@ public final class MainActivity extends Activity {
         face.addView(selector);
     }
 
+    private void addEmotionSwitch(LinearLayout section,String label,String key){
+        LinearLayout line=new LinearLayout(this);
+        line.setOrientation(LinearLayout.HORIZONTAL);
+        line.setGravity(Gravity.CENTER_VERTICAL);
+        Switch toggle=new Switch(this);
+        toggle.setText(label);
+        toggle.setTextColor(WHITE);
+        toggle.setTextSize(12);
+        toggle.setChecked(HomeEmotion.enabled(this,key));
+        toggle.setOnCheckedChangeListener((button,checked)->{
+            HomeEmotion.setEnabled(this,key,checked);
+            if(Settings.canDrawOverlays(this))refreshNotch();
+        });
+        line.addView(toggle,new LinearLayout.LayoutParams(0,dp(48),1));
+        Button hide=button("✕",false,()->{
+            HomeEmotion.setEnabled(this,key,false);
+            toggle.setChecked(false);
+            statusMessage(label+" ocultada. Você pode reativá-la a qualquer momento.");
+        });
+        hide.setContentDescription("Desativar expressão "+label);
+        line.addView(hide,new LinearLayout.LayoutParams(dp(44),dp(40)));
+        add(section,line,0,3);
+    }
     private void settingsAppearance(){
         android.content.SharedPreferences prefs=getSharedPreferences("home",MODE_PRIVATE);
         LinearLayout face=card("Catálogo de expressões","Toque para visualizar e usar no notch. Duas linhas, sem rolagem lateral.");
@@ -990,6 +1013,29 @@ public final class MainActivity extends Activity {
         preview.bottomMargin=dp(10);
         face.addView(eyes,preview);
         addExpressionPicker(face,eyes,prefs);
+        LinearLayout manager=card("Administrar expressões",
+            "Ative ou desative cada reação do HOME. A lixeira oculta expressões nativas sem apagá-las definitivamente.");
+        String[] nativeLabels=EyesView.EXPRESSION_LABELS;
+        String[] nativeKeys=EyesView.EXPRESSION_KEYS;
+        for(int i=0;i<nativeLabels.length;i++){
+            final String key=nativeKeys[i];
+            final String label=nativeLabels[i];
+            // Feliz and Normal have different shapes but share the neutral base state.
+            if(i==1)continue;
+            addEmotionSwitch(manager,label,key);
+        }
+        String[] situationalLabels={"Carregando","Bateria fraca","Economia de energia",
+            "Durante a conversa (verde)","Ouvindo (verde)","Falando"};
+        String[] situationalKeys={"carregando","bateria_baixa","economia",
+            "conversa","escutando","falando"};
+        for(int i=0;i<situationalKeys.length;i++)
+            addEmotionSwitch(manager,situationalLabels[i],situationalKeys[i]);
+        action(manager,"Restaurar todas as expressões",false,()->{
+            for(String key:nativeKeys)HomeEmotion.setEnabled(this,key,true);
+            for(String key:situationalKeys)HomeEmotion.setEnabled(this,key,true);
+            if(Settings.canDrawOverlays(this))refreshNotch();
+            showSettings("Aparência");
+        });
         LinearLayout setup=card("Posição e aparência",null);
         action(setup,"Ajustar notch e distância dos olhos  ›",false,this::showEditor);
         add(setup,note("A identidade dos olhos é preservada conforme o Manual de Marca HOME."),6,0);
