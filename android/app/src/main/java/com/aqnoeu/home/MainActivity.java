@@ -1022,8 +1022,6 @@ public final class MainActivity extends Activity {
         for(int i=0;i<nativeLabels.length;i++){
             final String key=nativeKeys[i];
             final String label=nativeLabels[i];
-            // Feliz and Normal have different shapes but share the neutral base state.
-            if(i==1)continue;
             addEmotionSwitch(manager,label,key);
         }
         String[] situationalLabels={"Carregando","Bateria fraca","Economia de energia",
