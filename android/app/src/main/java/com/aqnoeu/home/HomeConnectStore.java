@@ -81,6 +81,15 @@ public final class HomeConnectStore {
             .put("key",apiKey==null?"":apiKey.trim()));
         save(context,entries);
     }
+    /** Internal use only: never return this object to the model or UI. */
+    static JSONObject privateProfile(Context context,String name) throws Exception {
+        JSONArray entries=load(context);
+        for(int i=0;i<entries.length();i++){
+            JSONObject item=entries.getJSONObject(i);
+            if(name.equals(item.optString("name")))return item;
+        }
+        return null;
+    }
     public static void remove(Context context,String name) throws Exception {
         JSONArray entries=load(context),updated=new JSONArray();
         for(int i=0;i<entries.length();i++){
