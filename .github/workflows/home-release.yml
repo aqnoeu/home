@@ -19,8 +19,8 @@ permissions:
   contents: write
 concurrency:
   group: home-unified-release
-  # Discard obsolete builds while commits are still arriving.
-  cancel-in-progress: true
+  # Serialize signed releases; never cancel Android/Windows packaging mid-build.
+  cancel-in-progress: false
 
 jobs:
   version:
