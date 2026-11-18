@@ -29,7 +29,7 @@ public final class EyesView extends View {
         "Desconfiado","Tímido","Confuso","Travesso"
     };
     public static final String[] EXPRESSION_KEYS={
-        "neutro","neutro","sonolento","raiva",
+        "neutro","feliz","sonolento","raiva",
         "piscadela","lovabow","pensando","surpreso",
         "desconfiado","timido","confuso","travesso"
     };
@@ -233,7 +233,7 @@ public final class EyesView extends View {
                 canvas.drawPath(lid,paint);
                 paint.setColor(eyeColor);
             }else if(!(updateComplete && i==1 && updateElapsed>=700 && updateElapsed<1150) &&
-                ((updateActive || listening || commandListening) || (mood==1&&"neutro".equals(state)))&&eh>=dp(9)){
+                ((updateActive || listening || commandListening) || ("feliz".equals(state)))&&eh>=dp(9)){
                 paint.setColor(Color.rgb(11,17,26));
                 canvas.drawOval(new RectF(x-ew*.15f,y+eh*.54f,x+ew*1.16f,y+eh*1.36f),paint);
                 paint.setColor(eyeColor);
