@@ -437,7 +437,6 @@ public final class MainActivity extends Activity {
     /** Conta unificada com HOME HUB. Rede e autenticação nunca bloqueiam a interface. */
     /** On launch, restore the account session and the Groq credential after reinstall. */
     private void restoreGroqFromAccount(){
-        if(HomeGroq.connected(this))return;
         if(unifiedAccount==null)unifiedAccount=new HomeHubAccount(this);
         final HomeHubAccount account=unifiedAccount;
         new Thread(()->{
@@ -450,6 +449,9 @@ public final class MainActivity extends Activity {
                         if("assistant".equals(currentPage))refreshChat();
                         statusMessage("Groq restaurada pela Conta HOME.");
                     });
+                }else if(HomeGroq.connected(this)){
+                    String local=HomeGroq.exportForAccountSync(this);
+                    if(local!=null)account.backupGroqKey(local);
                 }
             }catch(Exception ignored){ /* Offline remains usable; login can restore again. */ }
         },"home-groq-restore").start();
@@ -1338,6 +1340,7 @@ public final class MainActivity extends Activity {
             }
             return;
         }
+        HomeEmotion.fromGroq("neutro");
         HomeGroq.ask(this,question,new HomeGroq.Callback(){
             @Override public void onEmotion(String emotion){HomeEmotion.fromGroq(emotion);}
             @Override public void onAnswer(String answer){
