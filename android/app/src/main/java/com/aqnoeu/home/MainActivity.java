@@ -674,8 +674,8 @@ public final class MainActivity extends Activity {
         action(daily,"Ver notificações autorizadas",false,this::showNotifications);
 
         LinearLayout external=card("APIs personalizadas",
-            "Cadastre conexões HTTPS. As chaves ficam criptografadas neste aparelho. "
-            +"O cadastro não ativa chamadas automáticas: cada serviço ainda precisa de um adaptador de comandos.");
+            "Cadastre conexões HTTPS e teste a leitura GET mediante sua autorização. As chaves ficam criptografadas. "
+            +"O Home não envia esses dados à Groq nem executa alterações remotas.");
         final EditText apiName=edit("Nome da conexão (ex.: Minha API)",false);
         final EditText apiUrl=edit("Endpoint HTTPS (ex.: https://api.exemplo.com)",false);
         final EditText apiKey=edit("Chave / token (opcional)",true);
@@ -701,6 +701,16 @@ public final class MainActivity extends Activity {
                 final String name=profile.optString("name");
                 add(external,note(name+" · "+profile.optString("url")
                     +(profile.optBoolean("hasKey")?" · chave protegida":"")),4,1);
+                action(external,"Testar conexão: "+name,false,()->{
+                    statusMessage("Testando "+name+"...");
+                    new Thread(()->{
+                        String result;
+                        try{result=HomeConnectClient.test(this,name);}
+                        catch(Exception ex){result="Teste falhou: "+ex.getMessage();}
+                        final String response=result;
+                        runOnUiThread(()->statusMessage(response));
+                    },"home-connect-test").start();
+                });
                 action(external,"Excluir "+name,false,()->requestInlineConfirm(
                     "Excluir conexão", "Remover a conexão "+name+" deste aparelho?",()->{
                         try{HomeConnectStore.remove(this,name);showSettings("Home Connect");}
