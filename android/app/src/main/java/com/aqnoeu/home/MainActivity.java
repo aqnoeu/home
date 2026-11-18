@@ -459,9 +459,12 @@ public final class MainActivity extends Activity {
     private void backupGroqToAccount(String key,TextView state){
         if(unifiedAccount==null)unifiedAccount=new HomeHubAccount(this);
         final HomeHubAccount account=unifiedAccount;
-        if(!account.connected())return;
         new Thread(()->{
             try{
+                if(!account.connected()&&!account.resume()){
+                    runOnUiThread(()->statusMessage("Groq salva no celular. Entre na Conta HOME para sincronizar."));
+                    return;
+                }
                 account.backupGroqKey(key);
                 runOnUiThread(()->state.setText("● Groq conectada · salva na Conta HOME"));
             }catch(Exception e){
