@@ -76,6 +76,8 @@ public final class HomeGroq {
         }catch(Exception e){return null;}
     }
     public static boolean connected(Context context){return key(context)!=null;}
+    /** Transfer only to authenticated HOME account sync, never expose in UI or logs. */
+    static String exportForAccountSync(Context context){return key(context);}
     public static boolean builtIn(){return false;}
     public static void disconnect(Context context){
         context.getSharedPreferences(PREF,Context.MODE_PRIVATE).edit().clear().apply();
