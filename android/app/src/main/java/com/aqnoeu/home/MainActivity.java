@@ -1017,6 +1017,9 @@ public final class MainActivity extends Activity {
         addExpressionPicker(face,eyes,prefs);
         LinearLayout manager=card("Administrar expressões",
             "Ative ou desative cada reação do HOME. A lixeira oculta expressões nativas sem apagá-las definitivamente.");
+        manager.setVisibility(View.GONE);
+        action(face,"Gerenciar expressões e reações  ›",false,()->
+            manager.setVisibility(manager.getVisibility()==View.VISIBLE?View.GONE:View.VISIBLE));
         String[] nativeLabels=EyesView.EXPRESSION_LABELS;
         String[] nativeKeys=EyesView.EXPRESSION_KEYS;
         for(int i=0;i<nativeLabels.length;i++){
