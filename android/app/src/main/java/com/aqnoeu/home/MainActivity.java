@@ -89,6 +89,7 @@ public final class MainActivity extends Activity {
         super.onCreate(saved);
         VoiceCleanup.cleanup(this);
         showPage("assistant");
+        restoreGroqFromAccount();
         handleWakeIntent(getIntent());
     }
     @Override protected void onNewIntent(Intent intent){
@@ -434,6 +435,57 @@ public final class MainActivity extends Activity {
 
 
     /** Conta unificada com HOME HUB. Rede e autenticação nunca bloqueiam a interface. */
+    /** On launch, restore the account session and the Groq credential after reinstall. */
+    private void restoreGroqFromAccount(){
+        if(HomeGroq.connected(this))return;
+        if(unifiedAccount==null)unifiedAccount=new HomeHubAccount(this);
+        final HomeHubAccount account=unifiedAccount;
+        new Thread(()->{
+            try{
+                if(!account.connected()&&!account.resume())return;
+                String key=account.restoreGroqKey();
+                if(key!=null&&!key.isEmpty()){
+                    HomeGroq.connect(this,key);
+                    runOnUiThread(()->{
+                        if("assistant".equals(currentPage))refreshChat();
+                        statusMessage("Groq restaurada pela Conta HOME.");
+                    });
+                }
+            }catch(Exception ignored){ /* Offline remains usable; login can restore again. */ }
+        },"home-groq-restore").start();
+    }
+    private void backupGroqToAccount(String key,TextView state){
+        if(unifiedAccount==null)unifiedAccount=new HomeHubAccount(this);
+        final HomeHubAccount account=unifiedAccount;
+        if(!account.connected())return;
+        new Thread(()->{
+            try{
+                account.backupGroqKey(key);
+                runOnUiThread(()->state.setText("● Groq conectada · salva na Conta HOME"));
+            }catch(Exception e){
+                runOnUiThread(()->statusMessage("Groq funciona neste aparelho. Backup da conta falhou: "+e.getMessage()));
+            }
+        },"home-groq-backup").start();
+    }
+    private void restoreGroqOnLogin(HomeHubAccount account){
+        new Thread(()->{
+            try{
+                String key=account.restoreGroqKey();
+                if(key!=null&&!key.isEmpty()){
+                    HomeGroq.connect(this,key);
+                    runOnUiThread(()->statusMessage("Groq restaurada da Conta HOME."));
+                }else if(HomeGroq.connected(this)){
+                    // First registration: move the existing local key into the account vault.
+                    String local=HomeGroq.exportForAccountSync(this);
+                    if(local!=null)account.backupGroqKey(local);
+                    runOnUiThread(()->statusMessage("Groq vinculada à Conta HOME."));
+                }else{
+                    runOnUiThread(()->statusMessage("Conta conectada. Cadastre sua chave Groq uma vez em Voz / IA."));
+                }
+            }catch(Exception e){runOnUiThread(()->statusMessage("Conta conectada; sincronização Groq indisponível."));}
+        },"home-groq-on-login").start();
+    }
+
     private void settingsAccount(){
         if(unifiedAccount==null)unifiedAccount=new HomeHubAccount(this);
         final HomeHubAccount account=unifiedAccount;
@@ -449,7 +501,7 @@ public final class MainActivity extends Activity {
             if(login.isEmpty()||pass.isEmpty()){state.setText("Digite seu e-mail e senha.");return;}
             state.setText("Autenticando com segurança...");
             new Thread(()->{
-                try{account.signIn(login,pass);runOnUiThread(()->{password.setText("");showSettings("Conta HOME");});}
+                try{account.signIn(login,pass);restoreGroqOnLogin(account);runOnUiThread(()->{password.setText("");showSettings("Conta HOME");});}
                 catch(Exception e){runOnUiThread(()->state.setText("Não foi possível entrar: "+e.getMessage()));}
             },"home-account-login").start();
         });
@@ -1097,19 +1149,45 @@ public final class MainActivity extends Activity {
         add(panel,secret,0,7);
         action(panel,"Salvar chave",true,()->{
             try{
-                HomeGroq.connect(this,secret.getText().toString());
+                String entered=secret.getText().toString().trim();
+                HomeGroq.connect(this,entered);
                 secret.setText("");
+                backupGroqToAccount(entered,state);
                 state.setText("● Groq conectada");
                 state.setTextColor(GREEN);
                 clearInline();
                 statusMessage("Conexão Groq salva.");
             }catch(Exception e){statusMessage("Não foi possível conectar: "+e.getMessage());}
         });
+        action(panel,"Restaurar da Conta HOME",false,()->{
+            if(unifiedAccount==null)unifiedAccount=new HomeHubAccount(this);
+            final HomeHubAccount account=unifiedAccount;
+            new Thread(()->{
+                try{
+                    if(!account.connected()&&!account.resume())throw new IllegalStateException("Entre primeiro em Conta HOME.");
+                    String stored=account.restoreGroqKey();
+                    if(stored==null)throw new IllegalStateException("A conta não possui chave salva. Cadastre uma vez.");
+                    HomeGroq.connect(this,stored);
+                    runOnUiThread(()->{state.setText("● Groq conectada");state.setTextColor(GREEN);clearInline();});
+                }catch(Exception e){runOnUiThread(()->statusMessage(e.getMessage()));}
+            },"home-groq-manual-restore").start();
+        });
         action(panel,"Desconectar",false,()->requestInlineConfirm(
             "Desconectar Groq","Suas conversas salvas serão preservadas.",()->{
                 HomeGroq.disconnect(this);
                 state.setText("● Groq desconectada");
                 state.setTextColor(MUTED);
+            }));
+        action(panel,"Apagar também da Conta HOME",false,()->requestInlineConfirm(
+            "Apagar chave sincronizada","Isto desconecta a Groq e remove a chave da sua conta em todos os aparelhos após sincronização.",()->{
+                if(unifiedAccount==null)unifiedAccount=new HomeHubAccount(this);
+                final HomeHubAccount account=unifiedAccount;
+                if(!account.connected()){statusMessage("Entre na Conta HOME para apagar a chave da nuvem.");return;}
+                new Thread(()->{
+                    try{account.forgetGroqKey();HomeGroq.disconnect(this);
+                        runOnUiThread(()->{state.setText("● Groq desconectada");state.setTextColor(MUTED);});
+                    }catch(Exception e){runOnUiThread(()->statusMessage("Não foi possível apagar: "+e.getMessage()));}
+                },"home-groq-forget").start();
             }));
         action(panel,"Fechar",false,this::clearInline);
         inlineHost.addView(panel,new LinearLayout.LayoutParams(-1,-2));
