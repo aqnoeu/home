@@ -145,9 +145,12 @@ antes misturadas com as configurações gerais do notch.
 - **APIs personalizadas:** até 12 perfis HTTPS com nome, URL e chave opcional.
   Os perfis são criptografados no armazenamento local com Android Keystore AES-GCM.
   É possível visualizar metadados sem revelar o token e remover cada conexão.
-- **Limite atual:** cadastrar a API não ativa uma integração externa nem autoriza
-  chamadas HTTP arbitrárias. Cada serviço ainda requer um conector específico,
-  autenticação compatível e ações permitidas.
+- **Teste funcional:** uma conexão cadastrada pode realizar uma consulta HTTPS GET
+  mediante toque explícito em **Testar conexão**. Redirecionamentos e endereços
+  privados/locais são bloqueados; requisições usam limite de tempo e leitura
+  curta, e tokens nunca entram no prompt da IA. Os retornos podem conter dados
+  privados: só teste APIs confiáveis. Cada serviço com fluxos avançados ainda
+  requer adaptador próprio e autorização compatível.
 - **Comandos offline:** continuam atendidos diretamente por HomeLocalCommands,
   sem necessidade de Groq.
 
