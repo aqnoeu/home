@@ -904,7 +904,9 @@ public final class MainActivity extends Activity {
             "● Groq conectada":"● Groq desconectada");
         groq.setTextColor(HomeGroq.connected(this)?GREEN:MUTED);
         add(ia,groq,0,8);
-        action(ia,"Gerenciar chave Groq",false,()->showConnectionSettings(groq));
+        LinearLayout groqSettingsHost=column();
+        add(ia,groqSettingsHost,0,8);
+        action(ia,"Gerenciar chave Groq",false,()->showConnectionSettings(groq,groqSettingsHost));
         LinearLayout diagnostics=card("Diagnóstico de voz",null);
         TextView report=note("Verifique a instalação e o estado da Faber.");
         add(diagnostics,report,0,9);
@@ -1188,8 +1190,8 @@ public final class MainActivity extends Activity {
         // Groq credentials are managed in Settings > Voz / IA, not in the chat header.
     }
 
-    private void showConnectionSettings(TextView state){
-        clearInline();
+    private void showConnectionSettings(TextView state,LinearLayout host){
+        host.removeAllViews();
         LinearLayout panel=column();
         panel.setPadding(dp(12),dp(12),dp(12),dp(12));
         panel.setBackground(bg(SURFACE,14));
@@ -1204,7 +1206,7 @@ public final class MainActivity extends Activity {
                 backupGroqToAccount(entered,state);
                 state.setText("● Groq conectada");
                 state.setTextColor(GREEN);
-                clearInline();
+                host.removeAllViews();
                 statusMessage("Conexão Groq salva.");
             }catch(Exception e){statusMessage("Não foi possível conectar: "+e.getMessage());}
         });
@@ -1217,29 +1219,35 @@ public final class MainActivity extends Activity {
                     String stored=account.restoreGroqKey();
                     if(stored==null)throw new IllegalStateException("A conta não possui chave salva. Cadastre uma vez.");
                     HomeGroq.connect(this,stored);
-                    runOnUiThread(()->{state.setText("● Groq conectada");state.setTextColor(GREEN);clearInline();});
+                    runOnUiThread(()->{state.setText("● Groq conectada");state.setTextColor(GREEN);host.removeAllViews();});
                 }catch(Exception e){runOnUiThread(()->statusMessage(e.getMessage()));}
             },"home-groq-manual-restore").start();
         });
-        action(panel,"Desconectar",false,()->requestInlineConfirm(
-            "Desconectar Groq","Suas conversas salvas serão preservadas.",()->{
-                HomeGroq.disconnect(this);
-                state.setText("● Groq desconectada");
-                state.setTextColor(MUTED);
-            }));
-        action(panel,"Apagar também da Conta HOME",false,()->requestInlineConfirm(
-            "Apagar chave sincronizada","Isto desconecta a Groq e remove a chave da sua conta em todos os aparelhos após sincronização.",()->{
+        action(panel,"Desconectar neste aparelho",false,()->{
+            HomeGroq.disconnect(this);
+            state.setText("● Groq desconectada neste aparelho");
+            state.setTextColor(MUTED);
+            statusMessage("Chave local desconectada. Backup da conta preservado.");
+        });
+        action(panel,"Apagar também da Conta HOME",false,()->{
+            host.removeAllViews();
+            add(host,note("Confirma apagar a chave Groq da Conta HOME? A exclusão não pode ser desfeita."),0,8);
+            action(host,"Confirmar exclusão",true,()->{
                 if(unifiedAccount==null)unifiedAccount=new HomeHubAccount(this);
                 final HomeHubAccount account=unifiedAccount;
-                if(!account.connected()){statusMessage("Entre na Conta HOME para apagar a chave da nuvem.");return;}
                 new Thread(()->{
-                    try{account.forgetGroqKey();HomeGroq.disconnect(this);
-                        runOnUiThread(()->{state.setText("● Groq desconectada");state.setTextColor(MUTED);});
+                    try{
+                        if(!account.connected()&&!account.resume())throw new IllegalStateException("Entre na Conta HOME.");
+                        account.forgetGroqKey();
+                        HomeGroq.disconnect(this);
+                        runOnUiThread(()->{state.setText("● Groq desconectada");state.setTextColor(MUTED);host.removeAllViews();});
                     }catch(Exception e){runOnUiThread(()->statusMessage("Não foi possível apagar: "+e.getMessage()));}
                 },"home-groq-forget").start();
-            }));
-        action(panel,"Fechar",false,this::clearInline);
-        inlineHost.addView(panel,new LinearLayout.LayoutParams(-1,-2));
+            });
+            action(host,"Cancelar",false,()->showConnectionSettings(state,host));
+        });
+        action(panel,"Fechar",false,host::removeAllViews);
+        add(host,panel,0,5);
     }
 
     private void sendChatMessage(){
