@@ -186,6 +186,24 @@ jobs:
           gradle-version: '8.9'
       - name: Preparar motor de voz Faber para Android
         run: bash android/prepare-sherpa.sh
+      - name: Validar cadastro Groq e gerenciador de expressões antes do build
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          base=Path("android/app/src/main/java/com/aqnoeu/home")
+          activity=(base/"MainActivity.java").read_text()
+          account=(base/"HomeHubAccount.java").read_text()
+          emotion=(base/"HomeEmotion.java").read_text()
+          eyes=(base/"EyesView.java").read_text()
+          assert "showConnectionSettings(groq,groqSettingsHost)" in activity, "Cadastro Groq não abre na aba Voz / IA"
+          assert "restoreGroqFromAccount();" in activity, "Restauração automática não iniciada"
+          assert "account.backupGroqKey(key)" in activity, "Backup após login ausente"
+          assert all(t in account for t in ("home_save_groq_key", "home_get_groq_key", "home_delete_groq_key"))
+          assert all(t in emotion for t in ("bateria_baixa", "carregando", "emotion_"))
+          assert "addEmotionSwitch(manager" in activity and "Gerenciar expressões e reações" in activity
+          assert "Color.rgb(45,220,112)" in eyes, "Olhos verdes durante conversa ausentes"
+          print("OK: Groq, conta HOME e gerenciador de expressões")
+          PY
       - name: Compilar e validar código Android antes da assinatura
         working-directory: android
         run: gradle --no-daemon --stacktrace :app:assembleDebug
