@@ -105,7 +105,7 @@ public final class HomeGroq {
             HttpURLConnection connection=null;
             try {
                 JSONArray messages=new JSONArray();
-                messages.put(new JSONObject().put("role","system").put("content",SYSTEM));
+                messages.put(new JSONObject().put("role","system").put("content",SYSTEM+"\\n"+HomeCapabilities.describe(activity)));
                 for(int i=0;i<prior.length();i++)messages.put(prior.getJSONObject(i));
                 messages.put(new JSONObject().put("role","user").put("content",q));
                 JSONObject body=new JSONObject().put("model",MODEL)
