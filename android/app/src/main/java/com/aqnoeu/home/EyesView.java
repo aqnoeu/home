@@ -96,15 +96,22 @@ public final class EyesView extends View {
         boolean commandListening=listening;
         boolean speaking="falando".equals(voice);
         boolean armed="armado".equals(voice) || "pausado".equals(voice) || "carregando".equals(voice);
+        boolean activeConversation=!expressionPreview && HomeEmotion.isConversing() && HomeEmotion.enabled(getContext(),"conversa");
+        boolean operational="carregando".equals(state)||"bateria_baixa".equals(state)||"economia".equals(state);
         int rgb=Color.rgb(242,248,255);
         float targetH=1f,targetW=1f;
         if(updateActive){
             rgb=Color.rgb(139,149,164);targetH=1f;targetW=1f; // cinza do tédio, preenchimento branco desenhado abaixo
-        }else if(listening || commandListening){
+        }else if((listening || commandListening) && HomeEmotion.enabled(getContext(),"escutando")){
             rgb=Color.rgb(45,255,90);targetH=1.13f;targetW=1.02f; // verde-neon, expressão feliz
-        }else if(speaking){
+        }else if(speaking && HomeEmotion.enabled(getContext(),"falando")){
             rgb=Color.WHITE;targetH=1f;targetW=1f; // fala da Faber: olhos brancos
-        }else if(armed){rgb=Color.WHITE;targetH=1f;targetW=1f;}
+        }else if(operational){
+            if("carregando".equals(state))rgb=Color.rgb(0,196,106);
+            else if("bateria_baixa".equals(state)){rgb=Color.rgb(242,164,68);targetH=.86f;}
+            else {rgb=Color.rgb(147,184,219);targetH=.72f;}
+        }else if(armed && HomeEmotion.enabled(getContext(),"escutando")){rgb=Color.WHITE;targetH=1f;targetW=1f;}
+        else if(activeConversation){rgb=Color.rgb(45,220,112);targetH=1.05f;}
         else if("raiva".equals(state)){rgb=Color.rgb(255,106,0);targetH=.83f;}
         else if("sonolento".equals(state)){rgb=Color.rgb(142,175,207);targetH=.38f;}
         else if("tedio".equals(state)){rgb=Color.rgb(139,149,164);targetH=.78f;targetW=.78f;}
