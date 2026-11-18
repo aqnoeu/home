@@ -19,6 +19,18 @@ public final class HomeEmotion {
     private static volatile String activePage="";
     private static volatile long pageSince=SystemClock.elapsedRealtime();
     private HomeEmotion(){}
+    /** Disabled native expressions are hidden, not removed from the renderer. */
+    public static boolean enabled(Context context,String state){
+        return context.getSharedPreferences("home_emotion_controls",Context.MODE_PRIVATE)
+            .getBoolean("emotion_"+state,true);
+    }
+    public static void setEnabled(Context context,String state,boolean value){
+        context.getSharedPreferences("home_emotion_controls",Context.MODE_PRIVATE)
+            .edit().putBoolean("emotion_"+state,value).apply();
+    }
+    public static boolean isConversing(){
+        return SystemClock.elapsedRealtime()<conversationUntil;
+    }
 
     public static void touch(){LAST_TOUCH.set(SystemClock.elapsedRealtime());}
     public static void pageChanged(String page){
@@ -75,13 +87,17 @@ public final class HomeEmotion {
     }
     public static String current(Context context){
         long now=SystemClock.elapsedRealtime();
-        if(now<conversationUntil)return conversational;
-        if(charging(context))return "carregando";
-        if(batteryLow(context))return "bateria_baixa";
-        if(powerSaving(context))return "economia";
-        if(now-LAST_TOUCH.get()>=5*60*1000L)return "sonolento";
-        // Without Accessibility permission, observe only the HOME screen itself.
-        if(now-pageSince>=12*60*1000L)return "tedio";
-        return manual;
+        // Operational signals must take precedence over long-running chat moods.
+        if(charging(context)&&enabled(context,"carregando"))return "carregando";
+        if(batteryLow(context)&&enabled(context,"bateria_baixa"))return "bateria_baixa";
+        if(powerSaving(context)&&enabled(context,"economia"))return "economia";
+        if(now<conversationUntil){
+            if(enabled(context,conversational))return conversational;
+            if(enabled(context,"conversa"))return "conversa";
+            return "neutro";
+        }
+        if(now-LAST_TOUCH.get()>=5*60*1000L && enabled(context,"sonolento"))return "sonolento";
+        if(now-pageSince>=12*60*1000L && enabled(context,"tedio"))return "tedio";
+        return enabled(context,manual)?manual:"neutro";
     }
 }
