@@ -274,7 +274,7 @@ jobs:
             dist/android/Home-Android.sha256 \
             --repo "$GITHUB_REPOSITORY" \
             --title "HOME v$HOME_RELEASE_VERSION — Versão corrigida (Windows e Android)" \
-            --notes "Versão corrigida: catálogo de 12 expressões reais sem boca no Android e Windows; seletor em duas linhas, duas páginas e prévia; Lovabow e sonolento aprimorado; testes de regressão, voz e atualizações. APK assinado com o certificado oficial e SHA-256 publicado. Código-fonte: $GITHUB_SHA." \
+            --notes "Versão corrigida: Groq sincronizada pelo login da Conta HOME com armazenamento criptografado no Supabase Vault (o primeiro cadastro da chave continua necessário quando não há backup anterior); restauração automática após reinstalação; Android com gerenciador de expressões individuais (ativar, ocultar e restaurar), prioridade corrigida para bateria fraca e carregamento, olhos verdes durante conversa; correções Android e Windows. APK assinado, Windows ZIP e SHA-256. Código-fonte: $GITHUB_SHA." \
             --target "$GITHUB_SHA"
       - name: Publicar ponte de atualização para Android 0.1.x
         env:
