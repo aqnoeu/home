@@ -52,7 +52,7 @@ public final class HomeEmotion {
         touch();
     }
     public static String normalize(String emotion){
-        if("raiva".equals(emotion)||"sonolento".equals(emotion)||"tedio".equals(emotion)
+        if("feliz".equals(emotion)||"raiva".equals(emotion)||"sonolento".equals(emotion)||"tedio".equals(emotion)
             ||"piscadela".equals(emotion)||"lovabow".equals(emotion)
             ||"pensando".equals(emotion)||"surpreso".equals(emotion)
             ||"desconfiado".equals(emotion)||"timido".equals(emotion)
