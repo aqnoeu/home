@@ -310,7 +310,7 @@ public final class MainActivity extends Activity {
         LinearLayout face=card(null,null);
         EyesView eyes=new EyesView(this);
         android.content.SharedPreferences prefs=getSharedPreferences("home",MODE_PRIVATE);
-        eyes.setMood(prefs.getInt("mood",0));eyes.setEyeGap(prefs.getInt("eye_gap",9));
+        eyes.setExpressionPreview(true);eyes.setMood(prefs.getInt("mood",0));eyes.setEyeGap(prefs.getInt("eye_gap",9));
         eyes.setBackground(bg(BG,18));
         LinearLayout.LayoutParams eyesSize=new LinearLayout.LayoutParams(-1,dp(86));
         eyesSize.bottomMargin=dp(8);
@@ -923,23 +923,18 @@ public final class MainActivity extends Activity {
         });
     }
 
-    /** Shared compact two-row expression grid used by Hub and Appearance. */
+    /** Two-row, paged, selectable gallery. Hidden faces can be restored in Appearance. */
     private void addExpressionPicker(LinearLayout face,EyesView eyes,
                                      android.content.SharedPreferences prefs){
         eyes.setExpressionPreview(true);
-        final int columns=3, rows=2, perPage=columns*rows;
-        final int count=EyesView.EXPRESSION_LABELS.length;
-        final int pageCount=(count+perPage-1)/perPage;
-        final int[] currentPage={Math.min(pageCount-1,
-            prefs.getInt("mood",0)/perPage)};
+        final int columns=3, perPage=6;
+        final int[] currentPage={0};
         LinearLayout selector=column();
         GridLayout grid=new GridLayout(this);
         grid.setColumnCount(columns);
-        grid.setRowCount(rows);
         selector.addView(grid,new LinearLayout.LayoutParams(-1,-2));
         LinearLayout pager=new LinearLayout(this);
         pager.setGravity(Gravity.CENTER_VERTICAL);
-        pager.setOrientation(LinearLayout.HORIZONTAL);
         Button previous=button("‹",false,()->{});
         Button next=button("›",false,()->{});
         TextView pageText=text("",12,MUTED,true);
@@ -950,12 +945,17 @@ public final class MainActivity extends Activity {
         selector.addView(pager);
         Runnable[] redraw=new Runnable[1];
         redraw[0]=()->{
+            java.util.ArrayList<Integer> visible=new java.util.ArrayList<>();
+            for(int i=0;i<EyesView.EXPRESSION_KEYS.length;i++){
+                if(HomeEmotion.enabled(this,EyesView.EXPRESSION_KEYS[i]))visible.add(i);
+            }
+            int pageCount=Math.max(1,(visible.size()+perPage-1)/perPage);
+            currentPage[0]=Math.min(currentPage[0],pageCount-1);
             grid.removeAllViews();
             int selected=prefs.getInt("mood",0);
             int first=currentPage[0]*perPage;
-            for(int position=0;position<perPage;position++){
-                int index=first+position;
-                if(index>=count)break;
+            for(int position=0;position<perPage && first+position<visible.size();position++){
+                final int index=visible.get(first+position);
                 Button b=button(EyesView.EXPRESSION_LABELS[index],false,()->{
                     prefs.edit().putInt("mood",index).apply();
                     eyes.setMood(index);
@@ -964,6 +964,21 @@ public final class MainActivity extends Activity {
                     if(status!=null)status.setVisibility(View.VISIBLE);
                     redraw[0].run();
                 });
+                b.setOnLongClickListener(v->{
+                    // Hide, never destroy a built-in face. Keep Normal as a safe fallback.
+                    if(index==0){statusMessage("A expressão Normal é a opção de segurança.");return true;}
+                    HomeEmotion.setEnabled(this,EyesView.EXPRESSION_KEYS[index],false);
+                    if(prefs.getInt("mood",0)==index){
+                        prefs.edit().putInt("mood",0).apply();
+                        eyes.setMood(0);
+                    }
+                    if(Settings.canDrawOverlays(this))refreshNotch();
+                    statusMessage(EyesView.EXPRESSION_LABELS[index]+" ocultada; restaure em Gerenciar expressões.");
+                    redraw[0].run();
+                    return true;
+                });
+                b.setContentDescription(EyesView.EXPRESSION_LABELS[index]+
+                    ". Toque para selecionar; mantenha pressionado para ocultar.");
                 b.setTextSize(11);
                 b.setSingleLine(true);
                 b.setAllCaps(false);
@@ -971,8 +986,7 @@ public final class MainActivity extends Activity {
                 b.setBackground(bg(index==selected?BLUE:RAISED,10));
                 GridLayout.LayoutParams lp=new GridLayout.LayoutParams(
                     GridLayout.spec(position/columns),GridLayout.spec(position%columns,1f));
-                lp.width=0;
-                lp.height=dp(43);
+                lp.width=0;lp.height=dp(43);
                 lp.setMargins(dp(2),dp(3),dp(2),dp(3));
                 grid.addView(b,lp);
             }
@@ -981,9 +995,10 @@ public final class MainActivity extends Activity {
             next.setEnabled(currentPage[0]<pageCount-1);
         };
         previous.setOnClickListener(v->{if(currentPage[0]>0){currentPage[0]--;redraw[0].run();}});
-        next.setOnClickListener(v->{if(currentPage[0]<pageCount-1){currentPage[0]++;redraw[0].run();}});
+        next.setOnClickListener(v->{currentPage[0]++;redraw[0].run();});
         redraw[0].run();
         face.addView(selector);
+        add(face,note("Toque para testar. Pressione e segure para ocultar; restaure em Gerenciar expressões."),4,0);
     }
 
     private void addEmotionSwitch(LinearLayout section,String label,String key){
@@ -1013,7 +1028,7 @@ public final class MainActivity extends Activity {
         android.content.SharedPreferences prefs=getSharedPreferences("home",MODE_PRIVATE);
         LinearLayout face=card("Catálogo de expressões","Toque para visualizar e usar no notch. Duas linhas, sem rolagem lateral.");
         EyesView eyes=new EyesView(this);
-        eyes.setMood(prefs.getInt("mood",0));
+        eyes.setExpressionPreview(true);eyes.setMood(prefs.getInt("mood",0));
         eyes.setEyeGap(prefs.getInt("eye_gap",9));
         eyes.setBackground(bg(BG,18));
         LinearLayout.LayoutParams preview=new LinearLayout.LayoutParams(-1,dp(84));
