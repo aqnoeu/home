@@ -1,4 +1,4 @@
-"""HOME expression manager: persistent real-notch selection and reversible hiding."""
+"""HOME expression manager: temporary real-notch selection and reversible hiding."""
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, QGridLayout
 from home_eyes import EyesWidget
@@ -19,7 +19,7 @@ EXPRESSIONS = (
 )
 
 class ExpressionGallery(QWidget):
-    """Two rows, three columns, pagination, hide/restore and live persisted choice."""
+    """Two rows, three columns, pagination, hide/restore and 30s manual choice."""
     def __init__(self, home, parent=None):
         super().__init__(parent)
         self.home = home
@@ -68,7 +68,7 @@ class ExpressionGallery(QWidget):
         controls.addWidget(self.restore_button)
         controls.addWidget(self.auto_button)
         layout.addLayout(controls)
-        self.note = QLabel("A escolha é aplicada ao notch real. Ocultar não apaga uma expressão.")
+        self.note = QLabel("A escolha aparece no notch por 30 segundos; depois volta o modo automático.")
         self.note.setWordWrap(True)
         layout.addWidget(self.note)
         layout.addStretch()
@@ -98,7 +98,7 @@ class ExpressionGallery(QWidget):
                 self.note.setText("Expressão restaurada e aplicada ao Home.")
         elif self.home.select_expression(index):
             self.selected = index
-            self.note.setText("Expressão selecionada e fixada no notch real.")
+            self.note.setText("Expressão aplicada por 30 segundos; depois retorna o modo automático.")
         self.display_preview(self.selected)
         self.render_buttons()
 
@@ -119,7 +119,7 @@ class ExpressionGallery(QWidget):
         self.page = 0
         self.restore_button.setText("Voltar à galeria" if self.show_hidden else "Gerenciar ocultas")
         self.note.setText("Clique numa expressão oculta para restaurá-la." if self.show_hidden
-                          else "Selecione uma expressão para aplicá-la ao notch real.")
+                          else "Selecione uma expressão para mostrá-la por 30 segundos.")
         self.render_buttons()
 
     def use_auto(self):
@@ -146,7 +146,7 @@ class ExpressionGallery(QWidget):
             button.setCheckable(True)
             button.setChecked(not self.show_hidden and index == self.home.settings.get("selected_expression", 0))
             button.clicked.connect(lambda checked=False, i=index: self.select(i))
-            button.setToolTip("Restaurar expressão" if self.show_hidden else "Selecionar e fixar no Home")
+            button.setToolTip("Restaurar expressão" if self.show_hidden else "Exibir no Home por 30 segundos")
             self.grid.addWidget(button, slot//3, slot%3)
         self.page_label.setText(f"Página {self.page + 1} de {pages}")
         self.previous.setEnabled(self.page>0)
