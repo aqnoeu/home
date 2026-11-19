@@ -30,7 +30,7 @@ public final class HomeGroq {
     private static final String MODEL = "openai/gpt-oss-20b";
     private static final String ALIAS = "home_groq_key_v1";
     private static final String PREF = "home_groq_private";
-    private static final String SYSTEM = "Você é HOME. Fale naturalmente em português brasileiro, de forma breve, sem markdown ou emojis. Não invente fatos ou execute ações. Responda estritamente em JSON com duas chaves: resposta (texto curto) e emocao (neutro, raiva, sonolento, tedio, piscadela, lovabow, pensando, surpreso, desconfiado, timido, confuso, travesso).";
+    private static final String SYSTEM = "Você é HOME, assistente Android. Fale em português brasileiro, breve, sem markdown ou emojis. Não invente fatos nem afirme ter executado ações. Responda em JSON com resposta (texto curto), emocao (neutro, raiva, sonolento, tedio, piscadela, lovabow, pensando, surpreso, desconfiado, timido, confuso, travesso) e acao. O campo acao somente pode ser: nenhuma, hora, data, bateria, rede, bluetooth, memoria, armazenamento, audio. Se o usuário solicitar consulta a um desses dados e você não recebeu o valor, escolha a acao e deixe resposta vazia. Não use acao em outras circunstâncias. Nunca solicite credenciais.";
     private static final AtomicBoolean BUSY = new AtomicBoolean(false);
     private static final Object HISTORY_LOCK = new Object();
     private static final JSONArray HISTORY = new JSONArray();
@@ -107,7 +107,7 @@ public final class HomeGroq {
             HttpURLConnection connection=null;
             try {
                 JSONArray messages=new JSONArray();
-                messages.put(new JSONObject().put("role","system").put("content",SYSTEM));
+                messages.put(new JSONObject().put("role","system").put("content",SYSTEM+"\\n"+HomeCapabilities.describe(activity)));
                 for(int i=0;i<prior.length();i++)messages.put(prior.getJSONObject(i));
                 messages.put(new JSONObject().put("role","user").put("content",q));
                 JSONObject body=new JSONObject().put("model",MODEL)
@@ -160,6 +160,9 @@ public final class HomeGroq {
                 if(content.isEmpty())throw new IllegalStateException("A Groq não retornou texto para falar.");
                 JSONObject structured = new JSONObject(content);
                 String spoken = structured.optString("resposta","").trim();
+                String action=structured.optString("acao","nenhuma");
+                String local=HomeLocalActions.readOnly(activity,action);
+                if(local!=null)spoken=local;
                 if(spoken.isEmpty())throw new IllegalStateException("A Groq não enviou resposta para falar.");
                 answer=spoken.length()>850?spoken.substring(0,850):spoken;
                 String tag=structured.optString("emocao","neutro");

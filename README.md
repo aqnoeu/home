@@ -130,3 +130,28 @@ No painel expandido, abra **Voz e microfone**. O seletor lista apenas as vozes *
 Em **Voz e microfone → Mecanismo de fala**, selecione **Alex — Kokoro**. Clique em **Instalar Alex** para baixar, uma única vez, os arquivos do modelo (~340 MB), armazenados em `%LOCALAPPDATA%\\Home\\models\\kokoro-v1.0`. Os arquivos são baixados por HTTPS da [release oficial do kokoro-onnx](https://github.com/thewh1teagle/kokoro-onnx/releases/tag/model-files-v1.1), com SHA-256 verificado antes da ativação. **O microfone não é necessário.** Depois da instalação, a geração é offline e o áudio é reproduzido no dispositivo pelo SoundDevice. O botão **Testar voz selecionada** permite ouvir Alex, e o Assistente digitado usa a mesma preferência.
 
 Se o modelo não estiver instalado, a síntese continua com a voz Windows SAPI5, sem impedir o uso do Home. Pode-se reverter para SAPI5 a qualquer momento, sem perder o modelo baixado. **Kokoro-82M**: Apache-2.0; biblioteca **kokoro-onnx**: MIT. Dependências do mecanismo de fonetização podem possuir outras licenças e devem ser consideradas em qualquer redistribuição. A integração foi organizada em `home_kokoro.py` para que uma futura versão Android possa reutilizar o contrato de síntese de áudio, ainda que necessite de um empacotamento e interface específicos.
+
+## Home Connect (Android — branch feature/home-connect)
+
+A nova aba **Configurações → Home Connect** reúne as consultas locais do dispositivo
+(bateria, rede, Bluetooth, áudio, memória, armazenamento, agenda e notificações),
+antes misturadas com as configurações gerais do notch.
+
+- **Conhecimento do HOME:** a Groq recebe um catálogo textual das capacidades
+  implementadas e do estado das opções principais; não recebe senhas nem conteúdos
+  de calendário, notificações ou conversas por esse mecanismo.
+- **Consentimento separado:** bateria e estado da rede só são incluídos nas solicitações
+  à Groq quando a opção de compartilhamento está ativada (padrão: desligada).
+- **APIs personalizadas:** até 12 perfis HTTPS com nome, URL e chave opcional.
+  Os perfis são criptografados no armazenamento local com Android Keystore AES-GCM.
+  É possível visualizar metadados sem revelar o token e remover cada conexão.
+- **Teste funcional:** uma conexão cadastrada pode realizar uma consulta HTTPS GET
+  mediante toque explícito em **Testar conexão**. Redirecionamentos e endereços
+  privados/locais são bloqueados; requisições usam limite de tempo e leitura
+  curta, e tokens nunca entram no prompt da IA. Os retornos podem conter dados
+  privados: só teste APIs confiáveis. Cada serviço com fluxos avançados ainda
+  requer adaptador próprio e autorização compatível.
+- **Comandos offline:** continuam atendidos diretamente por HomeLocalCommands,
+  sem necessidade de Groq.
+
+Mudanças preparadas em branch, **não publicadas nem validadas em dispositivo**.

@@ -413,18 +413,22 @@ public final class MainActivity extends Activity {
         add(root,note("Ajuste o HOME sem percorrer várias telas."),0,13);
         LinearLayout tabs=new LinearLayout(this);
         tabs.setOrientation(LinearLayout.HORIZONTAL);
-        String[] names={"Geral","Voz / IA","Aparência","Conta HOME"};
+        String[] names={"Geral","Home Connect","Voz / IA","Aparência","Conta HOME"};
         for(String name:names){
             Button b=button(name,name.equals(tab),()->showSettings(name));
             b.setSingleLine(true);
             b.setTextSize(12);
             b.setBackground(bg(name.equals(tab)?BLUE:RAISED,12));
-            LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(48),1);
+            LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(dp(110),dp(48));
             p.leftMargin=dp(3);p.rightMargin=dp(3);
             tabs.addView(b,p);
         }
-        add(root,tabs,0,14);
+        HorizontalScrollView tabScroller=new HorizontalScrollView(this);
+        tabScroller.setHorizontalScrollBarEnabled(false);
+        tabScroller.addView(tabs);
+        add(root,tabScroller,0,14);
         switch(tab){
+            case "Home Connect": settingsConnect();break;
             case "Voz / IA": settingsVoice();break;
             case "Aparência": settingsAppearance();break;
             case "Conta HOME": settingsAccount();break;
@@ -686,6 +690,22 @@ public final class MainActivity extends Activity {
         action(about,"Downloads oficiais",false,
             ()->startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(DOWNLOAD))));
         action(about,"Mostrar QR Code de download",false,()->showDownloadQr(about));
+        action(about,"Recolher HOME",false,this::finish);
+    }
+
+
+    /** Integrated connections page. Local resources retain their existing handlers. */
+    private void settingsConnect(){
+        add(root,note("Recursos internos e integrações em um só lugar. Os comandos locais continuam disponíveis no chat."),0,12);
+        android.content.SharedPreferences prefs=getSharedPreferences("home",MODE_PRIVATE);
+        LinearLayout knowledge=card("Conhecimento do HOME",
+            "A Groq recebe o catálogo de funções implementadas, sem senhas, conversas privadas, agenda ou notificações.");
+        settingSwitch(knowledge,"Compartilhar estado básico com Groq",
+            "Envia bateria e estado da rede com cada pergunta. Desligado por padrão.",
+            prefs.getBoolean("home_connect_share_device_state",false),
+            (view,on)->prefs.edit().putBoolean("home_connect_share_device_state",on).apply());
+        action(knowledge,"Ver o que o HOME conhece",false,
+            ()->statusMessage(HomeCapabilities.describe(this)));
         LinearLayout device=card("Estado do dispositivo","Consultas sob demanda. Nada é enviado à IA.");
         action(device,"Diagnóstico local do celular",true,
             ()->statusMessage(DeviceHub.overview(this)));
@@ -709,7 +729,56 @@ public final class MainActivity extends Activity {
         actions(daily,"Alarmes",()->openDeviceIntent(DeviceHub.alarmsIntent()),
             "Som do sistema",()->openDeviceIntent(DeviceHub.soundSettings()));
         action(daily,"Ver notificações autorizadas",false,this::showNotifications);
-        action(about,"Recolher HOME",false,this::finish);
+
+        LinearLayout external=card("APIs personalizadas",
+            "Cadastre conexões HTTPS e teste a leitura GET mediante sua autorização. As chaves ficam criptografadas. "
+            +"O Home não envia esses dados à Groq nem executa alterações remotas.");
+        final EditText apiName=edit("Nome da conexão (ex.: Minha API)",false);
+        final EditText apiUrl=edit("Endpoint HTTPS (ex.: https://api.exemplo.com)",false);
+        final EditText apiKey=edit("Chave / token (opcional)",true);
+        apiUrl.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_URI);
+        add(external,apiName,6,4);
+        add(external,apiUrl,6,4);
+        add(external,apiKey,6,4);
+        action(external,"Salvar conexão",true,()->{
+            try{
+                HomeConnectStore.add(this,apiName.getText().toString(),
+                    apiUrl.getText().toString(),apiKey.getText().toString());
+                apiKey.setText("");
+                statusMessage("Conexão cadastrada. As chamadas ainda não estão habilitadas.");
+                showSettings("Home Connect");
+            }catch(Exception ex){statusMessage("Não foi possível salvar: "+ex.getMessage());}
+        });
+        try{
+            org.json.JSONArray profiles=HomeConnectStore.profiles(this);
+            add(external,note(profiles.length()==0?"Nenhuma API personalizada cadastrada.":
+                "Conexões cadastradas ("+profiles.length()+"):"),8,4);
+            for(int i=0;i<profiles.length();i++){
+                org.json.JSONObject profile=profiles.getJSONObject(i);
+                final String name=profile.optString("name");
+                add(external,note(name+" · "+profile.optString("url")
+                    +(profile.optBoolean("hasKey")?" · chave protegida":"")),4,1);
+                action(external,"Testar conexão: "+name,false,()->{
+                    statusMessage("Testando "+name+"...");
+                    new Thread(()->{
+                        String result;
+                        try{result=HomeConnectClient.test(this,name);}
+                        catch(Exception ex){result="Teste falhou: "+ex.getMessage();}
+                        final String response=result;
+                        runOnUiThread(()->statusMessage(response));
+                    },"home-connect-test").start();
+                });
+                action(external,"Excluir "+name,false,()->requestInlineConfirm(
+                    "Excluir conexão", "Remover a conexão "+name+" deste aparelho?",()->{
+                        try{HomeConnectStore.remove(this,name);showSettings("Home Connect");}
+                        catch(Exception ex){statusMessage("Falha ao excluir: "+ex.getMessage());}
+                    }));
+            }
+        }catch(Exception ex){add(external,note("Não foi possível ler as conexões protegidas."),6,0);}
+        LinearLayout services=card("Serviços externos",
+            "Gmail, ChatGPT, Claude, WhatsApp, Instagram e GitHub poderão ganhar conectores próprios. "
+            +"Contas pessoais e profissionais dependem das permissões oficiais de cada serviço.");
+        add(services,note("Nenhuma dessas integrações externas é ativada apenas por cadastrar a API."),4,4);
     }
 
     private void showBluetoothStatus(){
