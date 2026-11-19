@@ -65,6 +65,7 @@ class Home(QWidget):
         self._context_timer.timeout.connect(self._refresh_emotion_context)
         self._context_timer.start()
         self.eyes = EyesWidget(self)
+        self._manual_expression_until = 0.0
         self.apply_saved_expression()
         self.eyes.eye_gap = self.settings["eye_gap"]
         self.eyes.follow_mouse = self.integration_prefs['eyes_follow_mouse']
@@ -115,7 +116,7 @@ class Home(QWidget):
 
     def set_ai_emotion(self, emotion):
         self.emotion_context.note_conversation(normalize_emotion(emotion))
-        if not self.settings.get("expression_fixed", False):
+        if not self.manual_expression_active():
             self.eyes.emotion = normalize_emotion(emotion)
 
     def _refresh_emotion_context(self):
@@ -126,7 +127,7 @@ class Home(QWidget):
             self.emotion_context.focused_window = foreground
             self.emotion_context.focused_since = now
         low, saver = WindowsContext.power_details()
-        if self.settings.get("expression_fixed", False):
+        if self.manual_expression_active():
             self.apply_saved_expression()
         else:
             self.eyes.mood = 0
@@ -259,7 +260,8 @@ class Home(QWidget):
                     value = old.get(key)
                     if isinstance(value,(int,float)) and not isinstance(value,bool):
                         data[key] = int(value)
-                data["expression_fixed"] = bool(old.get("expression_fixed", False))
+                # Manual selection is intentionally temporary, never restored after restart.
+                data["expression_fixed"] = False
                 selected = old.get("selected_expression", 0)
                 data["selected_expression"] = selected if type(selected) is int and 0 <= selected < 12 else 0
                 hidden = old.get("hidden_expressions", [])
@@ -396,6 +398,16 @@ class Home(QWidget):
         else:
             super().mouseReleaseEvent(event)
 
+    def manual_expression_active(self):
+        if not self.settings.get("expression_fixed", False):
+            return False
+        if time.monotonic() < self._manual_expression_until:
+            return True
+        self.settings["expression_fixed"] = False
+        self.eyes.preview_emotion = None
+        self.eyes.mood = 0
+        return False
+
     def apply_saved_expression(self):
         """Apply a fixed catalog face to the real notch, without a 12s timeout."""
         if not self.settings.get("expression_fixed", False):
@@ -421,12 +433,14 @@ class Home(QWidget):
             return False
         self.settings["selected_expression"] = index
         self.settings["expression_fixed"] = True
+        self._manual_expression_until = time.monotonic() + 30.0
         self.apply_saved_expression()
         self.save_settings()
         return True
 
     def use_automatic_expressions(self):
         self.settings["expression_fixed"] = False
+        self._manual_expression_until = 0.0
         self.eyes.preview_emotion = None
         self.eyes.mood = 0
         self._refresh_emotion_context()
