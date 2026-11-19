@@ -934,6 +934,11 @@ public final class MainActivity extends Activity {
                 });
         });
         action(response,"Testar microfone",false,()->{openVoiceListening();});
+        action(response,"Encerrar conversa por voz",false,()->{
+            continuousVoiceSession=false;
+            if(voiceCapture!=null){voiceCapture.release();voiceCapture=null;}
+            statusMessage("Conversa por voz encerrada.");resumeWake();
+        });
         LinearLayout enrollment=card("Reconhecimento personalizado",
             "Cadastre Ei Home, Ok Home e Home, depois teste cada chamada junto de uma função.");
         add(enrollment,note(VoiceEnrollment.summary(this)),0,9);
