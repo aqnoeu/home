@@ -86,6 +86,20 @@ public final class HomeEmotion {
         return power!=null && power.isPowerSaveMode();
     }
     public static String current(Context context){
+        // The user's fixed selection is an explicit override, not a preview.
+        // Automatic battery, inactivity and conversation reactions only apply in auto mode.
+        android.content.SharedPreferences preferences=context.getSharedPreferences("home",Context.MODE_PRIVATE);
+        if(preferences.getBoolean("expression_fixed",false)){
+            int selected=preferences.getInt("mood",0);
+            if(selected>=0 && selected<EyesView.EXPRESSION_KEYS.length){
+                String chosen=EyesView.EXPRESSION_KEYS[selected];
+                if(enabled(context,chosen))return chosen;
+            }
+            // Never silently resurrect a face that the user disabled.
+            for(String fallback:EyesView.EXPRESSION_KEYS)
+                if(enabled(context,fallback))return fallback;
+            return "neutro";
+        }
         long now=SystemClock.elapsedRealtime();
         // Operational signals must take precedence over long-running chat moods.
         if(charging(context)&&enabled(context,"carregando"))return "carregando";
@@ -98,6 +112,9 @@ public final class HomeEmotion {
         }
         if(now-LAST_TOUCH.get()>=5*60*1000L && enabled(context,"sonolento"))return "sonolento";
         if(now-pageSince>=12*60*1000L && enabled(context,"tedio"))return "tedio";
-        return enabled(context,manual)?manual:"neutro";
+        if(enabled(context,manual))return manual;
+        for(String fallback:EyesView.EXPRESSION_KEYS)
+            if(enabled(context,fallback))return fallback;
+        return "neutro";
     }
 }
