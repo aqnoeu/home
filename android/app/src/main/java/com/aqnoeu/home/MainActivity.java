@@ -41,6 +41,7 @@ public final class MainActivity extends Activity {
     }
     @Override protected void onPause(){inForeground=false;super.onPause();}
     @Override protected void onDestroy(){
+        continuousVoiceSession=false;
         if(voiceCapture!=null){voiceCapture.release();voiceCapture=null;}
         super.onDestroy();
     }
@@ -68,6 +69,7 @@ public final class MainActivity extends Activity {
     private static final int WAKE_NOTIFICATION_PERMISSION_REQUEST = 722;
     private boolean wakeBusy = false;
     private HomeVoiceCapture voiceCapture;
+    private boolean continuousVoiceSession=false;
     private static final int VOICE_ENROLL_REQUEST = 815;
 
     private final HomeUiKit ui=new HomeUiKit(this);
@@ -162,6 +164,7 @@ public final class MainActivity extends Activity {
             statusMessage("Autorize o microfone nas configurações para conversar.");
             resumeWake();return;
         }
+        continuousVoiceSession=true;
         if(voiceCapture!=null)voiceCapture.release();
         voiceCapture=new HomeVoiceCapture(this,new HomeVoiceCapture.Callback(){
             @Override public void onPartial(String phrase){statusMessage("Ouvindo: "+phrase);}
@@ -169,14 +172,14 @@ public final class MainActivity extends Activity {
                 voiceCapture=null;
                 if(!"assistant".equals(currentPage))showPage("assistant");
                 if(phrase.matches("(?i).*(encerrar conversa|parar de ouvir|tchau home).*")){
-                    statusMessage("Conversa encerrada.");resumeWake();return;
+                    continuousVoiceSession=false;statusMessage("Conversa encerrada.");resumeWake();return;
                 }
                 if(handleLocalCommand(phrase,true))return;
                 statusMessage("Você: "+phrase+" · HOME está pensando…");
                 askHome(phrase,null);
             }
             @Override public void onFailure(String reason){
-                voiceCapture=null;statusMessage(reason);resumeWake();
+                voiceCapture=null;continuousVoiceSession=false;statusMessage(reason);resumeWake();
             }
         });
         if(!voiceCapture.start()){voiceCapture=null;resumeWake();}
@@ -207,7 +210,7 @@ public final class MainActivity extends Activity {
     }
     private void speakAnswer(String answer){
         if(!getSharedPreferences("home",MODE_PRIVATE).getBoolean("voice_replies",true)){
-            resumeWake();return;
+            afterSpokenResponse();return;
         }
         if(FaberOffline.isInstalled(this)){
             getSharedPreferences("home",MODE_PRIVATE).edit()
@@ -216,12 +219,20 @@ public final class MainActivity extends Activity {
             FaberOffline.speak(this,answer,message->{
                 if(message.startsWith("✓ Faber reproduzida") || message.startsWith("Falha")
                     || message.startsWith("Instale") || message.startsWith("O Home já está falando")){
-                    resumeWake();
+                    afterSpokenResponse();
                 }
             });
-        }else{resumeWake();}
+        }else{afterSpokenResponse();}
+    }
+    private void afterSpokenResponse(){
+        if(continuousVoiceSession && isInForeground()){
+            wakeHandler.postDelayed(()->{
+                if(continuousVoiceSession && isInForeground())startInAppVoice();
+            },900);
+        }else resumeWake();
     }
     private void resumeWake(){
+        continuousVoiceSession=false;
         if(!wakeBusy)return;
         wakeBusy=false;
         // Delay avoids recognition of the voice output (Faber).
