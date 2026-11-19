@@ -29,8 +29,21 @@ class ExpressionManagerRegressionTests(unittest.TestCase):
         self.assertIn('HomeEmotion.setEnabled(this,key,true)', self.android_ui)
         self.assertIn('visible.add(i)', self.android_ui)
 
-    def test_android_preview_cannot_change_global_manual_expression(self):
-        self.assertIn('if(!expressionPreview)HomeEmotion.manual', self.android_eyes)
+    def test_android_preview_does_not_modify_global_manual_state(self):
+        self.assertNotIn('HomeEmotion.manual(', self.android_eyes)
+        self.assertIn('expressionPreview?EXPRESSION_KEYS[mood]:HomeEmotion.current(getContext())', self.android_eyes)
+
+    def test_android_manual_holds_for_30_seconds_then_automatic_returns(self):
+        self.assertIn('putLong("expression_selected_at",android.os.SystemClock.elapsedRealtime())', self.android_ui)
+        self.assertIn('now-started<30000L', self.android_emotions)
+        self.assertIn('putBoolean("expression_fixed",false)', self.android_emotions)
+        self.assertLess(self.android_emotions.index('if(charging(context)'), self.android_emotions.index('if(preferences.getBoolean("expression_fixed"'))
+
+    def test_windows_manual_holds_for_30_seconds_then_context_returns(self):
+        self.assertIn('time.monotonic() + 30.0', self.windows_app)
+        self.assertIn('def manual_expression_active(self):', self.windows_app)
+        self.assertIn('self.settings["expression_fixed"] = False', self.windows_app)
+        self.assertIn('if charging or low or saver:', self.windows_app)
 
     def test_sleepy_no_longer_renders_floating_z_or_blue_cheek_marks(self):
         self.assertNotIn('canvas.drawText("z"', self.android_eyes)
@@ -39,7 +52,7 @@ class ExpressionManagerRegressionTests(unittest.TestCase):
         self.assertIn('targetH=.38f', self.android_eyes)
         self.assertIn('"sonolento": (.40', self.windows_eyes)
 
-    def test_windows_manager_controls_real_eyes_persistently(self):
+    def test_windows_manager_controls_real_eyes_temporarily(self):
         self.assertIn('self.home.select_expression(index)', self.windows_gallery)
         self.assertIn('self.home.set_expression_visible(self.selected, False)', self.windows_gallery)
         self.assertIn('self.home.use_automatic_expressions()', self.windows_gallery)
