@@ -65,6 +65,7 @@ class Home(QWidget):
         self._context_timer.timeout.connect(self._refresh_emotion_context)
         self._context_timer.start()
         self.eyes = EyesWidget(self)
+        self.apply_saved_expression()
         self.eyes.eye_gap = self.settings["eye_gap"]
         self.eyes.follow_mouse = self.integration_prefs['eyes_follow_mouse']
         self.eyes.react_clicks = self.integration_prefs['eyes_react_clicks']
@@ -114,7 +115,8 @@ class Home(QWidget):
 
     def set_ai_emotion(self, emotion):
         self.emotion_context.note_conversation(normalize_emotion(emotion))
-        self.eyes.emotion = normalize_emotion(emotion)
+        if not self.settings.get("expression_fixed", False):
+            self.eyes.emotion = normalize_emotion(emotion)
 
     def _refresh_emotion_context(self):
         now = time.monotonic()
@@ -124,8 +126,12 @@ class Home(QWidget):
             self.emotion_context.focused_window = foreground
             self.emotion_context.focused_since = now
         low, saver = WindowsContext.power_details()
-        self.eyes.emotion = self.emotion_context.choose(
-            now, charging=charging, battery_low=low, power_saver=saver)
+        if self.settings.get("expression_fixed", False):
+            self.apply_saved_expression()
+        else:
+            self.eyes.mood = 0
+            self.eyes.emotion = self.emotion_context.choose(
+                now, charging=charging, battery_low=low, power_saver=saver)
 
     def _remember_page(self,title,url,content):
         self.last_page = (title,url,content)
@@ -253,6 +259,11 @@ class Home(QWidget):
                     value = old.get(key)
                     if isinstance(value,(int,float)) and not isinstance(value,bool):
                         data[key] = int(value)
+                data["expression_fixed"] = bool(old.get("expression_fixed", False))
+                selected = old.get("selected_expression", 0)
+                data["selected_expression"] = selected if type(selected) is int and 0 <= selected < 12 else 0
+                hidden = old.get("hidden_expressions", [])
+                data["hidden_expressions"] = sorted(set(x for x in hidden if type(x) is int and 0 <= x < 12)) if isinstance(hidden, list) else []
         except (OSError,ValueError,TypeError):
             pass
         return data
@@ -385,12 +396,63 @@ class Home(QWidget):
         else:
             super().mouseReleaseEvent(event)
 
-    def set_mood(self,index):
+    def apply_saved_expression(self):
+        """Apply a fixed catalog face to the real notch, without a 12s timeout."""
+        if not self.settings.get("expression_fixed", False):
+            return
+        from home_expression_gallery import EXPRESSIONS
+        index = self.settings.get("selected_expression", 0)
+        hidden = self.settings.get("hidden_expressions", [])
+        if index in hidden or not 0 <= index < len(EXPRESSIONS):
+            index = next((i for i in range(len(EXPRESSIONS)) if i not in hidden), 0)
+            self.settings["selected_expression"] = index
+        _, emotion, mood = EXPRESSIONS[index]
+        self.eyes.mood = mood
         self.eyes.preview_emotion = None
-        self.eyes.mood = {0:0,1:1,2:3}.get(index,0)
-        self.eyes.emotion = {0:"neutro",1:"neutro",2:"raiva"}.get(index,"neutro")
-        self.panel.set_mood(index)
+        self.eyes.emotion = emotion
+        if emotion in EyesWidget.EXTRA_EXPRESSIONS:
+            self.eyes.preview_emotion = emotion
+            self.eyes.preview_until = float("inf")
         self.eyes.update()
+
+    def select_expression(self, index):
+        from home_expression_gallery import EXPRESSIONS
+        if not 0 <= index < len(EXPRESSIONS) or index in self.settings.get("hidden_expressions", []):
+            return False
+        self.settings["selected_expression"] = index
+        self.settings["expression_fixed"] = True
+        self.apply_saved_expression()
+        self.save_settings()
+        return True
+
+    def use_automatic_expressions(self):
+        self.settings["expression_fixed"] = False
+        self.eyes.preview_emotion = None
+        self.eyes.mood = 0
+        self._refresh_emotion_context()
+        self.save_settings()
+
+    def set_expression_visible(self, index, visible):
+        hidden = set(self.settings.get("hidden_expressions", []))
+        if visible:
+            hidden.discard(index)
+        else:
+            if len(hidden) >= 11:
+                return False
+            hidden.add(index)
+        self.settings["hidden_expressions"] = sorted(hidden)
+        if self.settings.get("expression_fixed", False):
+            self.apply_saved_expression()
+        self.save_settings()
+        return True
+
+    def set_mood(self,index):
+        # Legacy hub controls share the persisted expression selection.
+        catalog_index = {0:0,1:1,2:3}.get(index,0)
+        if catalog_index in self.settings.get("hidden_expressions", []):
+            return
+        self.select_expression(catalog_index)
+        self.panel.set_mood(index)
 
     def next_mood(self):
         # Alterna as oito novas expressoes com previa de 12 segundos.
