@@ -957,7 +957,7 @@ public final class MainActivity extends Activity {
             for(int position=0;position<perPage && first+position<visible.size();position++){
                 final int index=visible.get(first+position);
                 Button b=button(EyesView.EXPRESSION_LABELS[index],false,()->{
-                    prefs.edit().putInt("mood",index).apply();
+                    prefs.edit().putInt("mood",index).putBoolean("expression_fixed",true).apply();
                     eyes.setMood(index);
                     if(Settings.canDrawOverlays(this))refreshNotch();
                     showStatus("Expressão: "+EyesView.EXPRESSION_LABELS[index]);
@@ -965,12 +965,18 @@ public final class MainActivity extends Activity {
                     redraw[0].run();
                 });
                 b.setOnLongClickListener(v->{
-                    // Hide, never destroy a built-in face. Keep Normal as a safe fallback.
-                    if(index==0){statusMessage("A expressão Normal é a opção de segurança.");return true;}
+                    // Hide, never destroy a built-in face. One visible fallback is required.
+                    int activeCount=0;
+                    for(String key:EyesView.EXPRESSION_KEYS)if(HomeEmotion.enabled(this,key))activeCount++;
+                    if(activeCount<=1){statusMessage("Mantenha pelo menos uma expressão ativa.");return true;}
                     HomeEmotion.setEnabled(this,EyesView.EXPRESSION_KEYS[index],false);
                     if(prefs.getInt("mood",0)==index){
-                        prefs.edit().putInt("mood",0).apply();
-                        eyes.setMood(0);
+                        int replacement=0;
+                        for(int candidate=0;candidate<EyesView.EXPRESSION_KEYS.length;candidate++){
+                            if(HomeEmotion.enabled(this,EyesView.EXPRESSION_KEYS[candidate])){replacement=candidate;break;}
+                        }
+                        prefs.edit().putInt("mood",replacement).apply();
+                        eyes.setMood(replacement);
                     }
                     if(Settings.canDrawOverlays(this))refreshNotch();
                     statusMessage(EyesView.EXPRESSION_LABELS[index]+" ocultada; restaure em Gerenciar expressões.");
@@ -998,6 +1004,11 @@ public final class MainActivity extends Activity {
         next.setOnClickListener(v->{currentPage[0]++;redraw[0].run();});
         redraw[0].run();
         face.addView(selector);
+        action(face,"Voltar às expressões automáticas",false,()->{
+            prefs.edit().putBoolean("expression_fixed",false).apply();
+            if(Settings.canDrawOverlays(this))refreshNotch();
+            statusMessage("Expressões automáticas reativadas.");
+        });
         add(face,note("Toque para testar. Pressione e segure para ocultar; restaure em Gerenciar expressões."),4,0);
     }
 
@@ -1011,18 +1022,51 @@ public final class MainActivity extends Activity {
         toggle.setTextSize(12);
         toggle.setChecked(HomeEmotion.enabled(this,key));
         toggle.setOnCheckedChangeListener((button,checked)->{
+            if(!checked && "neutro".equals(key)){
+                // Neutral is a built-in render fallback; disabling it is still allowed.
+            }
+            if(!checked && isNativeExpression(key)){
+                int remaining=0;
+                for(String value:EyesView.EXPRESSION_KEYS)
+                    if(!value.equals(key) && HomeEmotion.enabled(this,value))remaining++;
+                if(remaining==0){
+                    toggle.setChecked(true);
+                    statusMessage("Mantenha pelo menos uma expressão ativa.");
+                    return;
+                }
+            }
             HomeEmotion.setEnabled(this,key,checked);
+            if(!checked)ensureValidSelectedExpression();
             if(Settings.canDrawOverlays(this))refreshNotch();
         });
         line.addView(toggle,new LinearLayout.LayoutParams(0,dp(48),1));
         Button hide=button("✕",false,()->{
-            HomeEmotion.setEnabled(this,key,false);
-            toggle.setChecked(false);
-            statusMessage(label+" ocultada. Você pode reativá-la a qualquer momento.");
+            if(!toggle.isChecked()){
+                statusMessage(label+" já está oculta.");
+                return;
+            }
+            toggle.setChecked(false); // uses the same validated path as the switch
+            if(!toggle.isChecked())statusMessage(label+" ocultada. Restaure pelo interruptor.");
         });
-        hide.setContentDescription("Desativar expressão "+label);
+        hide.setContentDescription("Ocultar expressão "+label);
         line.addView(hide,new LinearLayout.LayoutParams(dp(44),dp(40)));
         add(section,line,0,3);
+    }
+    private boolean isNativeExpression(String key){
+        for(String value:EyesView.EXPRESSION_KEYS)if(value.equals(key))return true;
+        return false;
+    }
+    private void ensureValidSelectedExpression(){
+        android.content.SharedPreferences prefs=getSharedPreferences("home",MODE_PRIVATE);
+        int selected=prefs.getInt("mood",0);
+        if(selected>=0 && selected<EyesView.EXPRESSION_KEYS.length &&
+            HomeEmotion.enabled(this,EyesView.EXPRESSION_KEYS[selected]))return;
+        for(int index=0;index<EyesView.EXPRESSION_KEYS.length;index++){
+            if(HomeEmotion.enabled(this,EyesView.EXPRESSION_KEYS[index])){
+                prefs.edit().putInt("mood",index).apply();
+                return;
+            }
+        }
     }
     private void settingsAppearance(){
         android.content.SharedPreferences prefs=getSharedPreferences("home",MODE_PRIVATE);
