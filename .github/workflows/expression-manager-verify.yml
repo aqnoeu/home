@@ -1,0 +1,24 @@
+name: HOME expression manager — regression checks
+on:
+  pull_request:
+    paths:
+      - 'home.py'
+      - 'home_eyes.py'
+      - 'home_expression_gallery.py'
+      - 'android/**'
+      - 'tests/test_expression_manager_regression.py'
+      - '.github/workflows/expression-manager-verify.yml'
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Validate desktop Python syntax
+        run: python -m py_compile home.py home_eyes.py home_expression_gallery.py
+      - name: Validate cross-platform expression wiring
+        run: python -m unittest discover -s tests -p test_expression_manager_regression.py -v
