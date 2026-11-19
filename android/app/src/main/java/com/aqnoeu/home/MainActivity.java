@@ -59,6 +59,7 @@ public final class MainActivity extends Activity {
     private TextView chatTitle;
     private String currentPage = "assistant";
     private String settingsTab = "Geral";
+    private boolean expressionManagerExpanded = false;
     private HomeHubAccount unifiedAccount;
     private static final int WAKE_PERMISSION_REQUEST = 721;
     private static final int WAKE_NOTIFICATION_PERMISSION_REQUEST = 722;
@@ -1038,6 +1039,7 @@ public final class MainActivity extends Activity {
             HomeEmotion.setEnabled(this,key,checked);
             if(!checked)ensureValidSelectedExpression();
             if(Settings.canDrawOverlays(this))refreshNotch();
+            if(isNativeExpression(key))showSettings("Aparência");
         });
         line.addView(toggle,new LinearLayout.LayoutParams(0,dp(48),1));
         Button hide=button("✕",false,()->{
@@ -1081,9 +1083,11 @@ public final class MainActivity extends Activity {
         addExpressionPicker(face,eyes,prefs);
         LinearLayout manager=card("Administrar expressões",
             "Ative ou desative cada reação do HOME. A lixeira oculta expressões nativas sem apagá-las definitivamente.");
-        manager.setVisibility(View.GONE);
-        action(face,"Gerenciar expressões e reações  ›",false,()->
-            manager.setVisibility(manager.getVisibility()==View.VISIBLE?View.GONE:View.VISIBLE));
+        manager.setVisibility(expressionManagerExpanded?View.VISIBLE:View.GONE);
+        action(face,"Gerenciar expressões e reações  ›",false,()->{
+            expressionManagerExpanded=!expressionManagerExpanded;
+            manager.setVisibility(expressionManagerExpanded?View.VISIBLE:View.GONE);
+        });
         String[] nativeLabels=EyesView.EXPRESSION_LABELS;
         String[] nativeKeys=EyesView.EXPRESSION_KEYS;
         for(int i=0;i<nativeLabels.length;i++){
