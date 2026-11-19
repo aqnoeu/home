@@ -127,9 +127,17 @@ class Home(QWidget):
             self.emotion_context.focused_window = foreground
             self.emotion_context.focused_since = now
         low, saver = WindowsContext.power_details()
-        if self.manual_expression_active():
+        active_manual = self.manual_expression_active()
+        if charging or low or saver:
+            # Device-state indicators override temporary cosmetic choices.
+            self.eyes.preview_emotion = None
+            self.eyes.mood = 0
+            self.eyes.emotion = self.emotion_context.choose(
+                now, charging=charging, battery_low=low, power_saver=saver)
+        elif active_manual:
             self.apply_saved_expression()
         else:
+            self.eyes.preview_emotion = None
             self.eyes.mood = 0
             self.eyes.emotion = self.emotion_context.choose(
                 now, charging=charging, battery_low=low, power_saver=saver)
