@@ -40,6 +40,10 @@ public final class MainActivity extends Activity {
         if("assistant".equals(currentPage))refreshChat();
     }
     @Override protected void onPause(){inForeground=false;super.onPause();}
+    @Override protected void onDestroy(){
+        if(voiceCapture!=null){voiceCapture.release();voiceCapture=null;}
+        super.onDestroy();
+    }
     private static final int BG = Color.rgb(11,17,26);           // #0B111A
     private static final int SURFACE = Color.rgb(20,29,42);
     private static final int RAISED = Color.rgb(29,40,56);
@@ -64,7 +68,6 @@ public final class MainActivity extends Activity {
     private static final int WAKE_NOTIFICATION_PERMISSION_REQUEST = 722;
     private boolean wakeBusy = false;
     private HomeVoiceCapture voiceCapture;
-    private boolean voiceSession = false;
     private static final int VOICE_ENROLL_REQUEST = 815;
 
     private final HomeUiKit ui=new HomeUiKit(this);
@@ -166,7 +169,7 @@ public final class MainActivity extends Activity {
                 voiceCapture=null;
                 if(!"assistant".equals(currentPage))showPage("assistant");
                 if(phrase.matches("(?i).*(encerrar conversa|parar de ouvir|tchau home).*")){
-                    voiceSession=false;statusMessage("Conversa encerrada.");resumeWake();return;
+                    statusMessage("Conversa encerrada.");resumeWake();return;
                 }
                 if(handleLocalCommand(phrase,true))return;
                 statusMessage("Você: "+phrase+" · HOME está pensando…");
