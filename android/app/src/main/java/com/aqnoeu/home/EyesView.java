@@ -54,7 +54,7 @@ public final class EyesView extends View {
     public void setEyeGap(float gap){eyeGapDp=Math.max(0,Math.min(600,gap));invalidate();}
     public void setMood(int index){
         mood=Math.max(0,Math.min(EXPRESSION_KEYS.length-1,index));
-        HomeEmotion.manual(EXPRESSION_KEYS[mood]);
+        if(!expressionPreview)HomeEmotion.manual(EXPRESSION_KEYS[mood]);
         invalidate();
     }
     /** Dedicated preview shows the chosen face even when charging/listening. */
@@ -111,7 +111,7 @@ public final class EyesView extends View {
             else if("bateria_baixa".equals(state)){rgb=Color.rgb(242,164,68);targetH=.86f;}
             else {rgb=Color.rgb(147,184,219);targetH=.72f;}
         }else if(activeConversation && ("neutro".equals(state)||"feliz".equals(state)||"conversa".equals(state))){rgb=Color.rgb(45,220,112);targetH=1.05f;}
-        else if(armed && HomeEmotion.enabled(getContext(),"escutando") && !activeConversation){rgb=Color.WHITE;targetH=1f;targetW=1f;}
+        else if(armed && "neutro".equals(state) && HomeEmotion.enabled(getContext(),"escutando") && !activeConversation){rgb=Color.WHITE;targetH=1f;targetW=1f;}
         else if("raiva".equals(state)){rgb=Color.rgb(255,106,0);targetH=.83f;}
         else if("sonolento".equals(state)){rgb=Color.rgb(142,175,207);targetH=.38f;}
         else if("tedio".equals(state)){rgb=Color.rgb(139,149,164);targetH=.78f;targetW=.78f;}
@@ -252,19 +252,6 @@ public final class EyesView extends View {
                 canvas.drawCircle(center+(i-1)*dp(4f),baseline-lift,radius,paint);
             }
         }
-        // Minimal auxiliary strokes; never draw a mouth.
-        if(("sonolento".equals(state)||"timido".equals(state)) && height>=dp(28)){
-            paint.setColor("sonolento".equals(state)
-                ?Color.rgb(142,175,207):Color.rgb(232,196,212));
-            paint.setStrokeWidth(dp(.8f));
-            for(int i=0;i<2;i++){
-                float sx=i==0?left-dp(4):left+2*ew+gap+dp(2);
-                for(int j=0;j<2;j++){
-                    float px=sx+j*dp(3), py=height*.80f+j*dp(.5f);
-                    canvas.drawLine(px,py,px+dp(2),py+dp(2),paint);
-                }
-            }
-        }
         if("lovabow".equals(state)&&height>=dp(34) && animated){
             float phase=(now%1800L)/1800f;
             if(phase>.55f){
@@ -280,17 +267,6 @@ public final class EyesView extends View {
                     canvas.drawPath(small,paint);
                 }
             }
-        }
-        // Scale sleepy marks to the compact notch too.
-        if(!listening && !commandListening && !speaking && "sonolento".equals(state)&&height>=dp(20)){
-            paint.setColor(Color.rgb(142,175,207));
-            float scale=Math.max(.54f,Math.min(1f,height/dp(70)));
-            float lift=animated?((now%3000L)/3000f)*dp(9)*scale:0;
-            float sx=Math.min(width-dp(16)*scale,left+2*ew+gap+dp(5)*scale);
-            paint.setTextSize(dp(11)*scale);
-            canvas.drawText("z",sx,height*.59f-lift,paint);
-            paint.setTextSize(dp(8)*scale);
-            canvas.drawText("z",sx+dp(8)*scale,height*.37f-lift*.7f,paint);
         }
         if(animated || updateActive)postInvalidateDelayed(50);
     }
