@@ -41,7 +41,7 @@ class ExpressionManagerRegressionTests(unittest.TestCase):
 
     def test_windows_manager_controls_real_eyes_persistently(self):
         self.assertIn('self.home.select_expression(index)', self.windows_gallery)
-        self.assertIn('self.home.set_expression_visible(index, False)', self.windows_gallery)
+        self.assertIn('self.home.set_expression_visible(self.selected, False)', self.windows_gallery)
         self.assertIn('self.home.use_automatic_expressions()', self.windows_gallery)
         self.assertIn('self.apply_saved_expression()', self.windows_app)
         self.assertIn('self.settings["expression_fixed"] = True', self.windows_app)
