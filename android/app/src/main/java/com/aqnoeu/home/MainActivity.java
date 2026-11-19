@@ -958,7 +958,8 @@ public final class MainActivity extends Activity {
             for(int position=0;position<perPage && first+position<visible.size();position++){
                 final int index=visible.get(first+position);
                 Button b=button(EyesView.EXPRESSION_LABELS[index],false,()->{
-                    prefs.edit().putInt("mood",index).putBoolean("expression_fixed",true).apply();
+                    prefs.edit().putInt("mood",index).putBoolean("expression_fixed",true)
+                        .putLong("expression_selected_at",android.os.SystemClock.elapsedRealtime()).apply();
                     eyes.setMood(index);
                     if(Settings.canDrawOverlays(this))refreshNotch();
                     showStatus("Expressão: "+EyesView.EXPRESSION_LABELS[index]);
