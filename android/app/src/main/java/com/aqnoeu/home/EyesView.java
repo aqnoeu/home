@@ -54,7 +54,6 @@ public final class EyesView extends View {
     public void setEyeGap(float gap){eyeGapDp=Math.max(0,Math.min(600,gap));invalidate();}
     public void setMood(int index){
         mood=Math.max(0,Math.min(EXPRESSION_KEYS.length-1,index));
-        if(!expressionPreview)HomeEmotion.manual(EXPRESSION_KEYS[mood]);
         invalidate();
     }
     /** Dedicated preview shows the chosen face even when charging/listening. */
