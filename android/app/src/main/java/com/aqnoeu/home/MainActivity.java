@@ -962,7 +962,7 @@ public final class MainActivity extends Activity {
                         .putLong("expression_selected_at",android.os.SystemClock.elapsedRealtime()).apply();
                     eyes.setMood(index);
                     if(Settings.canDrawOverlays(this))refreshNotch();
-                    showStatus("Expressão: "+EyesView.EXPRESSION_LABELS[index]);
+                    showStatus("Expressão: "+EyesView.EXPRESSION_LABELS[index]+" (30 segundos)");
                     if(status!=null)status.setVisibility(View.VISIBLE);
                     redraw[0].run();
                 });
@@ -1011,7 +1011,7 @@ public final class MainActivity extends Activity {
             if(Settings.canDrawOverlays(this))refreshNotch();
             statusMessage("Expressões automáticas reativadas.");
         });
-        add(face,note("Toque para testar. Pressione e segure para ocultar; restaure em Gerenciar expressões."),4,0);
+        add(face,note("Toque para mostrar por 30 segundos. Pressione e segure para ocultar; restaure em Gerenciar expressões."),4,0);
     }
 
     private void addEmotionSwitch(LinearLayout section,String label,String key){
