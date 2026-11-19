@@ -63,6 +63,8 @@ public final class MainActivity extends Activity {
     private static final int WAKE_PERMISSION_REQUEST = 721;
     private static final int WAKE_NOTIFICATION_PERMISSION_REQUEST = 722;
     private boolean wakeBusy = false;
+    private HomeVoiceCapture voiceCapture;
+    private boolean voiceSession = false;
     private static final int VOICE_ENROLL_REQUEST = 815;
 
     private final HomeUiKit ui=new HomeUiKit(this);
@@ -107,7 +109,7 @@ public final class MainActivity extends Activity {
         if(query.trim().isEmpty()){
             statusMessage("Estou ouvindo. Pode falar.");
             pauseWake(true);
-            if(!HomeVoice.listen(this))resumeWake();
+            startInAppVoice();
         }else{
             // Wake-word commands use the same offline command catalog as typed chat.
             if(handleLocalCommand(query,true))return;
@@ -149,7 +151,32 @@ public final class MainActivity extends Activity {
     }
     private void openVoiceListening(){
         pauseWake();
-        if(!HomeVoice.listen(this))resumeWake();
+        startInAppVoice();
+    }
+    /** SpeechRecognizer stays in the HOME activity; no external Google dialog. */
+    private void startInAppVoice(){
+        if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){
+            statusMessage("Autorize o microfone nas configurações para conversar.");
+            resumeWake();return;
+        }
+        if(voiceCapture!=null)voiceCapture.release();
+        voiceCapture=new HomeVoiceCapture(this,new HomeVoiceCapture.Callback(){
+            @Override public void onPartial(String phrase){statusMessage("Ouvindo: "+phrase);}
+            @Override public void onFinal(String phrase){
+                voiceCapture=null;
+                if(!"assistant".equals(currentPage))showPage("assistant");
+                if(phrase.matches("(?i).*(encerrar conversa|parar de ouvir|tchau home).*")){
+                    voiceSession=false;statusMessage("Conversa encerrada.");resumeWake();return;
+                }
+                if(handleLocalCommand(phrase,true))return;
+                statusMessage("Você: "+phrase+" · HOME está pensando…");
+                askHome(phrase,null);
+            }
+            @Override public void onFailure(String reason){
+                voiceCapture=null;statusMessage(reason);resumeWake();
+            }
+        });
+        if(!voiceCapture.start()){voiceCapture=null;resumeWake();}
     }
     private void pauseWake(){pauseWake(false);}
     private void pauseWake(boolean listeningForCommand){
