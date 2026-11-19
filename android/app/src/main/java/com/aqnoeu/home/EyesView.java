@@ -96,7 +96,7 @@ public final class EyesView extends View {
         boolean commandListening=listening;
         boolean speaking="falando".equals(voice);
         boolean armed="armado".equals(voice) || "pausado".equals(voice) || "carregando".equals(voice);
-        boolean activeConversation=!expressionPreview && HomeEmotion.isConversing() && HomeEmotion.enabled(getContext(),"conversa");
+        boolean activeConversation=!expressionPreview && !prefs.getBoolean("expression_fixed",false) && HomeEmotion.isConversing() && HomeEmotion.enabled(getContext(),"conversa");
         boolean operational="carregando".equals(state)||"bateria_baixa".equals(state)||"economia".equals(state);
         int rgb=Color.rgb(242,248,255);
         float targetH=1f,targetW=1f;
@@ -111,7 +111,7 @@ public final class EyesView extends View {
             else if("bateria_baixa".equals(state)){rgb=Color.rgb(242,164,68);targetH=.86f;}
             else {rgb=Color.rgb(147,184,219);targetH=.72f;}
         }else if(activeConversation && ("neutro".equals(state)||"feliz".equals(state)||"conversa".equals(state))){rgb=Color.rgb(45,220,112);targetH=1.05f;}
-        else if(armed && "neutro".equals(state) && HomeEmotion.enabled(getContext(),"escutando") && !activeConversation){rgb=Color.WHITE;targetH=1f;targetW=1f;}
+        else if(armed && !prefs.getBoolean("expression_fixed",false) && "neutro".equals(state) && HomeEmotion.enabled(getContext(),"escutando") && !activeConversation){rgb=Color.WHITE;targetH=1f;targetW=1f;}
         else if("raiva".equals(state)){rgb=Color.rgb(255,106,0);targetH=.83f;}
         else if("sonolento".equals(state)){rgb=Color.rgb(142,175,207);targetH=.38f;}
         else if("tedio".equals(state)){rgb=Color.rgb(139,149,164);targetH=.78f;targetW=.78f;}
