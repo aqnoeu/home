@@ -35,7 +35,7 @@ class AndroidHeaderLogoTest(unittest.TestCase):
         main = MAIN.read_text(encoding="utf-8")
         # O seletor novo usa grade 2x3, sem rolagem horizontal.
         self.assertIn("b.setSingleLine(true);", main)
-        self.assertIn("final int columns=3, rows=2, perPage=columns*rows;", main)
+        self.assertIn("final int columns=3, perPage=6;", main)
         self.assertIn("addExpressionPicker(face,eyes,prefs);", main)
         self.assertNotIn("dp(labels[i].equals(\"Sonolento\")?110:94)", main)
 

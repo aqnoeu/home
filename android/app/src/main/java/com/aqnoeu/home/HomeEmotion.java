@@ -87,10 +87,23 @@ public final class HomeEmotion {
     }
     public static String current(Context context){
         long now=SystemClock.elapsedRealtime();
-        // Operational signals must take precedence over long-running chat moods.
+        // Safety/operational states retain priority over temporary manual reactions.
         if(charging(context)&&enabled(context,"carregando"))return "carregando";
         if(batteryLow(context)&&enabled(context,"bateria_baixa"))return "bateria_baixa";
         if(powerSaving(context)&&enabled(context,"economia"))return "economia";
+        android.content.SharedPreferences preferences=context.getSharedPreferences("home",Context.MODE_PRIVATE);
+        if(preferences.getBoolean("expression_fixed",false)){
+            long started=preferences.getLong("expression_selected_at",0L);
+            // Elapsed realtime does not survive a reboot: a future timestamp is invalid.
+            if(started>0 && now>=started && now-started<30000L){
+                int selected=preferences.getInt("mood",0);
+                if(selected>=0 && selected<EyesView.EXPRESSION_KEYS.length){
+                    String chosen=EyesView.EXPRESSION_KEYS[selected];
+                    if(enabled(context,chosen))return chosen;
+                }
+            }
+            preferences.edit().putBoolean("expression_fixed",false).apply();
+        }
         if(now<conversationUntil){
             if(enabled(context,conversational))return conversational;
             if(enabled(context,"conversa"))return "conversa";
@@ -98,6 +111,9 @@ public final class HomeEmotion {
         }
         if(now-LAST_TOUCH.get()>=5*60*1000L && enabled(context,"sonolento"))return "sonolento";
         if(now-pageSince>=12*60*1000L && enabled(context,"tedio"))return "tedio";
-        return enabled(context,manual)?manual:"neutro";
+        if(enabled(context,manual))return manual;
+        for(String fallback:EyesView.EXPRESSION_KEYS)
+            if(enabled(context,fallback))return fallback;
+        return "neutro";
     }
 }

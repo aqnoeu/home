@@ -15,7 +15,7 @@ O Home usa **apenas dois olhos**. Não desenhar boca, nariz, cabeça, bochechas 
 | Neutro | `neutro` | Dois olhos verticais arredondados, branco-azulado; piscadas e olhar natural |
 | Feliz (manual) | `mood=1` | Recorte inferior em cada olho, mantendo o par oficial |
 | Raiva / Bravo | `raiva` | Laranja, olhos reduzidos e tampas diagonais, leve tremor |
-| Sonolento | `sonolento` | Azul dessaturado; 40% da altura normal; pequeno `z` onde couber |
+| Sonolento | `sonolento` | Azul dessaturado; olhos semicerrados com cerca de 40% da altura normal; pequenos traços laterais e Z discreto, conforme prévia aprovada |
 | Tédio | `tedio` | Cinza, 75% da altura e 77% da largura |
 | Carregando | `carregando` | Verde, pulsação discreta de opacidade |
 | Bateria baixa | `bateria_baixa` | Âmbar, altura reduzida |
@@ -24,7 +24,7 @@ O Home usa **apenas dois olhos**. Não desenhar boca, nariz, cabeça, bochechas 
 | Pensando (voz) | `voice_state=thinking` | Ajusta a abertura vertical a 0,72 |
 | Falando | `voice_state=speaking` | Ajusta abertura a 0,96, sem pulsações de fala |
 
-O **sonolento foi aprimorado** com risquinhos laterais discretos abaixo dos olhos em alturas de interface suficientes (a partir de 28 px). Não desenhar linhas unidas nem elementos na posição de uma boca.
+O **sonolento** conserva os olhos semicerrados e os pequenos elementos laterais e Z da prévia aprovada. O estado automático deve manter a mesma redução de altura, mesmo com indicadores visuais de escuta/fala; a prévia e o notch real não podem divergir.
 
 ## Novas expressões implementadas
 
@@ -74,7 +74,7 @@ Executar `python -m unittest discover -s tests` e validar a interface Windows co
 - `HomeEmotion.normalize()` reconhece as emoções novas e `HomeGroq` pode retorná-las em seu JSON.
 - A seleção no painel é uma escolha manual, mas estados operacionais prioritários (bateria/carregamento, voz e atualizações) ainda podem substituir temporariamente a aparência no notch real.
 - O visual continua estritamente **sem boca**, com detalhes gráficos opcionais laterais/abaixo dos olhos.
-- Verificar em aparelho físico: navegação de páginas, seleção persistente, retorno à tela, notch real, atualizações e voz, além de fontes e telas estreitas.
+- Verificar em aparelho físico: navegação de páginas, seleção temporária de 30 segundos, retorno à seleção automática, notch real, atualizações e voz, além de fontes e telas estreitas.
 
 
 ## Galeria de teste do Windows — atualização de 17/11/2026
@@ -85,3 +85,11 @@ Executar `python -m unittest discover -s tests` e validar a interface Windows co
 - Ao clicar, atualiza a prévia e apresenta a expressão no notch por 12 segundos, sem desabilitar o motor contextual de energia/voz.
 - A página utiliza os recursos vetoriais existentes e não altera o símbolo oficial da marca.
 - Validação automatizada de navegação Windows incluída no workflow de release conjunta; a verificação visual e a compilação precisam ser observadas no GitHub Actions e no dispositivo.
+
+## Correção do gerenciador — 19/11/2026 (branch de homologação)
+
+- **Android:** a seleção na grade fixa a expressão no notch real, inclusive após a reconstrução do overlay e reinício; existe ação explícita de retorno ao modo automático. O toque prolongado na grade e o botão X nas configurações ocultam expressões nativas de forma reversível. Os interruptores restauram as expressões ocultas, com pelo menos uma opção mantida ativa.
+- **Windows:** a galeria seleciona a expressão persistente no notch real, permite ocultar/restaurar opções e reativar o modo automático. Configurações persistidas em `~/.home_notch.json`.
+- **Sono:** ambos os renderizadores preservam olhos reduzidos e não desenham Z flutuante nem tracinhos azuis.
+- **Nota sobre prioridades:** seleção fixa prevalece sobre sugestões contextuais. O modo automático preserva o comportamento contextual, incluindo reações de bateria e conversa. Estados imediatos de microfone e atualização continuam podendo sinalizar sua operação no Android.
+- **Publicação:** mudanças isoladas em branch e PR em rascunho; compilar e validar antes de obter autorização para lançar uma nova versão.

@@ -54,7 +54,6 @@ public final class EyesView extends View {
     public void setEyeGap(float gap){eyeGapDp=Math.max(0,Math.min(600,gap));invalidate();}
     public void setMood(int index){
         mood=Math.max(0,Math.min(EXPRESSION_KEYS.length-1,index));
-        HomeEmotion.manual(EXPRESSION_KEYS[mood]);
         invalidate();
     }
     /** Dedicated preview shows the chosen face even when charging/listening. */
@@ -96,7 +95,7 @@ public final class EyesView extends View {
         boolean commandListening=listening;
         boolean speaking="falando".equals(voice);
         boolean armed="armado".equals(voice) || "pausado".equals(voice) || "carregando".equals(voice);
-        boolean activeConversation=!expressionPreview && HomeEmotion.isConversing() && HomeEmotion.enabled(getContext(),"conversa");
+        boolean activeConversation=!expressionPreview && !prefs.getBoolean("expression_fixed",false) && HomeEmotion.isConversing() && HomeEmotion.enabled(getContext(),"conversa");
         boolean operational="carregando".equals(state)||"bateria_baixa".equals(state)||"economia".equals(state);
         int rgb=Color.rgb(242,248,255);
         float targetH=1f,targetW=1f;
@@ -111,7 +110,7 @@ public final class EyesView extends View {
             else if("bateria_baixa".equals(state)){rgb=Color.rgb(242,164,68);targetH=.86f;}
             else {rgb=Color.rgb(147,184,219);targetH=.72f;}
         }else if(activeConversation && ("neutro".equals(state)||"feliz".equals(state)||"conversa".equals(state))){rgb=Color.rgb(45,220,112);targetH=1.05f;}
-        else if(armed && HomeEmotion.enabled(getContext(),"escutando") && !activeConversation){rgb=Color.WHITE;targetH=1f;targetW=1f;}
+        else if(armed && !prefs.getBoolean("expression_fixed",false) && "neutro".equals(state) && HomeEmotion.enabled(getContext(),"escutando") && !activeConversation){rgb=Color.WHITE;targetH=1f;targetW=1f;}
         else if("raiva".equals(state)){rgb=Color.rgb(255,106,0);targetH=.83f;}
         else if("sonolento".equals(state)){rgb=Color.rgb(142,175,207);targetH=.38f;}
         else if("tedio".equals(state)){rgb=Color.rgb(139,149,164);targetH=.78f;targetW=.78f;}
@@ -125,6 +124,14 @@ public final class EyesView extends View {
         else if("timido".equals(state)){rgb=Color.rgb(232,196,212);targetH=.8f;targetW=.94f;}
         else if("confuso".equals(state)){rgb=Color.rgb(223,233,248);targetH=.9f;targetW=.96f;}
         else if("travesso".equals(state)){rgb=Color.rgb(242,248,255);targetH=.84f;targetW=.94f;}
+        // The automatic sleepy state must use the SAME compact eyes as the
+        // expression preview. Voice/armed overlays may not turn them into
+        // full-height neutral eyes while sleep is the selected contextual state.
+        if("sonolento".equals(state) && !updateActive){
+            rgb=Color.rgb(142,175,207);
+            targetH=.38f;
+            targetW=1f;
+        }
         // Escuta/fala são sinais imediatos, não transições suaves.
         float voiceSmoothing=(updateActive || listening || commandListening || speaking)?1f:smoothing;
         colorR=lerp(colorR,Color.red(rgb),voiceSmoothing);

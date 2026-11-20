@@ -7,12 +7,11 @@ SRC = ROOT / "android/app/src/main/java/com/aqnoeu/home"
 
 
 class AndroidWakeSleepTest(unittest.TestCase):
-    def test_small_notch_draws_sleep_z(self):
+    def test_sleepy_notch_uses_reduced_eyes_without_floating_z(self):
         eyes = (SRC / "EyesView.java").read_text(encoding="utf-8")
-        self.assertIn('height>=dp(20)', eyes)
-        self.assertNotIn('height>=dp(68)', eyes)
-        self.assertIn('canvas.drawText("z"', eyes)
-        self.assertIn('float scale=', eyes)
+        self.assertIn('targetH=.38f', eyes)
+        self.assertNotIn('canvas.drawText("z"', eyes)
+        self.assertNotIn('Scale sleepy marks to the compact notch', eyes)
 
     def test_notch_background_remains_dark_and_opaque(self):
         overlay = (SRC / "OverlayService.java").read_text(encoding="utf-8")
