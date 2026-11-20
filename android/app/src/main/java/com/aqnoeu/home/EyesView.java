@@ -124,6 +124,14 @@ public final class EyesView extends View {
         else if("timido".equals(state)){rgb=Color.rgb(232,196,212);targetH=.8f;targetW=.94f;}
         else if("confuso".equals(state)){rgb=Color.rgb(223,233,248);targetH=.9f;targetW=.96f;}
         else if("travesso".equals(state)){rgb=Color.rgb(242,248,255);targetH=.84f;targetW=.94f;}
+        // The automatic sleepy state must use the SAME compact eyes as the
+        // expression preview. Voice/armed overlays may not turn them into
+        // full-height neutral eyes while sleep is the selected contextual state.
+        if("sonolento".equals(state) && !updateActive){
+            rgb=Color.rgb(142,175,207);
+            targetH=.38f;
+            targetW=1f;
+        }
         // Escuta/fala são sinais imediatos, não transições suaves.
         float voiceSmoothing=(updateActive || listening || commandListening || speaking)?1f:smoothing;
         colorR=lerp(colorR,Color.red(rgb),voiceSmoothing);
@@ -251,6 +259,19 @@ public final class EyesView extends View {
                 canvas.drawCircle(center+(i-1)*dp(4f),baseline-lift,radius,paint);
             }
         }
+        // Minimal auxiliary strokes; never draw a mouth.
+        if(("sonolento".equals(state)||"timido".equals(state)) && height>=dp(28)){
+            paint.setColor("sonolento".equals(state)
+                ?Color.rgb(142,175,207):Color.rgb(232,196,212));
+            paint.setStrokeWidth(dp(.8f));
+            for(int i=0;i<2;i++){
+                float sx=i==0?left-dp(4):left+2*ew+gap+dp(2);
+                for(int j=0;j<2;j++){
+                    float px=sx+j*dp(3), py=height*.80f+j*dp(.5f);
+                    canvas.drawLine(px,py,px+dp(2),py+dp(2),paint);
+                }
+            }
+        }
         if("lovabow".equals(state)&&height>=dp(34) && animated){
             float phase=(now%1800L)/1800f;
             if(phase>.55f){
@@ -266,6 +287,17 @@ public final class EyesView extends View {
                     canvas.drawPath(small,paint);
                 }
             }
+        }
+        // Scale sleepy marks to the compact notch too.
+        if(!listening && !commandListening && !speaking && "sonolento".equals(state)&&height>=dp(20)){
+            paint.setColor(Color.rgb(142,175,207));
+            float scale=Math.max(.54f,Math.min(1f,height/dp(70)));
+            float lift=animated?((now%3000L)/3000f)*dp(9)*scale:0;
+            float sx=Math.min(width-dp(16)*scale,left+2*ew+gap+dp(5)*scale);
+            paint.setTextSize(dp(11)*scale);
+            canvas.drawText("z",sx,height*.59f-lift,paint);
+            paint.setTextSize(dp(8)*scale);
+            canvas.drawText("z",sx+dp(8)*scale,height*.37f-lift*.7f,paint);
         }
         if(animated || updateActive)postInvalidateDelayed(50);
     }
