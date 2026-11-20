@@ -223,3 +223,16 @@ class EyesWidget(QWidget):
                     spark.cubicTo(cx+3, cy-3, cx+5, cy, cx, cy+3)
                     spark.closeSubpath()
                     p.fillPath(spark, QColor("#F18BB5"))
+        if active in ("sonolento", "timido") and h >= 28:
+            # Tracos laterais abaixo dos olhos, sem formar boca ou rosto.
+            p.setPen(QColor("#8EAFCF" if active == "sonolento" else "#E8C4D4"))
+            for base_x in (left - 3, left + ew + gap + ew + 1):
+                for offset in (0, 4):
+                    yy = h*.80 + offset*.23
+                    p.drawLine(round(base_x+offset), round(yy),
+                               round(base_x+offset+2), round(yy+2))
+        if active == "sonolento" and h > 32:
+            p.setPen(QColor("#8EAFCF"))
+            p.drawText(round(left + 2*ew + gap + 8), round(h*.34 - 7*math.sin(time.monotonic()*.9)), "z")
+
+
