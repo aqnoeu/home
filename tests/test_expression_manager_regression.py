@@ -45,12 +45,26 @@ class ExpressionManagerRegressionTests(unittest.TestCase):
         self.assertIn('self.settings["expression_fixed"] = False', self.windows_app)
         self.assertIn('if charging or low or saver:', self.windows_app)
 
-    def test_sleepy_no_longer_renders_floating_z_or_blue_cheek_marks(self):
-        self.assertNotIn('canvas.drawText("z"', self.android_eyes)
-        self.assertNotIn('active == "sonolento" and h > 32:', self.windows_eyes)
-        self.assertNotIn('if(("sonolento".equals(state)||"timido".equals(state))', self.android_eyes)
+    def test_sleepy_auto_and_preview_use_same_compact_shape(self):
+        # The automatic state must override visual animations that expand eyes.
+        renderer = self.android_eyes
+        assert_auto = renderer.index('// The automatic sleepy state must use the SAME compact eyes')
+        voice_smoothing = renderer.index('// Escuta/fala são sinais imediatos')
+        self.assertLess(assert_auto, voice_smoothing)
+        self.assertIn('if("sonolento".equals(state) && !updateActive)', renderer)
+        override = renderer[assert_auto:voice_smoothing]
+        self.assertIn('targetH=.38f;', override)
+        self.assertIn('targetW=1f;', override)
+        self.assertIn('rgb=Color.rgb(142,175,207)', override)
+        self.assertIn('expressionPreview?EXPRESSION_KEYS[mood]:HomeEmotion.current(getContext())', renderer)
+        self.assertIn('if(now-LAST_TOUCH.get()>=5*60*1000L', self.android_emotions)
+
+    def test_sleepy_preserves_approved_blue_marks_and_z(self):
+        self.assertIn('canvas.drawText("z"', self.android_eyes)
+        self.assertIn('if("sonolento".equals(state)&&height>=dp(20))', self.android_eyes.replace('!listening && !commandListening && !speaking && ', ''))
         self.assertIn('targetH=.38f', self.android_eyes)
         self.assertIn('"sonolento": (.40', self.windows_eyes)
+        self.assertIn('if active == "sonolento" and h > 32:', self.windows_eyes)
 
     def test_windows_manager_controls_real_eyes_temporarily(self):
         self.assertIn('self.home.select_expression(index)', self.windows_gallery)
