@@ -15,7 +15,7 @@ O Home usa **apenas dois olhos**. Não desenhar boca, nariz, cabeça, bochechas 
 | Neutro | `neutro` | Dois olhos verticais arredondados, branco-azulado; piscadas e olhar natural |
 | Feliz (manual) | `mood=1` | Recorte inferior em cada olho, mantendo o par oficial |
 | Raiva / Bravo | `raiva` | Laranja, olhos reduzidos e tampas diagonais, leve tremor |
-| Sonolento | `sonolento` | Azul dessaturado; olhos semicerrados com cerca de 40% da altura normal; sem Z flutuante |
+| Sonolento | `sonolento` | Azul dessaturado; olhos semicerrados com cerca de 40% da altura normal; pequenos traços laterais e Z discreto, conforme prévia aprovada |
 | Tédio | `tedio` | Cinza, 75% da altura e 77% da largura |
 | Carregando | `carregando` | Verde, pulsação discreta de opacidade |
 | Bateria baixa | `bateria_baixa` | Âmbar, altura reduzida |
@@ -24,7 +24,7 @@ O Home usa **apenas dois olhos**. Não desenhar boca, nariz, cabeça, bochechas 
 | Pensando (voz) | `voice_state=thinking` | Ajusta a abertura vertical a 0,72 |
 | Falando | `voice_state=speaking` | Ajusta abertura a 0,96, sem pulsações de fala |
 
-O **sonolento** utiliza apenas os olhos semicerrados. As antigas marcas laterais azuis e o Z flutuante foram removidos por divergirem da expressão aprovada.
+O **sonolento** conserva os olhos semicerrados e os pequenos elementos laterais e Z da prévia aprovada. O estado automático deve manter a mesma redução de altura, mesmo com indicadores visuais de escuta/fala; a prévia e o notch real não podem divergir.
 
 ## Novas expressões implementadas
 
@@ -74,7 +74,7 @@ Executar `python -m unittest discover -s tests` e validar a interface Windows co
 - `HomeEmotion.normalize()` reconhece as emoções novas e `HomeGroq` pode retorná-las em seu JSON.
 - A seleção no painel é uma escolha manual, mas estados operacionais prioritários (bateria/carregamento, voz e atualizações) ainda podem substituir temporariamente a aparência no notch real.
 - O visual continua estritamente **sem boca**, com detalhes gráficos opcionais laterais/abaixo dos olhos.
-- Verificar em aparelho físico: navegação de páginas, seleção persistente, retorno à tela, notch real, atualizações e voz, além de fontes e telas estreitas.
+- Verificar em aparelho físico: navegação de páginas, seleção temporária de 30 segundos, retorno à seleção automática, notch real, atualizações e voz, além de fontes e telas estreitas.
 
 
 ## Galeria de teste do Windows — atualização de 17/11/2026
